@@ -7,6 +7,9 @@ Thumbs.db
 .vscode/
 *.swp
 
+# Superpowers 플러그인
+.superpowers/
+
 # Review pipeline sessions (작업 중 생성)
 ai/workspace/handoffs/review_pipeline/
 
