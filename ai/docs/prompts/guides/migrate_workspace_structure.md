@@ -42,6 +42,8 @@ mkdir -p ai/workspace/handoffs
 mv handoffs/* ai/workspace/handoffs/ 2>/dev/null
 ```
 
+**참고**: 위 목록에 없지만 `ai/docs/` 아래에 작업 산출물 성격의 프로젝트 고유 디렉토리가 남아 있으면, `ai/workspace/`로 이동할지 사용자에게 확인한다.
+
 ### 3. 빈 디렉토리 정리
 
 ```bash
