@@ -13,7 +13,7 @@
 | 아이디어 기록 | "future request에 기록해줘" |
 | 기록된 아이디어 조회 | "future request 목록 보여줘" |
 | 아이디어를 작업으로 승격 | "이거 REQUEST로 올려서 진행해줘" |
-| 템플릿 업데이트 | "템플릿 최신으로 업데이트해" |
+| 템플릿 업데이트 | "https://github.com/JuseongJee/review-driven-ai-workflow/blob/main/ai/docs/prompts/guides/sync_template.md 읽고 템플릿 업데이트 진행해줘" |
 
 ## 각 단계에서 할 일
 

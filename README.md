@@ -27,7 +27,7 @@ AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합�
 
 이미 적용된 프로젝트에서:
 
-> 템플릿 최신으로 업데이트해
+> https://github.com/JuseongJee/review-driven-ai-workflow/blob/main/ai/docs/prompts/guides/sync_template.md 읽고 템플릿 업데이트 진행해줘
 
 ## 워크플로
 
