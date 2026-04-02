@@ -1,0 +1,29 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Review pipeline sessions (작업 중 생성)
+handoffs/review_pipeline/
+
+# Superpowers 작업 산출물 (프로젝트별 내용)
+ai/docs/superpowers/plans/*.md
+!ai/docs/superpowers/plans/README.md
+ai/docs/superpowers/specs/base/*.md
+!ai/docs/superpowers/specs/base/README.md
+ai/docs/superpowers/specs/changes/*.md
+!ai/docs/superpowers/specs/changes/README.md
+
+# 분석 보고서 (프로젝트별 내용)
+ai/docs/reports/
+
+# Backlog 항목 파일 (프로젝트별 내용)
+ai/docs/backlog/items/*.md
+
+# Request 아카이브 (프로젝트별 내용)
+ai/docs/backlog/request-archive/*.md
+!ai/docs/backlog/request-archive/README.md
