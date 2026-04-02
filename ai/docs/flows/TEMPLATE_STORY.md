@@ -152,7 +152,7 @@ Superpowers가 들어간 Claude 중심 개발을 더 안정적으로 운영하�
 - `flows`: 전체 흐름 설명
 - `templates`: 반복 양식
 - `adr`: 왜 이런 결정을 했는지 기록
-- `superpowers`: spec / plan 산출물 위치
+- `../workspace`: spec / plan / backlog / reports 산출물 위치
 
 즉, 루트는 "핵심 운영 문서",
 `ai/`는 "운영 체계"다.
@@ -188,7 +188,7 @@ Superpowers가 들어간 Claude 중심 개발을 더 안정적으로 운영하�
 - 같은 쟁점을 반복한다
 - 사람이 중간 전달자가 되느라 피곤해진다
 
-그래서 `handoffs/review_pipeline/` 세션 구조를 만들었다.
+그래서 `ai/workspace/handoffs/review_pipeline/` 세션 구조를 만들었다.
 
 이 파이프라인은 파일을 중심으로 돌아간다.
 

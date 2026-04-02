@@ -13,7 +13,7 @@ usage() {
   bash ai/scripts/ai/run_review_turn_codex.sh <session-path>
 
 예:
-  bash ai/scripts/ai/run_review_turn_codex.sh handoffs/review_pipeline/20260313_120000_request-review
+  bash ai/scripts/ai/run_review_turn_codex.sh ai/workspace/handoffs/review_pipeline/20260313_120000_request-review
 EOF
 }
 

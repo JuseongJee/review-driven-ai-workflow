@@ -19,7 +19,7 @@
 
 1. 프로젝트 규칙과 제약은 `PROJECT_CONTEXT.md`에서 먼저 읽습니다.
 2. 현재 작업은 `REQUEST.md`와 `CURRENT_TASK.md`에 적힌 범위 안에서만 수행합니다.
-3. 현재 범위를 벗어나지만 가치가 있는 항목은 `ai/docs/backlog/FUTURE_REQUESTS.md`에 기록합니다.
+3. 현재 범위를 벗어나지만 가치가 있는 항목은 `ai/workspace/backlog/FUTURE_REQUESTS.md`에 기록합니다.
 4. 큰 작업과 기존 코드베이스의 중간 이상 변경은 reviewed spec / plan 없이 바로 구현하지 않습니다. 판단 기준은 `ai/docs/flows/WORKFLOW.md`에 있습니다.
 5. 사용자가 명시적으로 small-task로 지정한 작업만 바로 구현할 수 있습니다. AI가 자체적으로 small로 판단하지 않습니다.
 6. 구현 후에는 검증을 실행합니다 (절대 규칙 참조).
@@ -53,7 +53,7 @@
 
 ### REQUEST 아카이브
 
-- 작업 완료 시 현재 `REQUEST.md`를 `ai/docs/backlog/request-archive/YYYY-MM-DD-HHMM-작업명.md`로 복사합니다.
+- 작업 완료 시 현재 `REQUEST.md`를 `ai/workspace/backlog/request-archive/YYYY-MM-DD-HHMM-작업명.md`로 복사합니다.
 - 새 REQUEST로 덮어쓰기 전에 반드시 아카이브합니다.
 
 ## 절대 규칙 (모든 skill에 공통 적용)
@@ -68,7 +68,7 @@
 - review는 기본적으로 `prepare_review_pipeline.sh`로 세션을 만들고 `run_review_turn.sh`로 턴을 이어갑니다.
 - 최신 Codex 턴이 `이의 없음`을 명시할 때까지 review를 이어갑니다.
 - 사람 결정이 필요하거나 총 20턴에 도달하면 `awaiting-user`로 바꾸고 멈춥니다.
-- review 세션 종료 시 `ai/docs/reports/reviews/`에 주요 쟁점과 결론을 요약한 report를 작성합니다.
+- review 세션 종료 시 `ai/workspace/reports/reviews/`에 주요 쟁점과 결론을 요약한 report를 작성합니다.
 
 ## Always Read
 
@@ -80,7 +80,7 @@
 
 필요할 때만 읽을 파일:
 
-- `ai/docs/backlog/FUTURE_REQUESTS.md` — future request 기록/조회/autopilot 시
+- `ai/workspace/backlog/FUTURE_REQUESTS.md` — future request 기록/조회/autopilot 시
 - `ai/docs/flows/WORKFLOW.md` — 작업 분기가 헷갈릴 때
 - `ai/docs/AI_DOC_MAP.md` — 문서 위치가 헷갈릴 때
 - `ai/docs/prompts/README.md` — 프롬프트 파일이 필요할 때
@@ -110,9 +110,9 @@
 
 저장 위치:
 
-- 새 기능 spec: `ai/docs/superpowers/specs/base/`
-- 기존 코드 변경 change spec: `ai/docs/superpowers/specs/changes/`
-- plan: `ai/docs/superpowers/plans/`
+- 새 기능 spec: `ai/workspace/specs/base/`
+- 기존 코드 변경 change spec: `ai/workspace/specs/changes/`
+- plan: `ai/workspace/plans/`
 
 ## 커밋 메시지
 

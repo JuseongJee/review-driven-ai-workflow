@@ -140,8 +140,16 @@ ai/docs
 - flows
 - templates
 - policies
-- superpowers
 - adr
+
+ai/workspace
+
+구성
+
+- specs (base / changes)
+- plans
+- backlog
+- reports
 
 ## 핵심 워크플로
 
@@ -184,8 +192,8 @@ change spec
 
 위치
 
-ai/docs/superpowers/specs/base
-ai/docs/superpowers/specs/changes
+ai/workspace/specs/base
+ai/workspace/specs/changes
 
 ## plan 구조
 
@@ -193,7 +201,7 @@ implementation plan
 
 위치
 
-ai/docs/superpowers/plans
+ai/workspace/plans
 
 ## 추가 문서 역할
 

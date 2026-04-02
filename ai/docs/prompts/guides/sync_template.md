@@ -47,11 +47,11 @@ git clone --depth 1 <배포 repo URL> /tmp/ai-dev-template-latest
 **보존** — 절대 덮어쓰거나 지우지 않는 파일:
 - `PROJECT_CONTEXT.md`
 - `REQUEST.md`, `CURRENT_TASK.md` (프로젝트 고유 내용이 있는 경우)
-- `ai/docs/backlog/FUTURE_REQUESTS.md` (항목이 있는 경우)
-- `ai/docs/backlog/request-archive/` 안의 아카이브 파일
-- `ai/docs/superpowers/specs/`, `ai/docs/superpowers/plans/` 안의 작업 산출물 (README 제외)
+- `ai/workspace/backlog/FUTURE_REQUESTS.md` (항목이 있는 경우)
+- `ai/workspace/backlog/request-archive/` 안의 아카이브 파일
+- `ai/workspace/specs/`, `ai/workspace/plans/` 안의 작업 산출물 (README 제외)
 - `ai/scripts/ai/{build,test,lint,typecheck}.sh` (프로젝트별 명령이 들어 있음)
-- `handoffs/` 안의 작업 내용물
+- `ai/workspace/handoffs/` 안의 작업 내용물
 - 프로젝트 고유 설정 파일 (`.gitignore`, `.swiftlint.yml`, `.claude/` 등)
 
 ### 3. 사용자 확인
@@ -68,14 +68,23 @@ git clone --depth 1 <배포 repo URL> /tmp/ai-dev-template-latest
 
 동기화 실행 전에, 템플릿의 구조 변경으로 프로젝트에 마이그레이션이 필요한지 확인합니다.
 
-**FUTURE_REQUESTS 인덱스 마이그레이션**:
-- `ai/docs/backlog/FUTURE_REQUESTS.md`에 `## 인덱스` 섹션이 없으면 구형(인라인) 포맷
-- 구형 포맷이 감지되면:
-  1. 기존 `FUTURE_REQUESTS.md`에서 `## YYYY-MM-DD` 패턴의 항목을 각각 추출
-  2. `ai/docs/backlog/items/YYYY-MM-DD-제목.md` 개별 파일로 생성
-  3. `FUTURE_REQUESTS.md`를 인덱스 테이블 형식으로 변환 (템플릿 헤더 + 항목당 1줄)
-  4. `FUTURE_REQUESTS_DONE.md`가 있으면 동일하게 항목을 `items/`로 추출 후 삭제
-  5. 마이그레이션 결과를 사용자에게 보여주고 확인을 받는다
+아래 마이그레이션을 순서대로 감지하고, 해당되는 항목만 실행합니다.
+
+#### 4-1. workspace 디렉토리 구조 마이그레이션
+
+`ai/docs/superpowers/` 디렉토리가 존재하면 구형 구조입니다.
+`ai/docs/prompts/guides/migrate_workspace_structure.md`의 절차를 실행합니다.
+
+#### 4-2. FUTURE_REQUESTS 인덱스 마이그레이션
+
+`ai/workspace/backlog/FUTURE_REQUESTS.md`에 `## 인덱스` 섹션이 없으면 구형(인라인) 포맷입니다.
+
+구형 포맷이 감지되면:
+1. 기존 `FUTURE_REQUESTS.md`에서 `## YYYY-MM-DD` 패턴의 항목을 각각 추출
+2. `ai/workspace/backlog/items/YYYY-MM-DD-제목.md` 개별 파일로 생성
+3. `FUTURE_REQUESTS.md`를 인덱스 테이블 형식으로 변환 (템플릿 헤더 + 항목당 1줄)
+4. `FUTURE_REQUESTS_DONE.md`가 있으면 동일하게 항목을 `items/`로 추출 후 삭제
+5. 마이그레이션 결과를 사용자에게 보여주고 확인을 받는다
 
 ### 5. 동기화 실행
 

@@ -22,7 +22,7 @@ review-kind:
   bash ai/scripts/ai/prepare_review_pipeline.sh project-context
   bash ai/scripts/ai/prepare_review_pipeline.sh request
   bash ai/scripts/ai/prepare_review_pipeline.sh spec-plan
-  bash ai/scripts/ai/prepare_review_pipeline.sh spec-plan ai/docs/superpowers/specs/changes/2026-03-12-image-compression-change-spec.md ai/docs/superpowers/plans/2026-03-12-image-compression-plan.md
+  bash ai/scripts/ai/prepare_review_pipeline.sh spec-plan ai/workspace/specs/changes/2026-03-12-image-compression-change-spec.md ai/workspace/plans/2026-03-12-image-compression-plan.md
   bash ai/scripts/ai/prepare_review_pipeline.sh diff
   bash ai/scripts/ai/prepare_review_pipeline.sh diff "git diff main...HEAD"
 EOF
@@ -109,11 +109,11 @@ case "$review_kind" in
     plan_path="${2:-}"
 
     if [[ -z "$spec_path" ]]; then
-      spec_path="$(latest_markdown_file "ai/docs/superpowers/specs/changes" "ai/docs/superpowers/specs/base" || true)"
+      spec_path="$(latest_markdown_file "ai/workspace/specs/changes" "ai/workspace/specs/base" || true)"
     fi
 
     if [[ -z "$plan_path" ]]; then
-      plan_path="$(latest_markdown_file "ai/docs/superpowers/plans" || true)"
+      plan_path="$(latest_markdown_file "ai/workspace/plans" || true)"
     fi
 
     if [[ -z "$spec_path" || -z "$plan_path" ]]; then

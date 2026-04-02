@@ -7,7 +7,7 @@ cd "${project_root}"
 
 if [[ $# -lt 2 || $# -gt 4 ]]; then
   echo "사용법: bash ai/scripts/ai/init_review_pipeline.sh <session-slug> <review-type> [review-target] [review-goal]" >&2
-  echo "예: bash ai/scripts/ai/init_review_pipeline.sh image-compression-spec spec-plan-review ai/docs/superpowers/specs/changes/2026-03-12-image-compression-change-spec.md \"spec / plan 검토\"" >&2
+  echo "예: bash ai/scripts/ai/init_review_pipeline.sh image-compression-spec spec-plan-review ai/workspace/specs/changes/2026-03-12-image-compression-change-spec.md \"spec / plan 검토\"" >&2
   exit 1
 fi
 
@@ -29,7 +29,7 @@ fi
 
 timestamp="$(date '+%Y%m%d_%H%M%S')"
 session_id="${timestamp}_${safe_slug}"
-session_dir="handoffs/review_pipeline/${session_id}"
+session_dir="ai/workspace/handoffs/review_pipeline/${session_id}"
 
 mkdir -p "${session_dir}/turns"
 

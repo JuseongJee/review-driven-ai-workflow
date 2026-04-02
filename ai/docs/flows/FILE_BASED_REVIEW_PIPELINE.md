@@ -18,7 +18,7 @@
 
 ## 세션 위치
 
-- `handoffs/review_pipeline/<session-id>/`
+- `ai/workspace/handoffs/review_pipeline/<session-id>/`
 
 ## 세션 생성
 
@@ -87,7 +87,7 @@ review kind:
 
 리뷰 세션이 종료(`awaiting-user` 또는 `closed`)되면, 요약 report를 작성한다.
 
-저장 위치: `ai/docs/reports/reviews/YYYY-MM-DD-HHMM-작업명-<review종류>.md`
+저장 위치: `ai/workspace/reports/reviews/YYYY-MM-DD-HHMM-작업명-<review종류>.md`
 
 review종류: `request-review`, `spec-plan-review`, `diff-review`, `project-context-review`
 
@@ -97,7 +97,7 @@ review종류: `request-review`, `spec-plan-review`, `diff-review`, `project-cont
 # [Review 종류] 요약
 
 - 일시: YYYY-MM-DD HH:MM
-- 세션: handoffs/review_pipeline/<session-id>/
+- 세션: ai/workspace/handoffs/review_pipeline/<session-id>/
 - 대상: [검토 대상 파일/경로]
 
 ## 주요 쟁점

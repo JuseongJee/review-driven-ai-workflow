@@ -17,7 +17,7 @@
 `WORKING_WITH_AI.md`
 - 평상시 작업 순서
 
-`handoffs/review_pipeline/`
+`ai/workspace/handoffs/review_pipeline/`
 - Claude <-> Codex review 세션 파일
 
 ## 진입점
@@ -33,12 +33,6 @@
 
 `review_prompts/`
 - review 세션에 그대로 붙여 넣는 검토 기준
-
-`backlog/FUTURE_REQUESTS.md`
-- 지금 작업에서 빼고 나중에 처리할 후보
-
-`backlog/request-archive/`
-- 완료된 REQUEST.md 보관소 (과거 작업 이력 추적용)
 
 `flows/WORKFLOW.md`
 - 작업 분기와 권장 순서 요약
@@ -61,14 +55,28 @@
 `adr/`
 - 운영 규칙과 구조 결정을 남긴 기록
 
-`superpowers/specs/base/`
+## ai/workspace
+
+`backlog/FUTURE_REQUESTS.md`
+- 지금 작업에서 빼고 나중에 처리할 후보
+
+`backlog/request-archive/`
+- 완료된 REQUEST.md 보관소 (과거 작업 이력 추적용)
+
+`specs/base/`
 - 새 기능 spec 저장 위치
 
-`superpowers/specs/changes/`
+`specs/changes/`
 - 기존 코드 변경 change spec 저장 위치
 
-`superpowers/plans/`
+`plans/`
 - plan 저장 위치
+
+`reports/reviews/`
+- review 세션 요약 보고서
+
+`reports/autopilot/`
+- autopilot 완료 보고서
 
 ## ai/scripts/ai
 

@@ -40,7 +40,7 @@
 
 ## REQUEST 아카이브
 
-작업이 완료되면 현재 `REQUEST.md`를 `ai/docs/backlog/request-archive/`에 보관합니다.
+작업이 완료되면 현재 `REQUEST.md`를 `ai/workspace/backlog/request-archive/`에 보관합니다.
 
 - 파일명: `YYYY-MM-DD-HHMM-작업명.md`
 - 새 REQUEST로 덮어쓰기 전에 먼저 아카이브합니다
@@ -51,7 +51,7 @@
 - skill이 있으면 skill부터 호출합니다
 - skill이 없거나 원하는 출력이 안 나오면 `ai/docs/prompts/`에서 맞는 프롬프트를 꺼냅니다
 - 큰 작업은 reviewed spec / plan 파일을 만든 뒤에만 구현합니다
-- 범위를 벗어난 아이디어는 `ai/docs/backlog/FUTURE_REQUESTS.md`에 적습니다
+- 범위를 벗어난 아이디어는 `ai/workspace/backlog/FUTURE_REQUESTS.md`에 적습니다
 
 ## 권장 skill 순서
 

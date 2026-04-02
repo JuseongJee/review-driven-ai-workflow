@@ -1,4 +1,4 @@
-`ai/docs/backlog/FUTURE_REQUESTS.md`에서 지금 `REQUEST.md`로 올릴 만한 후보를 보여줘.
+`ai/workspace/backlog/FUTURE_REQUESTS.md`에서 지금 `REQUEST.md`로 올릴 만한 후보를 보여줘.
 
 규칙:
 - `validated` 또는 `ready-for-request`를 우선 본다

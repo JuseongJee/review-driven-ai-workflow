@@ -12,8 +12,8 @@ Typical user request:
 - "implement-reviewed-plan skill로 진행해줘"
 
 Read these first (Always Read files are already loaded):
-- latest spec from `ai/docs/superpowers/specs/base/` or `ai/docs/superpowers/specs/changes/`
-- latest plan from `ai/docs/superpowers/plans/`
+- latest spec from `ai/workspace/specs/base/` or `ai/workspace/specs/changes/`
+- latest plan from `ai/workspace/plans/`
 
 Execution rules:
 - If there is no credible reviewed spec / plan yet, stop and recommend `/request-to-reviewed-plan`.

@@ -32,7 +32,7 @@ git merge --no-ff feature/기능명
 
 # 핸드오프 규칙
 
-작업을 다른 사람이나 세션에 넘길 때 handoffs/ 폴더에 작업 컨텍스트를 저장합니다.
+작업을 다른 사람이나 세션에 넘길 때 ai/workspace/handoffs/ 폴더에 작업 컨텍스트를 저장합니다.
 
 파일명 형식:
 
@@ -40,4 +40,4 @@ git merge --no-ff feature/기능명
 
 예:
 
-handoffs/001_ed5d699a_20260224_190530_앱아이콘추가.md
+ai/workspace/handoffs/001_ed5d699a_20260224_190530_앱아이콘추가.md

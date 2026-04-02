@@ -12,7 +12,7 @@
 
 ## 핵심 설계
 
-- 표준은 항상 `handoffs/review_pipeline/` 세션 구조입니다
+- 표준은 항상 `ai/workspace/handoffs/review_pipeline/` 세션 구조입니다
 - Claude는 오케스트레이터입니다
 - Codex CLI는 교체 가능한 adapter입니다
 - 상태 전이는 `SESSION.md`가 단일 기준입니다

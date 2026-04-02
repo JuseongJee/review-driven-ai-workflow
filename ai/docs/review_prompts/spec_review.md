@@ -1,4 +1,4 @@
-ai/docs/superpowers/specs/와 ai/docs/superpowers/plans/의 최신 문서를 검토해줘.
+ai/workspace/specs/와 ai/workspace/plans/의 최신 문서를 검토해줘.
 
 검토 기준
 - 과도한 설계 여부

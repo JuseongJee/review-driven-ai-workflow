@@ -1,4 +1,4 @@
-붙어 있는 세션 경로(예: `handoffs/review_pipeline/YYYYMMDD_HHMMSS_세션명`)와 `ai/docs/flows/FILE_BASED_REVIEW_PIPELINE.md`를 읽고 파일 기반 review를 이어줘.
+붙어 있는 세션 경로(예: `ai/workspace/handoffs/review_pipeline/YYYYMMDD_HHMMSS_세션명`)와 `ai/docs/flows/FILE_BASED_REVIEW_PIPELINE.md`를 읽고 파일 기반 review를 이어줘.
 
 절차:
 1. `SESSION.md`, `CHECKPOINT.md`, 최신 턴 파일, 검토 대상을 읽는다

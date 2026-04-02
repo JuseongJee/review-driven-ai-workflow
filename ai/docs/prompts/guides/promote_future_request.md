@@ -1,4 +1,4 @@
-`ai/docs/backlog/FUTURE_REQUESTS.md`에서 내가 지정한 backlog 항목 1개만 기준으로 `REQUEST.md` 초안을 만들어줘.
+`ai/workspace/backlog/FUTURE_REQUESTS.md`에서 내가 지정한 backlog 항목 1개만 기준으로 `REQUEST.md` 초안을 만들어줘.
 
 규칙:
 - 내가 지정한 항목 1개만 사용한다

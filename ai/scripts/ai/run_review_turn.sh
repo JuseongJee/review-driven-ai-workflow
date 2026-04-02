@@ -14,7 +14,7 @@ usage() {
   codex
 
 예:
-  bash ai/scripts/ai/run_review_turn.sh codex handoffs/review_pipeline/20260313_120000_request-review
+  bash ai/scripts/ai/run_review_turn.sh codex ai/workspace/handoffs/review_pipeline/20260313_120000_request-review
 EOF
 }
 

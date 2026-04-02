@@ -42,7 +42,7 @@ digraph autopilot {
 
 ### 1. 작업 선택
 
-- `ai/docs/backlog/FUTURE_REQUESTS.md`를 읽는다
+- `ai/workspace/backlog/FUTURE_REQUESTS.md`를 읽는다
 - `validated` 또는 `ready-for-request` 상태 항목만 후보로 제시한다
 - 후보가 없으면 `idea` 상태도 포함하되, 사용자에게 알린다
 - **AskUserQuestion으로 목록을 보여주고 사용자가 선택한다**
@@ -101,12 +101,12 @@ bash ai/scripts/ai/run_review_turn.sh codex <session-path>
 
 - **Final diff review가 완료(Codex "이의 없음" 명시)되기 전에는 마무리 단계로 넘어가지 않는다.**
 - `superpowers:finishing-a-development-branch` skill의 옵션 중 추천을 자동 선택한다
-- REQUEST를 `ai/docs/backlog/request-archive/`에 아카이브한다
+- REQUEST를 `ai/workspace/backlog/request-archive/`에 아카이브한다
 - FUTURE_REQUESTS.md 인덱스에서 해당 항목의 상태를 `done`으로 변경하고, `items/` 상세 파일에서도 status를 `done`으로 표기한다
 
 ### 7. 최종 보고
 
-보고 파일을 `ai/docs/reports/autopilot/YYYY-MM-DD-HHMM-작업명.md`에 저장하고, 내용을 사용자에게도 출력한다.
+보고 파일을 `ai/workspace/reports/autopilot/YYYY-MM-DD-HHMM-작업명.md`에 저장하고, 내용을 사용자에게도 출력한다.
 
 보고 파일 형식:
 
@@ -114,7 +114,7 @@ bash ai/scripts/ai/run_review_turn.sh codex <session-path>
 # Autopilot 완료 보고
 
 - 일시: YYYY-MM-DD HH:MM
-- REQUEST 아카이브: `ai/docs/backlog/request-archive/YYYY-MM-DD-HHMM-작업명.md`
+- REQUEST 아카이브: `ai/workspace/backlog/request-archive/YYYY-MM-DD-HHMM-작업명.md`
 
 ## 선택한 작업
 - 항목: [제목]
@@ -130,9 +130,9 @@ bash ai/scripts/ai/run_review_turn.sh codex <session-path>
 | ... | ... | ... | ... |
 
 ## Codex 리뷰 요약
-- REQUEST review: [한줄 요약] → `ai/docs/reports/reviews/...-request-review.md`
-- Spec/Plan review: [한줄 요약] → `ai/docs/reports/reviews/...-spec-plan-review.md`
-- Final diff review: [한줄 요약] → `ai/docs/reports/reviews/...-diff-review.md`
+- REQUEST review: [한줄 요약] → `ai/workspace/reports/reviews/...-request-review.md`
+- Spec/Plan review: [한줄 요약] → `ai/workspace/reports/reviews/...-spec-plan-review.md`
+- Final diff review: [한줄 요약] → `ai/workspace/reports/reviews/...-diff-review.md`
 
 ## Rollback
 - 브랜치: `autopilot/<작업명>-<timestamp>`
