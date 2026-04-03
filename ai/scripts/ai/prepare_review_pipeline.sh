@@ -165,7 +165,7 @@ ${review_goal}
 ${session_path}
 
 ## Preferred Flow
-Claude 중심 권장 흐름에서는 아래 프롬프트만 Claude에게 넣고, 이후 Codex 차례는 Claude가 이 세션 경로로 \`bash ai/scripts/ai/run_review_turn.sh codex ...\`를 처리한다.
+Claude 중심 권장 흐름에서는 아래 프롬프트만 Claude에게 넣고, 이후 Codex 차례는 Claude가 이 세션 경로로 \`bash ai/scripts/ai/run_review_turn.sh ...\`를 처리한다.
 
 ## Step 1. Paste To Claude
 \`\`\`text
@@ -176,7 +176,7 @@ ${session_path}
 \`\`\`
 
 ## Step 2. Manual Codex Fallback
-Claude가 CLI를 실행할 수 없고, Claude가 첫 턴을 작성한 뒤 \`SESSION.md\`의 \`Current Owner\`가 \`Codex\`가 되면 아래를 Codex에게 넣는다.
+Claude가 CLI를 실행할 수 없고, Claude가 첫 턴을 작성한 뒤 \`SESSION.md\`의 \`Current Owner\`가 \`Reviewer\`가 되면 아래를 Reviewer에게 넣는다.
 
 \`\`\`text
 \`ai/docs/prompts/manual/review_pipeline_continue_manual.md\`대로 이어줘.
@@ -186,7 +186,7 @@ ${session_path}
 \`\`\`
 
 ## Step 3. Repeat
-- 권장 흐름에서는 Claude가 최신 Codex 턴이 \`이의 없음\`을 명시할 때까지 같은 세션을 계속 읽고 필요할 때 Codex adapter를 호출한다.
+- 권장 흐름에서는 Claude가 최신 Reviewer 턴이 \`이의 없음\`을 명시할 때까지 같은 세션을 계속 읽고 필요할 때 리뷰 어댑터를 호출한다.
 - 수동 fallback에서는 같은 이어가기 프롬프트를 계속 재사용한다.
 - 총 턴 수는 최대 ${turn_limit}개이며, ${turn_limit}턴에 도달하면 남은 쟁점을 정리하고 \`awaiting-user\`로 넘긴다.
 - 현재 차례는 \`SESSION.md\`의 \`Current Owner\`를 본다.
@@ -210,7 +210,7 @@ ${review_goal}
 
 next:
 1. 아래 프롬프트를 Claude에게 넣으세요.
-2. 권장 흐름에서는 Claude가 Codex 차례에 이 세션 경로로 \`bash ai/scripts/ai/run_review_turn.sh codex ...\`를 실행합니다.
+2. 권장 흐름에서는 Claude가 Codex 차례에 이 세션 경로로 \`bash ai/scripts/ai/run_review_turn.sh ...\`를 실행합니다.
 3. Claude가 CLI를 실행할 수 없을 때만 ${prompts_path} 의 수동 fallback 블록을 사용하세요.
 
 ----- CLAUDE -----

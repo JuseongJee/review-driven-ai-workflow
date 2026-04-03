@@ -1,11 +1,11 @@
 ---
 name: autopilot
-description: Use when wanting to pick a task from FUTURE_REQUESTS.md and run the full pipeline autonomously - all Codex reviews included, with rollback points and session-aware completion
+description: Use when wanting to pick a task from FUTURE_REQUESTS.md and run the full pipeline autonomously - all reviews included, with rollback points and session-aware completion
 ---
 
 # Autopilot
 
-FUTURE_REQUESTS에서 작업을 선택하고, 모든 Codex 리뷰를 포함한 전체 파이프라인을 자율 실행한다.
+FUTURE_REQUESTS에서 작업을 선택하고, 모든 리뷰를 포함한 전체 파이프라인을 자율 실행한다.
 
 ## Pipeline
 
@@ -16,13 +16,13 @@ digraph autopilot {
 
     select [label="1. FUTURE_REQUESTS 목록 제시\n사용자가 선택"];
     request [label="2. REQUEST.md 생성"];
-    request_review [label="3. REQUEST review (Codex)"];
+    request_review [label="3. REQUEST review (Reviewer)"];
     branch [label="4. rollback 브랜치 생성"];
     design [label="5. brainstorming → spec → plan"];
-    spec_review [label="6. spec/plan review (Codex)"];
+    spec_review [label="6. spec/plan review (Reviewer)"];
     implement [label="7. 구현 (TDD + auto-debug)"];
     verify [label="8. 검증 (test/lint/typecheck)"];
-    diff_review [label="9. final diff review (Codex)"];
+    diff_review [label="9. final diff review (Reviewer)"];
     finish [label="10. 마무리 (추천 옵션 자동 선택)"];
     archive [label="11. REQUEST 아카이브"];
     report [label="12. 최종 보고"];
@@ -48,7 +48,7 @@ digraph autopilot {
 - **AskUserQuestion으로 목록을 보여주고 사용자가 선택한다**
 - 선택된 항목의 `request seed`를 기반으로 `REQUEST.md`를 생성한다
 
-### 2. Codex 리뷰 — 3단계 전부 실행
+### 2. 리뷰 — 3단계 전부 실행
 
 모든 리뷰는 아래 패턴을 따른다:
 
@@ -56,8 +56,8 @@ digraph autopilot {
 # 세션 생성
 bash ai/scripts/ai/prepare_review_pipeline.sh <review-kind> [args...]
 
-# Claude 턴 작성 → Codex 턴 실행
-bash ai/scripts/ai/run_review_turn.sh codex <session-path>
+# Claude 턴 작성 → Reviewer 턴 실행
+bash ai/scripts/ai/run_review_turn.sh <session-path>
 ```
 
 | 단계 | review-kind | 타이밍 |
@@ -67,9 +67,9 @@ bash ai/scripts/ai/run_review_turn.sh codex <session-path>
 | Final diff review | `diff` | 구현 + 검증 완료 후 |
 
 **수렴 규칙:**
-- 최신 Codex 턴이 "이의 없음"을 명시할 때까지 반복한다
+- 최신 Reviewer 턴이 "이의 없음"을 명시할 때까지 반복한다
 - 20턴 도달 시 `awaiting-user`로 전환하고 사용자에게 보고한다
-- Codex 피드백으로 수정이 필요하면 자율적으로 반영한다
+- Reviewer 피드백으로 수정이 필요하면 자율적으로 반영한다
 
 ### 3. Rollback 준비
 
@@ -99,7 +99,7 @@ bash ai/scripts/ai/run_review_turn.sh codex <session-path>
 
 ### 6. 마무리
 
-- **Final diff review가 완료(Codex "이의 없음" 명시)되기 전에는 마무리 단계로 넘어가지 않는다.**
+- **Final diff review가 완료(Reviewer "이의 없음" 명시)되기 전에는 마무리 단계로 넘어가지 않는다.**
 - `superpowers:finishing-a-development-branch` skill의 옵션 중 추천을 자동 선택한다
 - REQUEST를 `ai/workspace/backlog/request-archive/`에 아카이브한다
 - FUTURE_REQUESTS.md 인덱스에서 해당 항목의 상태를 `done`으로 변경하고, `items/` 상세 파일에서도 status를 `done`으로 표기한다
@@ -129,7 +129,7 @@ bash ai/scripts/ai/run_review_turn.sh codex <session-path>
 | 마무리 방식 | [merge/PR/...] | [다른 옵션들] | [이유] |
 | ... | ... | ... | ... |
 
-## Codex 리뷰 요약
+## 리뷰 요약
 - REQUEST review: [한줄 요약] → `ai/workspace/reports/reviews/...-request-review.md`
 - Spec/Plan review: [한줄 요약] → `ai/workspace/reports/reviews/...-spec-plan-review.md`
 - Final diff review: [한줄 요약] → `ai/workspace/reports/reviews/...-diff-review.md`

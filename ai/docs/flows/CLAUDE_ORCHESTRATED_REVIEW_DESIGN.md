@@ -6,7 +6,7 @@
 
 ## 목표
 
-- 사용자가 Claude와 Codex 사이를 수동으로 중계하지 않게 만듭니다
+- 사용자가 Author와 Reviewer 사이를 수동으로 중계하지 않게 만듭니다
 - review 기록을 파일로 남깁니다
 - 특정 CLI 도구에 포맷이 묶이지 않게 만듭니다
 
@@ -14,7 +14,7 @@
 
 - 표준은 항상 `ai/workspace/handoffs/review_pipeline/` 세션 구조입니다
 - Claude는 오케스트레이터입니다
-- Codex CLI는 교체 가능한 adapter입니다
+- 리뷰 도구는 교체 가능한 adapter입니다
 - 상태 전이는 `SESSION.md`가 단일 기준입니다
 - 사람 개입은 `awaiting-user`에서만 요구합니다
 
@@ -29,13 +29,13 @@
 
 - 세션 파일: `SESSION.md`, `CHECKPOINT.md`, `USER_ACTION.md`, `turns/*.md`
 - 준비 스크립트: `prepare_review_pipeline.sh`, `init_review_pipeline.sh`
-- 실행 adapter: `run_review_turn.sh`, `run_review_turn_codex.sh`
+- 실행 adapter: `run_review_turn.sh`, `adapter_codex.sh`, `adapter_claude.sh`
 
 ## 운영 감각
 
 1. 사용자는 검토 시작만 요청한다
 2. Claude가 자기 턴을 직접 쓴다
-3. Codex 차례가 되면 Claude가 adapter를 실행한다
+3. Reviewer 차례가 되면 Author가 adapter를 실행한다
 4. 수렴하거나 사람 결정이 필요할 때만 `awaiting-user`로 바꾸고 사용자에게 돌립니다
 
 ## 자세한 규칙

@@ -52,17 +52,17 @@ ${review_target}
 ${review_goal}
 
 ## Status
-awaiting-claude
+awaiting-author
 
 ## Current Owner
-Claude
+Author
 
 ## Turn Limit
 ${turn_limit} total turns in \`turns/*.md\`
 
 ## Stop Rule
-- 기본값: 최신 Codex 턴이 \`이의 없음\`을 명시할 때까지 Claude와 Codex가 번갈아 검토한다.
-- Claude는 Codex 지적에 답한 뒤 최신 Codex 재확인 없이 \`awaiting-user\`로 넘기지 않는다.
+- 기본값: 최신 Reviewer 턴이 \`이의 없음\`을 명시할 때까지 Author와 Reviewer가 번갈아 검토한다.
+- Author는 Reviewer 지적에 답한 뒤 최신 Reviewer 재확인 없이 \`awaiting-user\`로 넘기지 않는다.
 - 추가 진행 전에 사람 결정이 필요하면 \`awaiting-user\`로 전환한다.
 - 총 턴 수가 ${turn_limit}에 도달하면 더 이상 다음 턴을 만들지 않고 \`awaiting-user\`로 전환한다.
 
@@ -88,7 +88,7 @@ cat <<EOF > "${session_dir}/CHECKPOINT.md"
 - 
 
 ## Suggested Next Owner
-Claude
+Author
 EOF
 
 cat <<EOF > "${session_dir}/USER_ACTION.md"

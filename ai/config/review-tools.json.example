@@ -1,0 +1,17 @@
+{
+  "default_priority": ["codex", "claude"],
+  "tools": {
+    "codex": {
+      "bin": null
+    },
+    "claude": {
+      "bin": null,
+      "self_review_warning": true
+    }
+  },
+  "overrides": {
+    "diff-review": {
+      "priority": ["codex"]
+    }
+  }
+}

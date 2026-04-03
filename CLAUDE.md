@@ -37,9 +37,14 @@
 
 - 설계: `brainstorming`
 - 계획: `writing-plans`
-- 구현: `executing-plans`
-- subagent 가능 시: `subagent-driven-development`
+- 구현: `subagent-driven-development` (기본) 또는 `executing-plans`
 - worktree 가능 시: `using-git-worktrees`
+
+실행 모드 규칙:
+
+- 기본값은 `subagent-driven-development`이다. 물어보지 않고 바로 시작한다.
+- 다음 조건을 **모두** 만족할 때만 inline(`executing-plans`)을 제안한다: (1) Task가 3개 이하 (2) 모든 Task가 같은 파일을 수정하거나 전체가 문서 수정만인 plan.
+- 위 조건에 해당해도 사용자가 subagent를 요청하면 subagent로 한다.
 
 ## 핵심 절차
 
@@ -66,7 +71,7 @@
 
 - 큰 작업과 기존 코드베이스의 중간 이상 변경에서는 `REQUEST review`, `spec/plan review`, `final diff review`를 건너뛰지 않습니다.
 - review는 기본적으로 `prepare_review_pipeline.sh`로 세션을 만들고 `run_review_turn.sh`로 턴을 이어갑니다.
-- 최신 Codex 턴이 `이의 없음`을 명시할 때까지 review를 이어갑니다.
+- 최신 Reviewer 턴이 `이의 없음`을 명시할 때까지 review를 이어갑니다.
 - 사람 결정이 필요하거나 총 20턴에 도달하면 `awaiting-user`로 바꾸고 멈춥니다.
 - review 세션 종료 시 `ai/workspace/reports/reviews/`에 주요 쟁점과 결론을 요약한 report를 작성합니다.
 

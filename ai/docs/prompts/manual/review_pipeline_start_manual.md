@@ -7,7 +7,7 @@
 2. `SESSION.md`, `CHECKPOINT.md`, `USER_ACTION.md`를 채웁니다
 3. `turns/001_claude.md`를 작성합니다
 4. `CHECKPOINT.md`에 열린 쟁점과 Codex에게 넘길 질문을 정리합니다
-5. `SESSION.md`를 `awaiting-codex`로 바꾸고 멈춥니다
+5. `SESSION.md`를 `awaiting-reviewer`로 바꾸고 멈춥니다
 
 규칙:
 - 메타데이터를 추측하지 말 것

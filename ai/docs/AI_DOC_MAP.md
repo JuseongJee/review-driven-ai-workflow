@@ -18,7 +18,7 @@
 - 평상시 작업 순서
 
 `ai/workspace/handoffs/review_pipeline/`
-- Claude <-> Codex review 세션 파일
+- Author <-> Reviewer review 세션 파일
 
 ## 진입점
 
@@ -33,6 +33,12 @@
 
 `review_prompts/`
 - review 세션에 그대로 붙여 넣는 검토 기준
+
+`backlog/FUTURE_REQUESTS.md`
+- 지금 작업에서 빼고 나중에 처리할 후보
+
+`backlog/request-archive/`
+- 완료된 REQUEST.md 보관소 (과거 작업 이력 추적용)
 
 `flows/WORKFLOW.md`
 - 작업 분기와 권장 순서 요약
@@ -55,28 +61,14 @@
 `adr/`
 - 운영 규칙과 구조 결정을 남긴 기록
 
-## ai/workspace
-
-`backlog/FUTURE_REQUESTS.md`
-- 지금 작업에서 빼고 나중에 처리할 후보
-
-`backlog/request-archive/`
-- 완료된 REQUEST.md 보관소 (과거 작업 이력 추적용)
-
-`specs/base/`
+`superpowers/specs/base/`
 - 새 기능 spec 저장 위치
 
-`specs/changes/`
+`superpowers/specs/changes/`
 - 기존 코드 변경 change spec 저장 위치
 
-`plans/`
+`superpowers/plans/`
 - plan 저장 위치
-
-`reports/reviews/`
-- review 세션 요약 보고서
-
-`reports/autopilot/`
-- autopilot 완료 보고서
 
 ## ai/scripts/ai
 
@@ -101,8 +93,14 @@
 `run_review_turn.sh`
 - review 한 턴 실행
 
-`run_review_turn_codex.sh`
-- Codex review 한 턴 실행
+`review_common.sh`
+- 리뷰 파이프라인 공통 함수
+
+`adapter_codex.sh`
+- Codex 어댑터
+
+`adapter_claude.sh`
+- Claude CLI 셀프 리뷰 어댑터
 
 `install_claude_skills.sh`
 - project/personal skill 설치
