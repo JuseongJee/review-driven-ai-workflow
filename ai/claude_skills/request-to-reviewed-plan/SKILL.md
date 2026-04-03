@@ -26,6 +26,7 @@ Execution rules:
 - Use `bash ai/scripts/ai/prepare_review_pipeline.sh request` and `bash ai/scripts/ai/run_review_turn.sh ...` for `REQUEST` review.
 - Use `bash ai/scripts/ai/prepare_review_pipeline.sh spec-plan` or the explicit spec / plan paths plus `bash ai/scripts/ai/run_review_turn.sh ...` for spec / plan review.
 - **Superpowers가 사용 가능하면 반드시 `brainstorming`과 `writing-plans`를 사용한다.** 사용 불가능할 때만 같은 산출물을 직접 작성한다.
+- UI 작업인 경우 spec에 `## Design Reference` 섹션을 포함한다. 내용: 참고 앱/화면 URL, 스크린샷, 스타일 방향. 비UI 작업이면 이 섹션을 생략한다.
 - Update `CURRENT_TASK.md` at the major checkpoints.
 - Stop before implementation.
 
@@ -36,5 +37,5 @@ Final output:
 - plan path
 - request review session path
 - spec / plan review session path
-- `Next recommended skill: /implement-reviewed-plan` or `/small-task-implement`
+- `Next recommended skill: /design-review` (큰 작업) or `/small-task-implement` (작은 작업)
 - Any remaining user question, only if it is actually blocking

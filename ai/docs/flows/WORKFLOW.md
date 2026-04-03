@@ -28,6 +28,22 @@
 
 사용자가 small로 지정하지 않은 모든 작업은 큰 작업으로 취급합니다.
 
+## UI 작업 판단 기준
+
+UI 작업 여부에 따라 디자인 리뷰 단계를 추가한다.
+
+**UI 작업 기준:**
+- 화면, 컴포넌트, 레이아웃, 스타일, 프론트엔드 뷰 변경이 포함되면 UI 작업
+- API만 바뀌고 화면은 그대로인 경우 비UI
+- 판단이 애매하면 사용자에게 질문
+
+**UI 작업 시 추가 단계:**
+- spec 작성 시 `## Design Reference` 섹션에 참고 앱/화면 명시
+- spec/plan review 통과 후 디자인 AI 프로토타입 생성 + 디자인 리뷰 gate (`/design-review`)
+- final diff review 시 스크린샷 첨부하여 디자인 프로토타입과 비교
+
+**비UI 작업:** `/design-review`를 한 번 통과하지만 즉시 `not-required`로 종료. 실질적 영향 없음.
+
 ## 기본 분기
 
 ### 작은 작업
@@ -36,7 +52,7 @@
 
 ### 큰 작업 / 기존 코드베이스의 중간 이상 변경
 
-`REQUEST 정리 -> REQUEST review -> spec/change spec -> plan -> spec/plan review -> 구현 -> 검증 -> final diff review -> REQUEST 아카이브`
+`REQUEST 정리 -> REQUEST review -> spec/change spec -> plan -> spec/plan review -> /design-review -> 구현 -> 검증 -> final diff review -> REQUEST 아카이브`
 
 ## REQUEST 아카이브
 
@@ -59,6 +75,7 @@
 - 큰 작업 시작은 `request-to-reviewed-plan`
 - 작은 작업 구현은 `small-task-implement`
 - reviewed plan 구현은 `implement-reviewed-plan`
+- UI 작업의 디자인 리뷰는 `design-review`
 - 마무리는 `final-diff-review`
 
 ## 프로젝트 초기 설정

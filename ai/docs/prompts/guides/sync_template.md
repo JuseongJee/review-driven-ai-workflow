@@ -37,6 +37,7 @@ git clone --depth 1 <배포 repo URL> /tmp/ai-dev-template-latest
 **동기화 대상** — 템플릿 소스에 있고, 프로젝트에도 있고, 내용이 다른 파일:
 - `CLAUDE.md`, `WORKING_WITH_AI.md`
 - `ai/claude_skills/`
+- `ai/config/` (설정 예제 파일)
 - `ai/docs/` (adr, flows, library, policies, prompts, review_prompts, templates, backlog 구조 문서)
 - `ai/scripts/ai/` 중 review pipeline 관련 스크립트
 
@@ -52,6 +53,7 @@ git clone --depth 1 <배포 repo URL> /tmp/ai-dev-template-latest
 - `ai/workspace/specs/`, `ai/workspace/plans/` 안의 작업 산출물 (README 제외)
 - `ai/scripts/ai/{build,test,lint,typecheck}.sh` (프로젝트별 명령이 들어 있음)
 - `ai/workspace/handoffs/` 안의 작업 내용물
+- `ai/config/review-tools.json` (프로젝트별 리뷰 도구 설정, `.example`은 동기화 대상)
 - 프로젝트 고유 설정 파일 (`.gitignore`, `.swiftlint.yml`, `.claude/` 등)
 
 ### 3. 사용자 확인

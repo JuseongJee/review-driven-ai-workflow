@@ -50,7 +50,7 @@
 
 ### 큰 작업
 
-`REQUEST 작성 -> REQUEST review -> spec/change spec -> plan -> spec/plan review -> 구현 -> 검증 -> final diff review -> REQUEST 아카이브`
+`REQUEST 작성 -> REQUEST review -> spec/change spec -> plan -> spec/plan review -> /design-review -> 구현 -> 검증 -> final diff review -> REQUEST 아카이브`
 
 ### 작은 작업
 
