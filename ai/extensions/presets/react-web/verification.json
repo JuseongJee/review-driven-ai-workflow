@@ -1,0 +1,60 @@
+{
+  "verifiers": {
+    "lighthouse": {
+      "run": "npx lighthouse $URL --output json --output-path $OUTPUT_DIR/lighthouse-report.json --chrome-flags='--headless'",
+      "criteria": [
+        {
+          "name": "performance",
+          "description": "Lighthouse performance score >= target. TODO: set target score (e.g. 90). TODO: list target routes to audit (e.g. /, /dashboard).",
+          "weight": "high"
+        },
+        {
+          "name": "accessibility",
+          "description": "Lighthouse accessibility score >= target. TODO: set target score (e.g. 95). Complements axe for automated a11y coverage.",
+          "weight": "high"
+        }
+      ],
+      "evaluate": "위 criteria를 기준으로 각 항목을 1-5점으로 채점하고, 3점 미만인 항목의 구체적 개선사항을 제시하라.",
+      "adapter": "ai/scripts/ai/verifiers/lighthouse.sh"
+    },
+    "playwright": {
+      "run": "npx playwright test --reporter=json --output=$OUTPUT_DIR",
+      "criteria": [
+        {
+          "name": "design-quality",
+          "description": "Visual design matches approved mockups or design tokens. TODO: specify which Playwright test file(s) cover design checks (e.g. tests/design.spec.ts).",
+          "weight": "high"
+        },
+        {
+          "name": "craft",
+          "description": "UI interactions feel polished (animations, transitions, focus states). TODO: list interaction scenarios to verify (e.g. modal open/close, form submission feedback).",
+          "weight": "high"
+        },
+        {
+          "name": "functionality",
+          "description": "Core user flows pass end-to-end. TODO: list critical flows (e.g. sign-up, checkout, data fetch). TODO: set acceptable flake threshold if any.",
+          "weight": "high"
+        },
+        {
+          "name": "responsive",
+          "description": "Layout is correct across target breakpoints. TODO: set target viewports (e.g. 375px mobile, 768px tablet, 1440px desktop). TODO: reference breakpoint spec or design system tokens.",
+          "weight": "medium"
+        }
+      ],
+      "evaluate": "위 criteria를 기준으로 각 항목을 1-5점으로 채점하고, 3점 미만인 항목의 구체적 개선사항을 제시하라.",
+      "adapter": "ai/scripts/ai/verifiers/playwright.sh"
+    },
+    "axe": {
+      "run": "npx axe $URL --save $OUTPUT_DIR/axe-results.json",
+      "criteria": [
+        {
+          "name": "accessibility",
+          "description": "Zero critical or serious axe violations. TODO: set target routes to scan (e.g. /, /about, /contact). TODO: decide whether to treat 'moderate' violations as blocking.",
+          "weight": "high"
+        }
+      ],
+      "evaluate": "위 criteria를 기준으로 각 항목을 1-5점으로 채점하고, 3점 미만인 항목의 구체적 개선사항을 제시하라.",
+      "adapter": "ai/scripts/ai/verifiers/axe.sh"
+    }
+  }
+}

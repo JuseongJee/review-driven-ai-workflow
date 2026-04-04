@@ -17,9 +17,8 @@ Route the request like this:
    - If the user explicitly designated the task as `small-task`, recommend `/small-task-implement`.
    - Otherwise recommend `/request-to-reviewed-plan`. Do NOT classify a task as small on your own judgment.
 2. If the task is already classified as `small-task` by the user and implementation is next, recommend `/small-task-implement`.
-3. If there is a reviewed spec / plan and `CURRENT_TASK.md` `Design Review` is not `approved` or `not-required`, recommend `/design-review`.
-4. If implementation is mostly done or the user wants PR text, final review, or merge readiness, recommend `/final-diff-review`.
-5. If there is a reviewed spec / plan or the user is asking to implement from spec / plan, recommend `/implement-reviewed-plan`.
+3. If implementation is mostly done or the user wants PR text, final review, or merge readiness, recommend `/final-diff-review`.
+4. If there is a reviewed spec / plan or the user is asking to implement from spec / plan, recommend `/implement-reviewed-plan`.
 
 When you answer, keep it short and use this format:
 

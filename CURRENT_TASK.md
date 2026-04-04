@@ -18,9 +18,6 @@ REQUEST.md
 ## Branch / Worktree
 -
 
-## Design Review
--
-
 ## Next Step
 -
 
