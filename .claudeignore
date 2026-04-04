@@ -1,0 +1,36 @@
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+vendor/
+
+# Cache & generated
+.cache/
+.turbo/
+.nuxt/
+.output/
+*.min.js
+*.min.css
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Environment & secrets
+.env
+.env.*
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Logs
+*.log
+logs/
