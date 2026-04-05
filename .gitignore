@@ -10,5 +10,3 @@ Thumbs.db
 # Superpowers 플러그인
 .superpowers/
 
-# Review pipeline sessions (임시 세션 파일)
-ai/workspace/handoffs/review_pipeline/
