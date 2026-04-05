@@ -17,7 +17,6 @@ Read these first (Always Read files are already loaded):
 
 Execution rules:
 - If there is no credible reviewed spec / plan yet, stop and recommend `/request-to-reviewed-plan`.
-- `CURRENT_TASK.md`의 `Design Review`가 `approved` 또는 `not-required`인지 확인한다. 그렇지 않으면 구현을 시작하지 않고 `/design-review`를 먼저 권장한다.
 - **구현 시작 전 `REQUEST.md`의 Acceptance Criteria를 읽는다.** AC가 비어있거나(`-`) 모호하면 구현을 시작하지 않고 사용자에게 확인을 요청한다.
 - **Superpowers가 사용 가능하면 반드시 `executing-plans`를 사용한다.** 사용 불가능할 때만 직접 구현한다.
 - subagent가 사용 가능하면 반드시 `subagent-driven-development`를 사용하고, worktree가 가능하면 `using-git-worktrees`와 함께 사용한다.

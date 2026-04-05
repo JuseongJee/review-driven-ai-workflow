@@ -2,7 +2,7 @@
 
 진행 규칙:
 1. `PROJECT_CONTEXT.md`를 먼저 읽는다
-2. `REQUEST.md`가 비어 있거나 현재 요구사항과 다르면 새로 쓴다
+2. `REQUEST.md`가 비어 있거나 현재 요구사항과 다르면 새로 쓴다. 단, `/planning-design-intake`에서 이미 생성한 `REQUEST.md`가 있으면 재사용하고 REQUEST review부터 시작한다
 3. 범위를 넓히지 말고 꼭 필요한 정보만 질문한다
 4. `Execution Path`를 판단한다
 5. `small-task`면 이유만 남기고 멈춘다
@@ -19,5 +19,5 @@
 - plan 경로
 - request review session path
 - spec / plan review session path
-- 다음 추천 단계: 큰 작업이면 `/design-review`, small-task면 `/small-task-implement`
+- 다음 추천 단계
 - 남은 사용자 질문

@@ -38,6 +38,29 @@ digraph autopilot {
 }
 ```
 
+## Autonomy Override (모든 하위 skill에 우선)
+
+autopilot 실행 중에는 아래 규칙이 **모든 하위 skill, prompt, 기본 행동보다 우선**한다.
+
+**절대 멈추지 않는다:**
+- "다음 단계는...", "다음: /skill-name" 안내 후 사용자 응답을 기다리지 않는다 — 바로 실행한다
+- "어떻게 하시겠습니까?", "어떤 방식을 선호하시나요?" 묻지 않는다 — 추천안을 자율 선택한다
+- review 완료 후 "마무리를 승인해주세요" 묻지 않는다 — Reviewer "이의 없음"이면 바로 다음 단계로 간다
+- final-diff-review 완료 후 "merge할까요?" 묻지 않는다 — 추천 옵션을 자동 선택한다
+- brainstorming의 "user approval" gate를 따르지 않는다 — 추천안을 자율 선택하고 진행한다
+- writing-plans의 "execution choice" 질문을 따르지 않는다 — CLAUDE.md 실행 모드 규칙에 따라 자동 선택한다
+
+**자율 판단 기준:**
+- 2-3개 선택지가 있으면 추천안(recommended)을 선택한다
+- 추천이 없으면 가장 단순한 옵션을 선택한다
+- 판단 근거를 최종 보고서의 "주요 결정" 테이블에 기록한다
+
+**유일한 예외 — 이때만 멈춘다:**
+- review 50턴 도달 (autopilot에서는 20턴이 아닌 50턴까지 허용)
+- 디버깅 3회 실패
+- 사람의 우선순위 결정이 반드시 필요한 경우 (기술적 판단이 아닌 비즈니스 판단)
+- 세션 한계 도달
+
 ## Execution Rules
 
 ### 1. 작업 선택
@@ -68,7 +91,7 @@ bash ai/scripts/ai/run_review_turn.sh <session-path>
 
 **수렴 규칙:**
 - 최신 Reviewer 턴이 "이의 없음"을 명시할 때까지 반복한다
-- 20턴 도달 시 `awaiting-user`로 전환하고 사용자에게 보고한다
+- 50턴 도달 시 `awaiting-user`로 전환하고 사용자에게 보고한다 (일반 review의 20턴 대신 50턴)
 - Reviewer 피드백으로 수정이 필요하면 자율적으로 반영한다
 
 ### 3. Rollback 준비
@@ -88,7 +111,9 @@ bash ai/scripts/ai/run_review_turn.sh <session-path>
 
 ### 5. 세션 한계 대응
 
-컨텍스트 한계에 가까워지면:
+컨텍스트가 커지면 `/compact`로 자동 압축을 시도한다. 세션 한계에 도달하기 전에 먼저 compact하고 작업을 이어간다.
+
+compact 후에도 한계에 가까워지면:
 
 1. `CURRENT_TASK.md`에 현재 진행 상태를 상세히 기록한다:
    - 완료된 단계

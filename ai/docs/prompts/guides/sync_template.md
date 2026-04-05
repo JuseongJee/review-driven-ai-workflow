@@ -18,13 +18,19 @@
 
 ## Claude가 실행할 절차
 
-### 1. 템플릿 소스 확보
+### 1. 버전 확인 및 템플릿 소스 확보
 
-배포 repo를 임시 디렉토리에 clone합니다.
+먼저 버전 가드 스크립트를 실행합니다.
 
 ```bash
-git clone --depth 1 <배포 repo URL> /tmp/ai-dev-template-latest
+bash ai/scripts/ai/sync_template.sh <배포 repo URL>
 ```
+
+- 스크립트가 정상 종료(exit 0)하면 마지막 줄에 출력된 임시 clone 경로를 사용합니다.
+- 스크립트가 다운그레이드 경고로 중단(exit 1)하면:
+  - 사용자에게 "현재 프로젝트의 템플릿이 원격보다 최신입니다. 강제로 다운그레이드하시겠습니까?" 확인
+  - 사용자가 동의하면 `--force`를 붙여 재실행
+  - 사용자가 거부하면 동기화 중단
 
 배포 repo URL을 모르면 사용자에게 물어봅니다.
 
@@ -54,6 +60,7 @@ git clone --depth 1 <배포 repo URL> /tmp/ai-dev-template-latest
 - `ai/scripts/ai/{build,test,lint,typecheck}.sh` (프로젝트별 명령이 들어 있음)
 - `ai/workspace/handoffs/` 안의 작업 내용물
 - `ai/config/review-tools.json` (프로젝트별 리뷰 도구 설정, `.example`은 동기화 대상)
+- `ai/config/verification.json` (프로젝트별 검증 설정, `.example`은 동기화 대상)
 - 프로젝트 고유 설정 파일 (`.gitignore`, `.swiftlint.yml`, `.claude/` 등)
 
 ### 3. 사용자 확인
@@ -104,7 +111,39 @@ git clone --depth 1 <배포 repo URL> /tmp/ai-dev-template-latest
 rm -rf /tmp/ai-dev-template-latest
 ```
 
-### 7. 완료 보고
+### 7. 버전 갱신
+
+동기화가 완료되면 원격 템플릿의 `ai/VERSION`을 프로젝트에 복사합니다.
+
+```bash
+cp <임시 clone 경로>/ai/VERSION ai/VERSION
+```
+
+이미 동기화 과정에서 복사되었다면 이 단계는 건너뜁니다.
+
+### 8. 확장 기능 안내
+
+동기화 후 `ai/extensions/` 디렉토리에 새로운 extension이 있는지 확인합니다.
+
+프로젝트에 아직 설치되지 않은 extension이 있으면 사용자에게 안내합니다:
+
+```
+새로운 확장 기능이 감지되었습니다:
+1. design-review — UI 디자인 레퍼런스 확인 + AI 체크리스트
+2. verify — 런타임 검증 루프 (도구 실행 → AI 평가 → 수정 반복)
+3. presets — 플랫폼별 검증 프리셋 (react-web, api, cli, ios, macos)
+
+설치할 확장을 선택하세요 (예: 1,2,3 또는 건너뛰기):
+```
+
+설치 여부 판단: `ai/claude_skills/{name}/SKILL.md`가 없으면 미설치.
+
+사용자가 선택하면 해당 extension의 `ai/extensions/{name}/install.md`를 읽고 안내에 따라 설치합니다.
+`depends`가 있으면 먼저 설치할지 물어봅니다.
+
+기존에 설치된 extension은 동기화 과정에서 `ai/extensions/` 원본이 갱신되었으므로, 재설치(덮어쓰기)할지 사용자에게 물어봅니다.
+
+### 9. 완료 보고
 
 - 복사/추가/삭제된 파일 수
 - 마이그레이션 실행 여부와 결과

@@ -50,7 +50,7 @@
 
 ### 큰 작업
 
-`REQUEST 작성 -> REQUEST review -> spec/change spec -> plan -> spec/plan review -> /design-review -> 구현 -> 검증 -> final diff review -> REQUEST 아카이브`
+`REQUEST 작성 -> REQUEST review -> spec/change spec -> plan -> spec/plan review -> 구현 -> 검증 -> final diff review -> REQUEST 아카이브`
 
 ### 작은 작업
 
@@ -59,7 +59,8 @@
 ### REQUEST 아카이브
 
 - 작업 완료 시 현재 `REQUEST.md`를 `ai/workspace/backlog/request-archive/YYYY-MM-DD-HHMM-작업명.md`로 복사합니다.
-- 새 REQUEST로 덮어쓰기 전에 반드시 아카이브합니다.
+- 아카이브 후 `REQUEST.md`를 초기 템플릿 상태로 비웁니다.
+- `PROJECT_CONTEXT.md`에 `auto_completion_report: true`이면 자동으로, 아니면 "작업 요약 report를 남길까요?" 질문 후 `ai/workspace/reports/completions/YYYY-MM-DD-HHMM-작업명.md`에 report를 작성합니다.
 
 ## 절대 규칙 (모든 skill에 공통 적용)
 
@@ -82,6 +83,7 @@
 - `REQUEST.md`
 - `PROJECT_CONTEXT.md`
 - `CURRENT_TASK.md`
+- `ai/claude_skills/*/rules.md` (설치된 extension이 있으면)
 
 필요할 때만 읽을 파일:
 
@@ -118,6 +120,13 @@
 - 새 기능 spec: `ai/workspace/specs/base/`
 - 기존 코드 변경 change spec: `ai/workspace/specs/changes/`
 - plan: `ai/workspace/plans/`
+
+## 토큰 효율 규칙
+
+- 이미 읽었거나 skill/memory에 있는 정보는 파일을 다시 읽지 않는다.
+- 추측성 도구 호출을 하지 않는다 — 근거 없이 파일을 탐색하지 않는다.
+- 독립적인 도구 호출은 병렬로 실행한다.
+- 사용자가 방금 말한 내용을 반복하지 않는다.
 
 ## 커밋 메시지
 

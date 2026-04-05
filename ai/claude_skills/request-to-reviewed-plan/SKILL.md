@@ -1,6 +1,6 @@
 ---
 name: request-to-reviewed-plan
-description: Create REQUEST.md from free-text requirements, run REQUEST review, write spec or change spec and plan, and run spec / plan review until the task is ready for implementation. Use for new features and non-trivial existing code changes.
+description: Create REQUEST.md from free-text requirements (or continue from /planning-design-intake output), run REQUEST review, write spec or change spec and plan, and run spec / plan review until the task is ready for implementation. Use for new features and non-trivial existing code changes.
 disable-model-invocation: true
 ---
 
@@ -26,9 +26,11 @@ Execution rules:
 - Use `bash ai/scripts/ai/prepare_review_pipeline.sh request` and `bash ai/scripts/ai/run_review_turn.sh ...` for `REQUEST` review.
 - Use `bash ai/scripts/ai/prepare_review_pipeline.sh spec-plan` or the explicit spec / plan paths plus `bash ai/scripts/ai/run_review_turn.sh ...` for spec / plan review.
 - **Superpowers가 사용 가능하면 반드시 `brainstorming`과 `writing-plans`를 사용한다.** 사용 불가능할 때만 같은 산출물을 직접 작성한다.
-- UI 작업인 경우 spec에 `## Design Reference` 섹션을 포함한다. 내용: 참고 앱/화면 URL, 스크린샷, 스타일 방향. 비UI 작업이면 이 섹션을 생략한다.
 - Update `CURRENT_TASK.md` at the major checkpoints.
 - Stop before implementation.
+- `/planning-design-intake`에서 REQUEST.md가 이미 생성된 경우, REQUEST.md를 읽고 REQUEST review부터 시작한다. REQUEST를 처음부터 새로 작성하지 않는다.
+- REQUEST.md에 `## Design Reference Memo`가 있으면, spec 작성 시 해당 내용을 spec의 `## Design Reference` 섹션으로 승격한다.
+- spec 작성 완료 후 `/gap-check` 실행을 추천한다: "spec 작성 완료. → `/gap-check`로 기획-디자인 갭 체크를 추천합니다."
 
 Final output:
 - `Execution Path`
@@ -37,5 +39,5 @@ Final output:
 - plan path
 - request review session path
 - spec / plan review session path
-- `Next recommended skill: /design-review` (큰 작업) or `/small-task-implement` (작은 작업)
+- `Next recommended skill: /implement-reviewed-plan` or `/small-task-implement`
 - Any remaining user question, only if it is actually blocking

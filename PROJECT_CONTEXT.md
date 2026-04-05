@@ -26,6 +26,19 @@ Web / macOS / iOS / backend / library / script
 ## Typecheck
 실제 typecheck 명령
 
+## Workflow Settings
+- auto_completion_report: false
+
+## Intake Settings
+- intake_source: text (text | text+design)
+- design_reference_format: url+screenshot (프로젝트별 디자인 입력 형식)
+
+## Verification Scope
+- pre-commit: lint, format (무거운 테스트 금지)
+- local: unit test, lint, typecheck
+- CI: full test, integration, E2E
+- 상세 가이드: `ai/docs/guides/verification-scope-guide.md`
+
 ## Architecture Rules
 - 기존 패턴을 우선 따른다
 - 과도한 abstraction을 피한다
