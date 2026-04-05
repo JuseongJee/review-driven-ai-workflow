@@ -23,6 +23,13 @@ AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합�
 1. AI에게 말한다: "프로젝트 분석해서 PROJECT_CONTEXT.md 채워줘"
 2. 첫 작업 요청을 AI에게 말한다: "이 요구사항으로 진행해줘: ..."
 
+### 팀 프로젝트에서 개인 전용으로 사용
+
+팀 repo에 템플릿 파일을 커밋하지 않고, 개인 private repo로 분리하여 여러 컴퓨터에서 사용할 수 있습니다.
+
+- 처음 설치: [team-overlay-fresh-install.md](https://github.com/JuseongJee/review-driven-ai-workflow/blob/main/ai/docs/guides/team-overlay-fresh-install.md)
+- 이미 설치된 프로젝트에서 분리: [team-overlay-migration.md](https://github.com/JuseongJee/review-driven-ai-workflow/blob/main/ai/docs/guides/team-overlay-migration.md)
+
 ### 템플릿 업데이트
 
 이미 적용된 프로젝트에서:
