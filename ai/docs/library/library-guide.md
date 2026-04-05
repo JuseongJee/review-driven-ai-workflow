@@ -15,6 +15,6 @@
 
 ## 추천 시작점
 
-- `외부_AI_아이데이션_핸드오프.md`
-- `코드베이스_이해.md`
-- `변경_영향_분석.md`
+- `external-ai-ideation-handoff.md`
+- `codebase-understanding.md`
+- `change-impact-analysis.md`

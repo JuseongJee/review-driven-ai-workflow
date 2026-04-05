@@ -103,7 +103,7 @@ PRD, API 문서, 로그처럼 길고 거친 입력은 그대로 Builder에게 �
 
 이렇게 하면 Claude는 덜 지저분한 입력으로 더 중요한 판단에 집중할 수 있다.
 
-현재 이 역할은 Codex처럼 자동화된 파이프라인이 아니라, 사용자가 필요할 때 외부에서 직접 사용하는 구조다. 가이드는 `ai/docs/library/외부_AI_아이데이션_핸드오프.md`에 있다.
+현재 이 역할은 Codex처럼 자동화된 파이프라인이 아니라, 사용자가 필요할 때 외부에서 직접 사용하는 구조다. 가이드는 `ai/docs/library/external-ai-ideation-handoff.md`에 있다.
 
 ## Superpowers는 뼈대를 주고, 이 템플릿은 운영 규칙을 더했다
 
