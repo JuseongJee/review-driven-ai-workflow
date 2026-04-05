@@ -5,6 +5,69 @@ Lighthouse, Playwright, axe 세 가지 verifier를 포함합니다.
 
 ---
 
+## 처음부터 설정하기
+
+이 프리셋을 사용하려면 Playwright, Lighthouse, axe가 필요합니다. 아래 순서대로 설정하세요.
+
+### 1. Playwright 프로젝트 초기화
+
+```bash
+# Playwright 설치 + 브라우저 다운로드
+npm init playwright@latest
+# 또는 기존 프로젝트에 추가
+npm install --save-dev @playwright/test
+npx playwright install
+```
+
+### 2. 검증용 테스트 파일 작성
+
+`tests/verification.spec.ts` 예시:
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('메인 플로우 스크린샷', async ({ page }) => {
+  // 1단계: 홈
+  await page.goto('/');
+  await page.screenshot({ path: '.verification/latest/playwright/step1-home.png', fullPage: true });
+
+  // 2단계: 다음 페이지 — TODO: 프로젝트에 맞게 수정
+  // await page.click('[data-testid="nav-link"]');
+  // await page.screenshot({ path: '.verification/latest/playwright/step2-detail.png', fullPage: true });
+});
+
+test('반응형 스크린샷', async ({ page }) => {
+  const viewports = [
+    { name: 'mobile', width: 375, height: 812 },
+    { name: 'tablet', width: 768, height: 1024 },
+    { name: 'desktop', width: 1440, height: 900 },
+  ];
+
+  for (const vp of viewports) {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.screenshot({ path: `.verification/latest/playwright/${vp.name}.png`, fullPage: true });
+  }
+});
+```
+
+### 3. Lighthouse 실행 확인
+
+```bash
+# Chrome이 설치되어 있어야 함
+npm install -g lighthouse
+lighthouse http://localhost:3000 --output json --output-path ./report.json --chrome-flags="--headless"
+```
+
+### 4. axe 접근성 검사 확인
+
+```bash
+npm install -g @axe-core/cli
+axe http://localhost:3000 --exit
+```
+
+---
+
 ## 사용법
 
 ### 1. 프리셋 설치

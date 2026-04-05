@@ -6,6 +6,93 @@ iOS 검증 프리셋입니다. 이는 프로젝트에 맞게 커스터마이징�
 
 이 프리셋은 XCUITest 기반의 iOS 앱 UI 검증을 위해 설계되었습니다. 디자인 품질, 사용성, 플랫폼 컨벤션, 접근성 등을 평가합니다.
 
+## 처음부터 설정하기
+
+### 1. UI Testing Bundle target 추가
+
+Xcode에서 File > New > Target > UI Testing Bundle을 선택합니다.
+테스트 대상 앱을 **Target to be Tested**로 지정하고, Language는 **Swift**를 선택합니다.
+
+### 2. 자동 스크린샷 테스트 코드 작성
+
+생성된 UI Test 파일에 아래 코드를 추가합니다:
+
+```swift
+import XCTest
+
+class VerificationTests: XCTestCase {
+    let app = XCUIApplication()
+    
+    override func setUp() {
+        continueAfterFailure = false
+        app.launch()
+    }
+    
+    func testMainFlow() {
+        // 1단계: 메인 화면
+        screenshot("step1-main")
+        
+        // 2단계: 다음 화면으로 이동 — TODO: 프로젝트에 맞게 수정
+        // app.tabBars.buttons["Second"].tap()
+        // screenshot("step2-second")
+    }
+    
+    func screenshot(_ name: String) {
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}
+```
+
+### 3. xcresult에서 스크린샷 추출
+
+```bash
+# 테스트 실행 + xcresult 생성
+xcodebuild test \
+  -workspace $WORKSPACE -scheme $SCHEME \
+  -destination "$DESTINATION" \
+  -resultBundlePath .verification/latest/xcuitest/result.xcresult
+
+# xcresult에서 스크린샷 추출
+xcrun xcresulttool get test-results attachments \
+  --path .verification/latest/xcuitest/result.xcresult \
+  --output-path .verification/latest/xcuitest/
+```
+
+### 4. adapter 스크립트 구현
+
+`ai/scripts/ai/verifiers/xcuitest.sh`를 아래처럼 구현합니다:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+NAME="$1"
+CONFIG="$2"
+OUTPUT_DIR="$3"
+
+: "${WORKSPACE:?WORKSPACE 환경변수를 설정하세요}"
+: "${SCHEME:?SCHEME 환경변수를 설정하세요}"
+: "${DESTINATION:=generic/platform=iOS Simulator}"
+
+echo "[$NAME] xcodebuild test 실행 중..."
+xcodebuild test \
+  -workspace "$WORKSPACE" -scheme "$SCHEME" \
+  -destination "$DESTINATION" \
+  -resultBundlePath "$OUTPUT_DIR/result.xcresult" \
+  2>&1 | tail -20
+
+echo "[$NAME] 스크린샷 추출 중..."
+xcrun xcresulttool get test-results attachments \
+  --path "$OUTPUT_DIR/result.xcresult" \
+  --output-path "$OUTPUT_DIR/"
+
+echo "[$NAME] 완료 — $OUTPUT_DIR 에서 스크린샷을 확인하세요."
+```
+
 ## 사용법
 
 ### 1. 프리셋 설치

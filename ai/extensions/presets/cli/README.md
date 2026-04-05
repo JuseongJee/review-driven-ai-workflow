@@ -10,6 +10,86 @@ CLI 도구용 검증 프리셋입니다. snapshot 테스트와 hyperfine 벤치�
 cp ai/extensions/presets/cli/verification.json ai/config/verification.json
 ```
 
+## 처음부터 설정하기
+
+### 1. 도구 설치
+
+```bash
+# hyperfine (벤치마크)
+brew install hyperfine  # macOS
+# 또는 cargo install hyperfine
+```
+
+### 2. snapshot 테스트 스크립트 작성
+
+`tests/snapshot.sh` 예시:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+CLI_CMD="./my-cli"  # TODO: 프로젝트의 CLI 명령으로 수정
+SNAPSHOT_DIR="tests/snapshots"
+
+mkdir -p "$SNAPSHOT_DIR"
+
+# 테스트 케이스 정의 — TODO: 프로젝트에 맞게 수정
+declare -A cases=(
+  ["help"]="--help"
+  ["version"]="--version"
+  # ["list"]="list --format json"
+)
+
+failed=0
+for name in "${!cases[@]}"; do
+  args="${cases[$name]}"
+  expected="$SNAPSHOT_DIR/$name.expected.txt"
+  actual="$SNAPSHOT_DIR/$name.actual.txt"
+
+  eval "$CLI_CMD $args" > "$actual" 2>&1 || true
+
+  if [[ ! -f "$expected" ]]; then
+    echo "[snapshot] $name: 기준 파일 없음 — 현재 출력을 기준으로 저장합니다"
+    cp "$actual" "$expected"
+    continue
+  fi
+
+  if ! diff -q "$expected" "$actual" > /dev/null 2>&1; then
+    echo "[snapshot] $name: FAILED"
+    diff "$expected" "$actual" || true
+    failed=1
+  else
+    echo "[snapshot] $name: PASSED"
+  fi
+done
+
+exit $failed
+```
+
+### 3. hyperfine 벤치마크 실행 확인
+
+```bash
+# 기본 벤치마크
+hyperfine './my-cli --help'
+
+# 여러 명령 비교
+hyperfine './my-cli process small.txt' './my-cli process large.txt'
+
+# JSON 결과 출력 (adapter에서 사용)
+hyperfine './my-cli --help' --export-json result.json
+```
+
+### 4. 실행 확인
+
+```bash
+# snapshot
+chmod +x tests/snapshot.sh
+bash tests/snapshot.sh
+
+# hyperfine
+hyperfine './my-cli --help'
+```
+
 ## Verifiers
 
 ### snapshot

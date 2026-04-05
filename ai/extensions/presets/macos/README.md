@@ -5,6 +5,98 @@ XCUITest를 통한 자동화 테스트 및 수동 검증을 지원합니다.
 
 ---
 
+## 처음부터 설정하기
+
+XCUITest target이 아직 없는 프로젝트에서 처음부터 설정하는 방법입니다.
+
+### 1. UI Testing Bundle target 추가
+
+Xcode에서 **File > New > Target > UI Testing Bundle**을 선택합니다.  
+테스트 대상 앱을 **Target to be Tested**로 지정합니다.
+
+### 2. 자동 스크린샷 테스트 코드 작성
+
+UI Testing Bundle에 아래와 같은 테스트 파일을 추가합니다:
+
+```swift
+import XCTest
+
+class VerificationTests: XCTestCase {
+    let app = XCUIApplication()
+    
+    override func setUp() {
+        continueAfterFailure = false
+        app.launch()
+    }
+    
+    func testMainFlow() {
+        // 1단계: 메인 화면
+        screenshot("step1-main")
+        
+        // 2단계: 다음 화면으로 이동 — TODO: 프로젝트에 맞게 수정
+        // app.buttons["Next"].tap()
+        // screenshot("step2-detail")
+    }
+    
+    func screenshot(_ name: String) {
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}
+```
+
+### 3. xcresult에서 스크린샷 추출
+
+테스트를 실행하고 xcresult 번들에서 스크린샷을 꺼냅니다:
+
+```bash
+# 테스트 실행 + xcresult 생성
+xcodebuild test \
+  -project $PROJECT -scheme $SCHEME \
+  -destination 'platform=macOS' \
+  -resultBundlePath .verification/latest/xcuitest-macos/result.xcresult
+
+# xcresult에서 스크린샷 추출
+xcrun xcresulttool get test-results attachments \
+  --path .verification/latest/xcuitest-macos/result.xcresult \
+  --output-path .verification/latest/xcuitest-macos/
+```
+
+### 4. adapter 스크립트 구현
+
+`ai/scripts/ai/verifiers/xcuitest-macos.sh`를 아래 내용으로 채웁니다:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+NAME="$1"
+CONFIG="$2"
+OUTPUT_DIR="$3"
+
+: "${PROJECT:?PROJECT 환경변수를 설정하세요}"
+: "${SCHEME:?SCHEME 환경변수를 설정하세요}"
+
+echo "[$NAME] xcodebuild test 실행 중..."
+xcodebuild test \
+  -project "$PROJECT" -scheme "$SCHEME" \
+  -destination 'platform=macOS' \
+  -resultBundlePath "$OUTPUT_DIR/result.xcresult" \
+  2>&1 | tail -20
+
+echo "[$NAME] 스크린샷 추출 중..."
+xcrun xcresulttool get test-results attachments \
+  --path "$OUTPUT_DIR/result.xcresult" \
+  --output-path "$OUTPUT_DIR/"
+
+echo "[$NAME] 완료 — $OUTPUT_DIR 에서 스크린샷을 확인하세요."
+```
+
+---
+
 ## 사용법
 
 ### 1. 프리셋 설치
