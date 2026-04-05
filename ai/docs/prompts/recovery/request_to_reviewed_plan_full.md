@@ -19,5 +19,5 @@
 - plan 경로
 - request review session path
 - spec / plan review session path
-- 다음 추천 단계
+- 다음 추천 단계: 큰 작업이면 `/design-review`, small-task면 `/small-task-implement`
 - 남은 사용자 질문

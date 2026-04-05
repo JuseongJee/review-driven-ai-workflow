@@ -84,25 +84,7 @@ bash ai/scripts/ai/install_claude_skills.sh project
 
 3단계에서 채운 내용에 빈칸이나 불확실한 부분이 있으면 사용자에게 PROJECT_CONTEXT review를 돌릴지 물어봅니다.
 
-### 7. 확장 기능 설치 (선택)
-
-프로젝트에 복사된 `ai/extensions/` 디렉토리에서 사용 가능한 확장 기능을 확인하고 사용자에게 안내합니다.
-
-```
-사용 가능한 확장 기능:
-1. design-review — UI 디자인 레퍼런스 확인 + AI 체크리스트
-2. verify — 런타임 검증 루프 (도구 실행 → AI 평가 → 수정 반복)
-3. presets — 플랫폼별 검증 프리셋 (react-web, api, cli, ios, macos)
-
-설치할 확장을 선택하세요 (예: 1,2,3 또는 건너뛰기):
-```
-
-사용자가 선택하면:
-1. 해당 extension의 `install.md`를 읽고 안내에 따라 설치
-2. `depends`가 있으면 "verify extension이 먼저 필요합니다. 같이 설치할까요?" 확인
-3. 설치 확인 항목 체크
-
-### 8. 완료 보고
+### 7. 완료 보고
 
 설치 결과를 사용자에게 보고합니다.
 

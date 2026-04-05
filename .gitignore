@@ -10,3 +10,23 @@ Thumbs.db
 # Superpowers 플러그인
 .superpowers/
 
+# Review pipeline sessions (작업 중 생성)
+ai/workspace/handoffs/review_pipeline/
+
+# Superpowers 작업 산출물 (프로젝트별 내용)
+ai/workspace/plans/*.md
+!ai/workspace/plans/README.md
+ai/workspace/specs/base/*.md
+!ai/workspace/specs/base/README.md
+ai/workspace/specs/changes/*.md
+!ai/workspace/specs/changes/README.md
+
+# 분석 보고서 (프로젝트별 내용)
+ai/workspace/reports/
+
+# Backlog 항목 파일 (프로젝트별 내용)
+ai/workspace/backlog/items/*.md
+
+# Request 아카이브 (프로젝트별 내용)
+ai/workspace/backlog/request-archive/*.md
+!ai/workspace/backlog/request-archive/README.md

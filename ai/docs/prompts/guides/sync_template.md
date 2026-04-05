@@ -54,7 +54,6 @@ git clone --depth 1 <배포 repo URL> /tmp/ai-dev-template-latest
 - `ai/scripts/ai/{build,test,lint,typecheck}.sh` (프로젝트별 명령이 들어 있음)
 - `ai/workspace/handoffs/` 안의 작업 내용물
 - `ai/config/review-tools.json` (프로젝트별 리뷰 도구 설정, `.example`은 동기화 대상)
-- `ai/config/verification.json` (프로젝트별 검증 설정, `.example`은 동기화 대상)
 - 프로젝트 고유 설정 파일 (`.gitignore`, `.swiftlint.yml`, `.claude/` 등)
 
 ### 3. 사용자 확인
@@ -105,29 +104,7 @@ git clone --depth 1 <배포 repo URL> /tmp/ai-dev-template-latest
 rm -rf /tmp/ai-dev-template-latest
 ```
 
-### 7. 확장 기능 안내
-
-동기화 후 `ai/extensions/` 디렉토리에 새로운 extension이 있는지 확인합니다.
-
-프로젝트에 아직 설치되지 않은 extension이 있으면 사용자에게 안내합니다:
-
-```
-새로운 확장 기능이 감지되었습니다:
-1. design-review — UI 디자인 레퍼런스 확인 + AI 체크리스트
-2. verify — 런타임 검증 루프 (도구 실행 → AI 평가 → 수정 반복)
-3. presets — 플랫폼별 검증 프리셋 (react-web, api, cli, ios, macos)
-
-설치할 확장을 선택하세요 (예: 1,2,3 또는 건너뛰기):
-```
-
-설치 여부 판단: `ai/claude_skills/{name}/SKILL.md`가 없으면 미설치.
-
-사용자가 선택하면 해당 extension의 `ai/extensions/{name}/install.md`를 읽고 안내에 따라 설치합니다.
-`depends`가 있으면 먼저 설치할지 물어봅니다.
-
-기존에 설치된 extension은 동기화 과정에서 `ai/extensions/` 원본이 갱신되었으므로, 재설치(덮어쓰기)할지 사용자에게 물어봅니다.
-
-### 8. 완료 보고
+### 7. 완료 보고
 
 - 복사/추가/삭제된 파일 수
 - 마이그레이션 실행 여부와 결과
