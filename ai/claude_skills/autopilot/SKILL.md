@@ -77,10 +77,10 @@ autopilot 실행 중에는 아래 규칙이 **모든 하위 skill, prompt, 기�
 
 ```bash
 # 세션 생성
-bash ai/scripts/ai/prepare_review_pipeline.sh <review-kind> [args...]
+bash ai/scripts/prepare_review_pipeline.sh <review-kind> [args...]
 
 # Claude 턴 작성 → Reviewer 턴 실행
-bash ai/scripts/ai/run_review_turn.sh <session-path>
+bash ai/scripts/run_review_turn.sh <session-path>
 ```
 
 | 단계 | review-kind | 타이밍 |

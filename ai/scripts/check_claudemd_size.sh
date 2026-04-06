@@ -2,7 +2,7 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_root="$(cd "${script_dir}/../../.." && pwd)"
+project_root="$(cd "${script_dir}/../.." && pwd)"
 
 claudemd="${project_root}/CLAUDE.md"
 limit="${CLAUDEMD_LINE_LIMIT:-200}"

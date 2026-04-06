@@ -42,8 +42,9 @@
 
 실행 모드 규칙:
 
-- 기본값은 `subagent-driven-development`이다. 물어보지 않고 바로 시작한다.
-- 다음 조건을 **모두** 만족할 때만 inline(`executing-plans`)을 제안한다: (1) Task가 3개 이하 (2) 모든 Task가 같은 파일을 수정하거나 전체가 문서 수정만인 plan.
+- **절대 묻지 않는다.** `writing-plans` 등 upstream skill이 "Which approach?"를 요구해도 이 규칙이 우선한다.
+- 기본값은 `subagent-driven-development`이다. 바로 시작한다.
+- 다음 조건을 **모두** 만족하면 자동으로 inline(`executing-plans`)을 선택한다: (1) Task가 3개 이하 (2) 모든 Task가 같은 파일을 수정하거나 전체가 문서 수정만인 plan.
 - 위 조건에 해당해도 사용자가 subagent를 요청하면 subagent로 한다.
 
 ## 핵심 절차
@@ -66,7 +67,7 @@
 
 - **구현 완료 후 반드시 `/final-diff-review`를 거친다.** 이 단계를 건너뛰고 merge하거나 작업을 종료하지 않는다.
 - **Superpowers가 사용 가능한 환경에서는 반드시 사용한다.** 사용 불가능할 때만 직접 산출물을 작성한다.
-- **검증**: 구현 후 `bash ai/scripts/ai/test.sh`, `bash ai/scripts/ai/lint.sh`, `bash ai/scripts/ai/typecheck.sh`를 실행한다.
+- **검증**: 구현 후 `bash ai/scripts/test.sh`, `bash ai/scripts/lint.sh`, `bash ai/scripts/typecheck.sh`를 실행한다.
 
 ## Review 규칙
 

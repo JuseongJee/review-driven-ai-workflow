@@ -134,12 +134,9 @@ ai/docs
 
 구성
 
-- prompts
-- review_prompts
-- library
+- prompts (review/ 포함)
 - flows
-- templates
-- policies
+- guides
 - adr
 
 ai/workspace
@@ -214,37 +211,6 @@ AGENTS.md
 PR_TEMPLATE.md
 -> PR 설명을 쓸 때 그대로 복사해 쓴다
 
-## Codex에게 요청하는 작업
-
-현재 저장소의 실제 파일을 읽고 다음을 수행합니다.
-
-1. 문서 간 설명 충돌 확인
-2. 경로 참조 오류 확인
-3. README setup 흐름 점검
-4. README와 WORKING_WITH_AI 역할 구분 점검
-5. prompts / library 역할 구분 점검
-6. AI_DOC_MAP 정확성 확인
-7. PR_TEMPLATE 연결 확인
-8. CLAUDE.md 규칙 검토
-9. scripts 경로 검토
-
-## 수정 원칙
-
-- 문서를 새로 설계하지 않는다
-- 현재 구조를 유지하면서 설명을 정리한다
-- 경로 오류만 수정한다
-- 사용자가 처음 사용할 때 혼란이 없도록 정리한다
-
-## 최종 목표
-
-사용자가 다음 순서만 따르면 된다.
-
-1. README.md 읽기
-2. PROJECT_CONTEXT 생성
-3. REQUEST 생성
-4. 작업 시작
-5. spec / plan 생성
-6. Codex 검토
 7. 구현
 8. 검증
 9. PR 작성

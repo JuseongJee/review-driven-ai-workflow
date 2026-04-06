@@ -2,21 +2,21 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source_root="$(cd "${script_dir}/../../.." && pwd)"
+source_root="$(cd "${script_dir}/../.." && pwd)"
 
 usage() {
   cat <<'EOF' >&2
 사용법:
-  bash ai/scripts/ai/install_claude_skills.sh [project|personal] [link|copy] [skill-name ...]
+  bash ai/scripts/install_claude_skills.sh [project|personal] [link|copy] [skill-name ...]
 
 기본값:
   scope: personal
   mode: link
 
 예:
-  bash ai/scripts/ai/install_claude_skills.sh
-  bash ai/scripts/ai/install_claude_skills.sh project
-  bash ai/scripts/ai/install_claude_skills.sh personal copy request-to-reviewed-plan
+  bash ai/scripts/install_claude_skills.sh
+  bash ai/scripts/install_claude_skills.sh project
+  bash ai/scripts/install_claude_skills.sh personal copy request-to-reviewed-plan
 
 메모:
   - canonical skill source는 `ai/claude_skills/`입니다.

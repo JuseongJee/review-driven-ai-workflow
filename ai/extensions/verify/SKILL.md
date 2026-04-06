@@ -62,7 +62,7 @@ bash ai/extensions/verify/verify.sh --skip playwright,axe     # 제외 항목 �
 성공한 verifier 결과가 있으면 review pipeline을 시작한다:
 
 ```bash
-bash ai/scripts/ai/init_review_pipeline.sh "verify-review" "verify-review" ".verification/latest/" "verification.json의 criteria와 evaluate 프롬프트를 기준으로 도구 실행 결과를 평가하고, 3점 미만 항목의 구체적 개선사항을 제시하라."
+bash ai/scripts/init_review_pipeline.sh "verify-review" "verify-review" ".verification/latest/" "verification.json의 criteria와 evaluate 프롬프트를 기준으로 도구 실행 결과를 평가하고, 3점 미만 항목의 구체적 개선사항을 제시하라."
 ```
 
 Author 턴을 작성한다:
@@ -72,7 +72,7 @@ Author 턴을 작성한다:
 
 Reviewer 턴을 실행한다:
 ```bash
-bash ai/scripts/ai/run_review_turn.sh <session-path>
+bash ai/scripts/run_review_turn.sh <session-path>
 ```
 
 ### 4. 반복

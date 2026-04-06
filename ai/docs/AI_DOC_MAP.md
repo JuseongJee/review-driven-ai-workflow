@@ -17,9 +17,6 @@
 `WORKING_WITH_AI.md`
 - 평상시 작업 순서
 
-`ai/workspace/handoffs/review_pipeline/`
-- Author <-> Reviewer review 세션 파일
-
 ## 진입점
 
 - 저장소 도입과 초기 설정은 템플릿 저장소의 `README.md`를 봅니다
@@ -31,14 +28,8 @@
 - 사용자용 프롬프트 도구 상자
 - 어떤 폴더를 열지 고를 때는 `prompts/README.md`
 
-`review_prompts/`
+`prompts/review/`
 - review 세션에 그대로 붙여 넣는 검토 기준
-
-`backlog/FUTURE_REQUESTS.md`
-- 지금 작업에서 빼고 나중에 처리할 후보
-
-`backlog/request-archive/`
-- 완료된 REQUEST.md 보관소 (과거 작업 이력 추적용)
 
 `flows/WORKFLOW.md`
 - 작업 분기와 권장 순서 요약
@@ -49,28 +40,42 @@
 `flows/CLAUDE_ORCHESTRATED_REVIEW_DESIGN.md` _(선택 — 배경 설명, 평소 읽지 않음)_
 - review 구조를 왜 이렇게 만들었는지 설명
 
-`templates/`
-- PR 템플릿 등 재사용 포맷
+`PR_TEMPLATE.md`
+- PR 템플릿
 
-`policies/AGENTS.md`
+`AGENTS.md`
 - Git 워크플로 규칙과 핸드오프 규칙
-
-`library/` _(선택 — 필요할 때만 참조)_
-- 특정 분석이나 별도 검토를 시킬 때 쓰는 가이드 모음 (외부 AI 핸드오프 가이드 포함)
 
 `adr/`
 - 운영 규칙과 구조 결정을 남긴 기록
 
-`superpowers/specs/base/`
+`guides/`
+- Team Overlay, 검증 범위 등 운영 가이드
+
+## ai/workspace
+
+`backlog/FUTURE_REQUESTS.md`
+- 지금 작업에서 빼고 나중에 처리할 후보
+
+`backlog/request-archive/`
+- 완료된 REQUEST.md 보관소 (과거 작업 이력 추적용)
+
+`specs/base/`
 - 새 기능 spec 저장 위치
 
-`superpowers/specs/changes/`
+`specs/changes/`
 - 기존 코드 변경 change spec 저장 위치
 
-`superpowers/plans/`
+`plans/`
 - plan 저장 위치
 
-## ai/scripts/ai
+`reports/`
+- 완료 report, review 요약 report
+
+`handoffs/`
+- 세션 간 컨텍스트 전달, review 세션 파일
+
+## ai/scripts
 
 `build.sh`
 - build 실행

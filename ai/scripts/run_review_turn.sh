@@ -2,7 +2,7 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_root="$(cd "${script_dir}/../../.." && pwd)"
+project_root="$(cd "${script_dir}/../.." && pwd)"
 cd "${project_root}"
 
 source "${script_dir}/review_common.sh"
@@ -13,10 +13,10 @@ turn_limit="${REVIEW_TURN_LIMIT:-20}"
 usage() {
   cat <<'EOF' >&2
 사용법:
-  bash ai/scripts/ai/run_review_turn.sh <session-path>
+  bash ai/scripts/run_review_turn.sh <session-path>
 
 예:
-  bash ai/scripts/ai/run_review_turn.sh ai/workspace/handoffs/review_pipeline/20260313_120000_request-review
+  bash ai/scripts/run_review_turn.sh ai/workspace/handoffs/review_pipeline/20260313_120000_request-review
 EOF
 }
 

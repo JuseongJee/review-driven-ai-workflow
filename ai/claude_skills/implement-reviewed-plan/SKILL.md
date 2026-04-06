@@ -21,7 +21,7 @@ Execution rules:
 - **Superpowers가 사용 가능하면 반드시 `executing-plans`를 사용한다.** 사용 불가능할 때만 직접 구현한다.
 - subagent가 사용 가능하면 반드시 `subagent-driven-development`를 사용하고, worktree가 가능하면 `using-git-worktrees`와 함께 사용한다.
 - Update `CURRENT_TASK.md`.
-- Run `bash ai/scripts/ai/test.sh`, `bash ai/scripts/ai/lint.sh`, and `bash ai/scripts/ai/typecheck.sh`.
+- Run `bash ai/scripts/test.sh`, `bash ai/scripts/lint.sh`, and `bash ai/scripts/typecheck.sh`.
 - **구현 완료 후 반드시 `/final-diff-review`로 넘긴다. 이 단계를 건너뛰고 merge하거나 작업을 종료하지 않는다.**
 
 Final output:

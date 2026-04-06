@@ -2,7 +2,7 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_root="$(cd "${script_dir}/../../../.." && pwd)"
+project_root="$(cd "${script_dir}/../../.." && pwd)"
 
 # stdin에서 JSON 읽기
 input="$(cat)"
@@ -40,7 +40,7 @@ is_template_stub() {
   head -5 "$file" 2>/dev/null | grep -q '# TEMPLATE_STUB' 2>/dev/null
 }
 
-scripts_dir="${project_root}/ai/scripts/ai"
+scripts_dir="${project_root}/ai/scripts"
 verification_scripts=("test.sh" "lint.sh" "typecheck.sh")
 
 for script_name in "${verification_scripts[@]}"; do

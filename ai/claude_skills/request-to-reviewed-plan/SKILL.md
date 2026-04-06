@@ -23,8 +23,8 @@ Execution rules:
 - Ask only when a missing fact is required to create `REQUEST.md` or to choose the execution path safely.
 - 사용자가 명시적으로 `small-task`로 지정한 경우에만 spec / plan 흐름을 중단하고 `/small-task-implement`를 추천한다. AI가 자체적으로 small-task로 재분류하지 않는다.
 - If `Execution Path` is `existing-code-change` or `new-feature-or-large-task`, continue through request review, spec or change spec, plan, and spec / plan review.
-- Use `bash ai/scripts/ai/prepare_review_pipeline.sh request` and `bash ai/scripts/ai/run_review_turn.sh ...` for `REQUEST` review.
-- Use `bash ai/scripts/ai/prepare_review_pipeline.sh spec-plan` or the explicit spec / plan paths plus `bash ai/scripts/ai/run_review_turn.sh ...` for spec / plan review.
+- Use `bash ai/scripts/prepare_review_pipeline.sh request` and `bash ai/scripts/run_review_turn.sh ...` for `REQUEST` review.
+- Use `bash ai/scripts/prepare_review_pipeline.sh spec-plan` or the explicit spec / plan paths plus `bash ai/scripts/run_review_turn.sh ...` for spec / plan review.
 - **Superpowers가 사용 가능하면 반드시 `brainstorming`과 `writing-plans`를 사용한다.** 사용 불가능할 때만 같은 산출물을 직접 작성한다.
 - Update `CURRENT_TASK.md` at the major checkpoints.
 - Stop before implementation.

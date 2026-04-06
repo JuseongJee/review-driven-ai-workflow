@@ -13,13 +13,13 @@ Typical user request:
 
 Read these first:
 - `CURRENT_TASK.md`
-- `ai/docs/templates/PR_TEMPLATE.md`
-- `ai/docs/review_prompts/diff_review.md`
+- `ai/docs/PR_TEMPLATE.md`
+- `ai/docs/prompts/review/diff_review.md`
 
 Execution rules:
-- If verification has not been run yet, run `bash ai/scripts/ai/test.sh`, `bash ai/scripts/ai/lint.sh`, and `bash ai/scripts/ai/typecheck.sh` first when possible.
-- Draft the PR description with `ai/docs/templates/PR_TEMPLATE.md`.
-- Start the final diff review with `bash ai/scripts/ai/prepare_review_pipeline.sh diff` and continue with `bash ai/scripts/ai/run_review_turn.sh ...` until the session reaches `awaiting-user` or the latest Reviewer turn has no objections.
+- If verification has not been run yet, run `bash ai/scripts/test.sh`, `bash ai/scripts/lint.sh`, and `bash ai/scripts/typecheck.sh` first when possible.
+- Draft the PR description with `ai/docs/PR_TEMPLATE.md`.
+- Start the final diff review with `bash ai/scripts/prepare_review_pipeline.sh diff` and continue with `bash ai/scripts/run_review_turn.sh ...` until the session reaches `awaiting-user` or the latest Reviewer turn has no objections.
 - Update `CURRENT_TASK.md` if the task status changes.
 
 Final output:

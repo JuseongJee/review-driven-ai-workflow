@@ -84,10 +84,10 @@ Design Reference가 있으면 추천. 없어도 에러/엣지 케이스 점검 �
 ## 프로젝트 초기 설정
 
 1. `PROJECT_CONTEXT.md`를 만듭니다
-2. `ai/scripts/ai/{build,test,lint,typecheck}.sh`를 프로젝트 명령으로 채웁니다
+2. `ai/scripts/{build,test,lint,typecheck}.sh`를 프로젝트 명령으로 채웁니다
 3. 빈칸이나 불명확한 제약이 남아 있으면 `PROJECT_CONTEXT` review를 돌립니다
 
-초기 설정에 쓰는 문서는 `ai/docs/prompts/examples/`에 있습니다.
+초기 설정 절차는 `ai/docs/guides/setup_with_claude.md`에 있습니다.
 
 ## Review Pipeline
 
@@ -97,6 +97,6 @@ Design Reference가 있으면 추천. 없어도 에러/엣지 케이스 점검 �
 
 ## Prompt 사용 위치
 
-- 예문: `ai/docs/prompts/examples/`
 - 보정: `ai/docs/prompts/recovery/`
 - 수동 복구: `ai/docs/prompts/manual/`
+- 리뷰 기준: `ai/docs/prompts/review/`

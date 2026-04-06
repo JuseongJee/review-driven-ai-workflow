@@ -23,7 +23,7 @@
 먼저 버전 가드 스크립트를 실행합니다.
 
 ```bash
-bash ai/scripts/ai/sync_template.sh <배포 repo URL>
+bash ai/scripts/sync_template.sh <배포 repo URL>
 ```
 
 - 스크립트가 정상 종료(exit 0)하면 마지막 줄에 출력된 임시 clone 경로를 사용합니다.
@@ -44,8 +44,8 @@ bash ai/scripts/ai/sync_template.sh <배포 repo URL>
 - `CLAUDE.md`, `WORKING_WITH_AI.md`
 - `ai/claude_skills/`
 - `ai/config/` (설정 예제 파일)
-- `ai/docs/` (adr, flows, library, policies, prompts, review_prompts, templates, backlog 구조 문서)
-- `ai/scripts/ai/` 중 review pipeline 관련 스크립트
+- `ai/docs/` (adr, flows, guides, prompts, backlog 구조 문서)
+- `ai/scripts/` 중 review pipeline 관련 스크립트
 
 **신규 추가** — 템플릿에 있지만 프로젝트에 없는 파일
 
@@ -57,7 +57,7 @@ bash ai/scripts/ai/sync_template.sh <배포 repo URL>
 - `ai/workspace/backlog/FUTURE_REQUESTS.md` (항목이 있는 경우)
 - `ai/workspace/backlog/request-archive/` 안의 아카이브 파일
 - `ai/workspace/specs/`, `ai/workspace/plans/` 안의 작업 산출물 (README 제외)
-- `ai/scripts/ai/{build,test,lint,typecheck}.sh` (프로젝트별 명령이 들어 있음)
+- `ai/scripts/{build,test,lint,typecheck}.sh` (프로젝트별 명령이 들어 있음)
 - `ai/workspace/handoffs/` 안의 작업 내용물
 - `ai/config/review-tools.json` (프로젝트별 리뷰 도구 설정, `.example`은 동기화 대상)
 - `ai/config/verification.json` (프로젝트별 검증 설정, `.example`은 동기화 대상)
@@ -82,7 +82,7 @@ bash ai/scripts/ai/sync_template.sh <배포 repo URL>
 #### 4-1. workspace 디렉토리 구조 마이그레이션
 
 `ai/docs/superpowers/` 디렉토리가 존재하면 구형 구조입니다.
-`ai/docs/prompts/guides/migrate_workspace_structure.md`의 절차를 실행합니다.
+`ai/docs/guides/migrate_workspace_structure.md`의 절차를 실행합니다.
 
 #### 4-2. FUTURE_REQUESTS 인덱스 마이그레이션
 
@@ -94,6 +94,60 @@ bash ai/scripts/ai/sync_template.sh <배포 repo URL>
 3. `FUTURE_REQUESTS.md`를 인덱스 테이블 형식으로 변환 (템플릿 헤더 + 항목당 1줄)
 4. `FUTURE_REQUESTS_DONE.md`가 있으면 동일하게 항목을 `items/`로 추출 후 삭제
 5. 마이그레이션 결과를 사용자에게 보여주고 확인을 받는다
+
+#### 4-3. 폴더 구조 평탄화 마이그레이션
+
+아래 구형 경로 중 하나라도 존재하면 마이그레이션을 실행합니다.
+
+감지 조건 (하나라도 해당되면):
+- `ai/scripts/ai/` 디렉토리가 존재
+- `ai/docs/prompts/guides/` 디렉토리가 존재
+- `ai/docs/review_prompts/` 디렉토리가 존재
+- `ai/docs/policies/` 디렉토리가 존재
+- `ai/docs/templates/` 디렉토리가 존재
+
+마이그레이션 절차:
+
+```bash
+# 1. scripts/ai/ → scripts/ (평탄화)
+if [ -d "ai/scripts/ai" ]; then
+  mv ai/scripts/ai/hooks ai/scripts/hooks 2>/dev/null
+  mv ai/scripts/ai/* ai/scripts/ 2>/dev/null
+  rmdir ai/scripts/ai
+fi
+
+# 2. prompts/guides/ → docs/guides/ (통합)
+if [ -d "ai/docs/prompts/guides" ]; then
+  mv ai/docs/prompts/guides/* ai/docs/guides/ 2>/dev/null
+  rmdir ai/docs/prompts/guides
+fi
+
+# 3. review_prompts/ → prompts/review/ (이동)
+if [ -d "ai/docs/review_prompts" ]; then
+  mkdir -p ai/docs/prompts/review
+  mv ai/docs/review_prompts/* ai/docs/prompts/review/ 2>/dev/null
+  rmdir ai/docs/review_prompts
+fi
+
+# 4. policies/ → docs/ (평탄화)
+if [ -d "ai/docs/policies" ]; then
+  mv ai/docs/policies/* ai/docs/ 2>/dev/null
+  rmdir ai/docs/policies
+fi
+
+# 5. templates/ → docs/ (평탄화)
+if [ -d "ai/docs/templates" ]; then
+  mv ai/docs/templates/* ai/docs/ 2>/dev/null
+  rmdir ai/docs/templates
+fi
+
+# 6. library/ 삭제 (더 이상 사용하지 않음)
+if [ -d "ai/docs/library" ]; then
+  rm -rf ai/docs/library
+fi
+```
+
+이후 동기화 단계에서 템플릿의 최신 파일로 덮어쓰면 파일 내부의 경로 참조도 자동으로 업데이트됩니다.
 
 ### 5. 동기화 실행
 
@@ -148,4 +202,4 @@ cp <임시 clone 경로>/ai/VERSION ai/VERSION
 - 복사/추가/삭제된 파일 수
 - 마이그레이션 실행 여부와 결과
 - 보존된 파일 요약
-- Skill 재설치가 필요하면 안내: `bash ai/scripts/ai/install_claude_skills.sh project`
+- Skill 재설치가 필요하면 안내: `bash ai/scripts/install_claude_skills.sh project`

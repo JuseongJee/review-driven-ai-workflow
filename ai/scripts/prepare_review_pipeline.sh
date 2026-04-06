@@ -2,7 +2,7 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_root="$(cd "${script_dir}/../../.." && pwd)"
+project_root="$(cd "${script_dir}/../.." && pwd)"
 cd "${project_root}"
 
 turn_limit="${REVIEW_TURN_LIMIT:-20}"
@@ -10,7 +10,7 @@ turn_limit="${REVIEW_TURN_LIMIT:-20}"
 usage() {
   cat <<'EOF' >&2
 사용법:
-  bash ai/scripts/ai/prepare_review_pipeline.sh <review-kind> [args...]
+  bash ai/scripts/prepare_review_pipeline.sh <review-kind> [args...]
 
 review-kind:
   project-context
@@ -19,12 +19,12 @@ review-kind:
   diff [diff-target]
 
 예:
-  bash ai/scripts/ai/prepare_review_pipeline.sh project-context
-  bash ai/scripts/ai/prepare_review_pipeline.sh request
-  bash ai/scripts/ai/prepare_review_pipeline.sh spec-plan
-  bash ai/scripts/ai/prepare_review_pipeline.sh spec-plan ai/workspace/specs/changes/2026-03-12-image-compression-change-spec.md ai/workspace/plans/2026-03-12-image-compression-plan.md
-  bash ai/scripts/ai/prepare_review_pipeline.sh diff
-  bash ai/scripts/ai/prepare_review_pipeline.sh diff "git diff main...HEAD"
+  bash ai/scripts/prepare_review_pipeline.sh project-context
+  bash ai/scripts/prepare_review_pipeline.sh request
+  bash ai/scripts/prepare_review_pipeline.sh spec-plan
+  bash ai/scripts/prepare_review_pipeline.sh spec-plan ai/workspace/specs/changes/2026-03-12-image-compression-change-spec.md ai/workspace/plans/2026-03-12-image-compression-plan.md
+  bash ai/scripts/prepare_review_pipeline.sh diff
+  bash ai/scripts/prepare_review_pipeline.sh diff "git diff main...HEAD"
 EOF
 }
 
@@ -96,13 +96,13 @@ case "$review_kind" in
     review_type="project-context-review"
     session_slug="project-context-review"
     review_target="PROJECT_CONTEXT.md"
-    review_goal="\`ai/docs/review_prompts/project_context_review.md\` 기준으로 build / test / lint / typecheck 명령과 프로젝트 규칙이 구현 입력으로 충분한지 점검"
+    review_goal="\`ai/docs/prompts/review/project_context_review.md\` 기준으로 build / test / lint / typecheck 명령과 프로젝트 규칙이 구현 입력으로 충분한지 점검"
     ;;
   request|request-review)
     review_type="request-review"
     session_slug="request-review"
     review_target="REQUEST.md"
-    review_goal="\`ai/docs/review_prompts/request_review.md\` 기준으로 제약, 완료 조건, 플랫폼, 위험 요소, 영향 범위 누락이 없는지 점검"
+    review_goal="\`ai/docs/prompts/review/request_review.md\` 기준으로 제약, 완료 조건, 플랫폼, 위험 요소, 영향 범위 누락이 없는지 점검"
     ;;
   spec-plan|spec-plan-review|spec-review)
     spec_path="${1:-}"
@@ -119,7 +119,7 @@ case "$review_kind" in
     if [[ -z "$spec_path" || -z "$plan_path" ]]; then
       echo "spec-plan 검토는 spec과 plan 경로가 필요합니다." >&2
       echo "자동 탐지에 실패했으면 직접 지정하세요." >&2
-      echo "예: bash ai/scripts/ai/prepare_review_pipeline.sh spec-plan <spec-path> <plan-path>" >&2
+      echo "예: bash ai/scripts/prepare_review_pipeline.sh spec-plan <spec-path> <plan-path>" >&2
       exit 1
     fi
 
@@ -127,14 +127,14 @@ case "$review_kind" in
     session_slug="$(derive_task_slug "$plan_path")-spec-plan-review"
     review_target="${spec_path}
 ${plan_path}"
-    review_goal="\`ai/docs/review_prompts/spec_review.md\` 기준으로 과도한 설계, 빠진 엣지 케이스, 더 단순한 대안, 테스트 전략 누락, 플랫폼 리스크를 점검"
+    review_goal="\`ai/docs/prompts/review/spec_review.md\` 기준으로 과도한 설계, 빠진 엣지 케이스, 더 단순한 대안, 테스트 전략 누락, 플랫폼 리스크를 점검"
     ;;
   diff|diff-review|final-diff)
     diff_target="${1:-git diff main...HEAD}"
     review_type="diff-review"
     session_slug="final-diff-review"
     review_target="${diff_target}"
-    review_goal="\`ai/docs/review_prompts/diff_review.md\` 기준으로 논리 버그, 회귀 위험, 성능 문제, 보안 문제, 유지보수성 저하, 불필요한 복잡성을 점검"
+    review_goal="\`ai/docs/prompts/review/diff_review.md\` 기준으로 논리 버그, 회귀 위험, 성능 문제, 보안 문제, 유지보수성 저하, 불필요한 복잡성을 점검"
     ;;
   *)
     echo "알 수 없는 review-kind: ${review_kind}" >&2
@@ -165,7 +165,7 @@ ${review_goal}
 ${session_path}
 
 ## Preferred Flow
-Claude 중심 권장 흐름에서는 아래 프롬프트만 Claude에게 넣고, 이후 Codex 차례는 Claude가 이 세션 경로로 \`bash ai/scripts/ai/run_review_turn.sh ...\`를 처리한다.
+Claude 중심 권장 흐름에서는 아래 프롬프트만 Claude에게 넣고, 이후 Codex 차례는 Claude가 이 세션 경로로 \`bash ai/scripts/run_review_turn.sh ...\`를 처리한다.
 
 ## Step 1. Paste To Claude
 \`\`\`text
@@ -210,7 +210,7 @@ ${review_goal}
 
 next:
 1. 아래 프롬프트를 Claude에게 넣으세요.
-2. 권장 흐름에서는 Claude가 Codex 차례에 이 세션 경로로 \`bash ai/scripts/ai/run_review_turn.sh ...\`를 실행합니다.
+2. 권장 흐름에서는 Claude가 Codex 차례에 이 세션 경로로 \`bash ai/scripts/run_review_turn.sh ...\`를 실행합니다.
 3. Claude가 CLI를 실행할 수 없을 때만 ${prompts_path} 의 수동 fallback 블록을 사용하세요.
 
 ----- CLAUDE -----

@@ -3,7 +3,7 @@
 이 프롬프트는 `prepare_review_pipeline.sh`를 쓸 수 없을 때만 사용합니다.
 
 절차:
-1. `bash ai/scripts/ai/init_review_pipeline.sh "<session-slug>" "<review-type>" "<review-target>" "<review-goal>"`로 세션을 만듭니다. 안 되면 같은 구조를 직접 만듭니다
+1. `bash ai/scripts/init_review_pipeline.sh "<session-slug>" "<review-type>" "<review-target>" "<review-goal>"`로 세션을 만듭니다. 안 되면 같은 구조를 직접 만듭니다
 2. `SESSION.md`, `CHECKPOINT.md`, `USER_ACTION.md`를 채웁니다
 3. `turns/001_claude.md`를 작성합니다
 4. `CHECKPOINT.md`에 열린 쟁점과 Codex에게 넘길 질문을 정리합니다

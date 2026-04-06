@@ -63,7 +63,7 @@ rm -rf /tmp/ai-dev-template-src
 
 ### 4. 검증 스크립트 채우기
 
-`ai/scripts/ai/` 아래 4개 스크립트를 프로젝트에 맞게 채웁니다.
+`ai/scripts/` 아래 4개 스크립트를 프로젝트에 맞게 채웁니다.
 
 - `build.sh`: 3단계에서 파악한 build 명령
 - `test.sh`: 3단계에서 파악한 test 명령
@@ -77,7 +77,7 @@ rm -rf /tmp/ai-dev-template-src
 ### 5. Skill 설치
 
 ```bash
-bash ai/scripts/ai/install_claude_skills.sh project
+bash ai/scripts/install_claude_skills.sh project
 ```
 
 ### 6. PROJECT_CONTEXT 검토 (선택)

@@ -24,11 +24,11 @@
 
 권장 명령:
 
-- `bash ai/scripts/ai/prepare_review_pipeline.sh <review-kind> [args...]`
+- `bash ai/scripts/prepare_review_pipeline.sh <review-kind> [args...]`
 
 스크립트를 쓸 수 없을 때:
 
-- `bash ai/scripts/ai/init_review_pipeline.sh "<session-slug>" "<review-type>" "<review-target>" "<review-goal>"`
+- `bash ai/scripts/init_review_pipeline.sh "<session-slug>" "<review-type>" "<review-target>" "<review-goal>"`
 
 review kind:
 
@@ -119,12 +119,12 @@ Claude가 CLI를 실행할 수 없을 때만 `ai/docs/prompts/manual/` 안의 �
 
 ## 관련 스크립트
 
-- `ai/scripts/ai/prepare_review_pipeline.sh`
-- `ai/scripts/ai/init_review_pipeline.sh`
-- `ai/scripts/ai/run_review_turn.sh`
-- `ai/scripts/ai/review_common.sh`
-- `ai/scripts/ai/adapter_codex.sh`
-- `ai/scripts/ai/adapter_claude.sh`
+- `ai/scripts/prepare_review_pipeline.sh`
+- `ai/scripts/init_review_pipeline.sh`
+- `ai/scripts/run_review_turn.sh`
+- `ai/scripts/review_common.sh`
+- `ai/scripts/adapter_codex.sh`
+- `ai/scripts/adapter_claude.sh`
 
 ## 리뷰 도구 설정
 

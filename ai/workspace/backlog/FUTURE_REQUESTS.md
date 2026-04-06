@@ -32,7 +32,7 @@
 - request seed: REQUEST로 만들 때 쓸 초안
 ```
 
-상세 가이드: `ai/docs/prompts/guides/record_future_request.md`
+상세 가이드: `ai/docs/guides/record_future_request.md`
 
 ---
 

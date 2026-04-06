@@ -2,12 +2,12 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_root="$(cd "${script_dir}/../../.." && pwd)"
+project_root="$(cd "${script_dir}/../.." && pwd)"
 cd "${project_root}"
 
 if [[ $# -lt 2 || $# -gt 4 ]]; then
-  echo "사용법: bash ai/scripts/ai/init_review_pipeline.sh <session-slug> <review-type> [review-target] [review-goal]" >&2
-  echo "예: bash ai/scripts/ai/init_review_pipeline.sh image-compression-spec spec-plan-review ai/workspace/specs/changes/2026-03-12-image-compression-change-spec.md \"spec / plan 검토\"" >&2
+  echo "사용법: bash ai/scripts/init_review_pipeline.sh <session-slug> <review-type> [review-target] [review-goal]" >&2
+  echo "예: bash ai/scripts/init_review_pipeline.sh image-compression-spec spec-plan-review ai/workspace/specs/changes/2026-03-12-image-compression-change-spec.md \"spec / plan 검토\"" >&2
   exit 1
 fi
 

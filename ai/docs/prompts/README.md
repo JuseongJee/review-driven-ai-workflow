@@ -8,7 +8,7 @@
 
 - 평소에는 입력창에 짧은 자연어 요청을 먼저 넣습니다.
 - skill이 있으면 skill 이름만 붙여도 원하는 단계까지 가는 경우가 많습니다.
-- 프롬프트 파일은 예문, 보정, 수동 복구에만 씁니다.
+- 프롬프트 파일은 보정, 수동 복구에만 씁니다.
 
 짧은 요청 예:
 
@@ -33,9 +33,6 @@ future request 후보 보여줘.
 `guides/`
 - 설정, 마이그레이션, 템플릿 동기화 등 실행 절차 문서
 
-`examples/`
-- 평상시 입력창에 바로 넣기 쉬운 짧은 프롬프트 예시
-
 `recovery/`
 - 모델이 형식이나 절차를 자꾸 놓칠 때 그대로 붙여 넣는 보정 프롬프트
 
@@ -44,19 +41,15 @@ future request 후보 보여줘.
 
 ## 추천 사용 순서
 
-1. 자연어로 짧게 요청
-2. 원하는 문장 형태가 바로 안 나오면 `examples/`
-3. 설정/마이그레이션/동기화가 필요하면 `guides/`
-4. 모델이 형식이나 절차를 반복해서 놓치면 `recovery/`
-5. 스크립트나 자동화가 막히면 `manual/`
+1. 자연어로 짧게 요청 (`WORKING_WITH_AI.md` 참조)
+2. 설정/마이그레이션/동기화가 필요하면 `guides/`
+3. 모델이 형식이나 절차를 반복해서 놓치면 `recovery/`
+4. 스크립트나 자동화가 막히면 `manual/`
 
 ## 자주 쓰는 파일
 
-- `guides/sync_template.md`
-- `guides/record_future_request.md`
 - `guides/setup_with_claude.md`
-- `examples/make_request.md`
-- `examples/start_large_or_existing_change.md`
-- `examples/implement_small_task.md`
+- `guides/sync_template.md`
+- `guides/migrate_existing_project.md`
 - `recovery/request_to_reviewed_plan_full.md`
 - `manual/review_pipeline_continue_manual.md`

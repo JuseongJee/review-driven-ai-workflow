@@ -23,9 +23,9 @@ if [[ -z "$REPO_URL" ]]; then
   exit 1
 fi
 
-# 프로젝트 루트 감지 (ai/scripts/ai/ 기준으로 3단계 위)
+# 프로젝트 루트 감지 (ai/scripts/ 기준으로 2단계 위)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # 임시 clone
 CLONE_DIR="$(mktemp -d)"

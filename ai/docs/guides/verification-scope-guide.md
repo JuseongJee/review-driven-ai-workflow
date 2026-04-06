@@ -7,7 +7,7 @@ AI가 검증 스크립트를 설정하거나 추천할 때 참고하는 단계�
 | 단계 | 타이밍 | 권장 검증 | 금지 |
 |------|--------|-----------|------|
 | **pre-commit** | 커밋 직전 | syntax check, lint, format | UI test, integration test, 네트워크 호출 |
-| **구현 후 (local)** | `bash ai/scripts/ai/test.sh` 등 | unit test, lint, typecheck | 무거운 E2E, 외부 서비스 의존 테스트 |
+| **구현 후 (local)** | `bash ai/scripts/test.sh` 등 | unit test, lint, typecheck | 무거운 E2E, 외부 서비스 의존 테스트 |
 | **CI** | push/PR 트리거 | full test, integration, E2E | - (제한 없음) |
 | **verify extension** | final-diff-review 전 | 런타임 품질 검증 (Lighthouse, k6 등) | - (프리셋에 따름) |
 
