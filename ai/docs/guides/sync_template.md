@@ -77,77 +77,9 @@ bash ai/scripts/sync_template.sh <배포 repo URL>
 
 동기화 실행 전에, 템플릿의 구조 변경으로 프로젝트에 마이그레이션이 필요한지 확인합니다.
 
-아래 마이그레이션을 순서대로 감지하고, 해당되는 항목만 실행합니다.
+템플릿 구조가 크게 바뀌어서 프로젝트의 기존 디렉토리 구조와 맞지 않는 경우, 여기서 마이그레이션을 수행합니다.
 
-#### 4-1. workspace 디렉토리 구조 마이그레이션
-
-`ai/docs/superpowers/` 디렉토리가 존재하면 구형 구조입니다.
-`ai/docs/guides/migrate_workspace_structure.md`의 절차를 실행합니다.
-
-#### 4-2. FUTURE_REQUESTS 인덱스 마이그레이션
-
-`ai/workspace/backlog/FUTURE_REQUESTS.md`에 `## 인덱스` 섹션이 없으면 구형(인라인) 포맷입니다.
-
-구형 포맷이 감지되면:
-1. 기존 `FUTURE_REQUESTS.md`에서 `## YYYY-MM-DD` 패턴의 항목을 각각 추출
-2. `ai/workspace/backlog/items/YYYY-MM-DD-제목.md` 개별 파일로 생성
-3. `FUTURE_REQUESTS.md`를 인덱스 테이블 형식으로 변환 (템플릿 헤더 + 항목당 1줄)
-4. `FUTURE_REQUESTS_DONE.md`가 있으면 동일하게 항목을 `items/`로 추출 후 삭제
-5. 마이그레이션 결과를 사용자에게 보여주고 확인을 받는다
-
-#### 4-3. 폴더 구조 평탄화 마이그레이션
-
-아래 구형 경로 중 하나라도 존재하면 마이그레이션을 실행합니다.
-
-감지 조건 (하나라도 해당되면):
-- `ai/scripts/ai/` 디렉토리가 존재
-- `ai/docs/prompts/guides/` 디렉토리가 존재
-- `ai/docs/review_prompts/` 디렉토리가 존재
-- `ai/docs/policies/` 디렉토리가 존재
-- `ai/docs/templates/` 디렉토리가 존재
-
-마이그레이션 절차:
-
-```bash
-# 1. scripts/ai/ → scripts/ (평탄화)
-if [ -d "ai/scripts/ai" ]; then
-  mv ai/scripts/ai/hooks ai/scripts/hooks 2>/dev/null
-  mv ai/scripts/ai/* ai/scripts/ 2>/dev/null
-  rmdir ai/scripts/ai
-fi
-
-# 2. prompts/guides/ → docs/guides/ (통합)
-if [ -d "ai/docs/prompts/guides" ]; then
-  mv ai/docs/prompts/guides/* ai/docs/guides/ 2>/dev/null
-  rmdir ai/docs/prompts/guides
-fi
-
-# 3. review_prompts/ → prompts/review/ (이동)
-if [ -d "ai/docs/review_prompts" ]; then
-  mkdir -p ai/docs/prompts/review
-  mv ai/docs/review_prompts/* ai/docs/prompts/review/ 2>/dev/null
-  rmdir ai/docs/review_prompts
-fi
-
-# 4. policies/ → docs/ (평탄화)
-if [ -d "ai/docs/policies" ]; then
-  mv ai/docs/policies/* ai/docs/ 2>/dev/null
-  rmdir ai/docs/policies
-fi
-
-# 5. templates/ → docs/ (평탄화)
-if [ -d "ai/docs/templates" ]; then
-  mv ai/docs/templates/* ai/docs/ 2>/dev/null
-  rmdir ai/docs/templates
-fi
-
-# 6. library/ 삭제 (더 이상 사용하지 않음)
-if [ -d "ai/docs/library" ]; then
-  rm -rf ai/docs/library
-fi
-```
-
-이후 동기화 단계에서 템플릿의 최신 파일로 덮어쓰면 파일 내부의 경로 참조도 자동으로 업데이트됩니다.
+현재 등록된 마이그레이션은 없습니다. 향후 구조 변경 시 이 섹션에 추가됩니다.
 
 ### 5. 동기화 실행
 
