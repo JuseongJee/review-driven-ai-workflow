@@ -121,6 +121,7 @@ fi
 
 # 프롬프트 생성
 prompt_file="$(mktemp)"
+chmod 600 "$prompt_file"
 cleanup() { rm -f "$prompt_file"; }
 trap cleanup EXIT
 

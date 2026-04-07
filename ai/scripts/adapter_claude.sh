@@ -38,6 +38,7 @@ fi
 # 셀프 리뷰 경고를 턴 파일 헤더에 삽입
 if [[ "${SELF_REVIEW_WARNING:-true}" == "true" ]]; then
   local_tmp="$(mktemp)"
+  chmod 600 "$local_tmp"
   {
     echo '> **⚠️ Self-Review Notice:** 이 턴은 독립 리뷰어 대신 Claude(self-review)가 작성했습니다. 독립성이 보장되지 않으므로 결과를 비판적으로 검토하세요.'
     echo ''

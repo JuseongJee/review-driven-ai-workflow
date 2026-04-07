@@ -15,6 +15,7 @@ if ! command -v "$codex_bin" &>/dev/null; then
 fi
 
 last_message_file="$(mktemp)"
+chmod 600 "$last_message_file"
 cleanup() { rm -f "$last_message_file"; }
 trap cleanup EXIT
 
