@@ -107,7 +107,19 @@ cp <임시 clone 경로>/ai/VERSION ai/VERSION
 
 이미 동기화 과정에서 복사되었다면 이 단계는 건너뜁니다.
 
-### 8. 확장 기능 안내
+### 8. Skill 재설치
+
+`ai/claude_skills/`가 동기화되었으므로 `.claude/skills/`에도 반영합니다.
+
+```bash
+bash ai/scripts/install_claude_skills.sh project
+```
+
+- link 모드로 설치된 기존 스킬: 파일 내용은 symlink으로 자동 반영되지만, **새로 추가된 스킬**은 symlink이 없으므로 재설치가 필요합니다.
+- copy 모드로 설치된 기존 스킬: 모든 스킬의 재설치가 필요합니다.
+- 스크립트가 이미 설치된 스킬은 자동으로 건너뛰므로 항상 실행해도 안전합니다.
+
+### 9. 확장 기능 안내 (선택)
 
 동기화 후 `ai/extensions/` 디렉토리에 새로운 extension이 있는지 확인합니다.
 
@@ -129,9 +141,9 @@ cp <임시 clone 경로>/ai/VERSION ai/VERSION
 
 기존에 설치된 extension은 동기화 과정에서 `ai/extensions/` 원본이 갱신되었으므로, 재설치(덮어쓰기)할지 사용자에게 물어봅니다.
 
-### 9. 완료 보고
+### 10. 완료 보고
 
 - 복사/추가/삭제된 파일 수
 - 마이그레이션 실행 여부와 결과
 - 보존된 파일 요약
-- Skill 재설치가 필요하면 안내: `bash ai/scripts/install_claude_skills.sh project`
+- Skill 재설치 결과 (설치/건너뛴 수)
