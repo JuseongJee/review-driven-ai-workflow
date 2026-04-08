@@ -184,6 +184,7 @@ You must do all of the following:
 Constraints:
 - Do not modify files outside the review session except to read the review target.
 - Do not create a second turn file.
+- Use EXPECTED_TURN_FILE exactly as given. Do not rename, renumber, or "fix" the turn file path.
 - Do not leave Current Owner as Reviewer.
 - The session may not exceed ${turn_limit} total turn files.
 - If this is turn ${turn_limit}, you must stop the loop by setting Status=awaiting-user.
