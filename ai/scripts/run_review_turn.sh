@@ -30,11 +30,12 @@ load_review_config() {
   PRIORITY="codex claude"
 
   if [[ -f "$CONFIG_FILE" ]] && command -v jq &>/dev/null; then
-    # config 파일이 존재하고 jq도 있으면 파싱 실패는 hard error
+    # config 파일 파싱 실패 시 기본값으로 fallback (hard error 방지)
     if ! jq empty "$CONFIG_FILE" 2>/dev/null; then
-      echo "설정 파일 파싱 실패: $CONFIG_FILE" >&2
-      echo "JSON 형식을 확인하세요. (jq empty로 검증 가능)" >&2
-      exit 1
+      echo "⚠️  설정 파일 파싱 실패: $CONFIG_FILE" >&2
+      echo "    기본 설정으로 진행합니다: codex → claude" >&2
+      PRIORITY="codex claude"
+      return
     fi
 
     PRIORITY="$(jq -r '.default_priority | join(" ")' "$CONFIG_FILE")"
@@ -94,12 +95,12 @@ fi
 validate_session_dir "$session_dir"
 load_session_state "$SESSION_FILE"
 
-if [[ "$STATUS" != "awaiting-reviewer" && "$STATUS" != "awaiting-codex" ]]; then
+if [[ "$STATUS" != "awaiting-reviewer" ]]; then
   echo "session is not awaiting reviewer: status=$STATUS" >&2
   exit 1
 fi
 
-if [[ "$CURRENT_OWNER" != "Reviewer" && "$CURRENT_OWNER" != "Codex" ]]; then
+if [[ "$CURRENT_OWNER" != "Reviewer" ]]; then
   echo "current owner is not Reviewer: owner=$CURRENT_OWNER" >&2
   exit 1
 fi

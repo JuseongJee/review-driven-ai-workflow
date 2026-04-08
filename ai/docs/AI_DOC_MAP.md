@@ -69,8 +69,14 @@
 `plans/`
 - plan 저장 위치
 
-`reports/`
-- 완료 report, review 요약 report
+`reports/completions/`
+- 작업 완료 report
+
+`reports/reviews/`
+- review 세션 요약 report
+
+`reports/autopilot/`
+- autopilot 실행 완료 report
 
 `handoffs/`
 - 세션 간 컨텍스트 전달, review 세션 파일

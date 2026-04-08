@@ -41,11 +41,6 @@
 기획서 텍스트가 있으면 → `/planning-design-intake` → REQUEST.md 생성 → `/request-to-reviewed-plan`
 (v1: 기획서 텍스트 필수. 디자인 URL/스크린샷은 선택 — 있으면 Design Reference Memo로 수집)
 
-### 갭 체크 (선택)
-
-spec 작성 직후, spec/plan review 전에 → `/gap-check`
-Design Reference가 있으면 추천. 없어도 에러/엣지 케이스 점검 가능.
-
 ## 기본 분기
 
 ### 작은 작업
@@ -76,7 +71,6 @@ Design Reference가 있으면 추천. 없어도 에러/엣지 케이스 점검 �
 - 다음 단계를 고르기 어렵다면 `workflow-router`
 - 기획서 텍스트가 있으면 `planning-design-intake`
 - 큰 작업 시작은 `request-to-reviewed-plan`
-- spec 갭 점검은 `gap-check`
 - 작은 작업 구현은 `small-task-implement`
 - reviewed plan 구현은 `implement-reviewed-plan`
 - 마무리는 `final-diff-review`

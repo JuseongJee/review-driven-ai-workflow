@@ -75,6 +75,7 @@
 - review는 기본적으로 `prepare_review_pipeline.sh`로 세션을 만들고 `run_review_turn.sh`로 턴을 이어갑니다.
 - 최신 Reviewer 턴이 `이의 없음`을 명시할 때까지 review를 이어갑니다.
 - 사람 결정이 필요하거나 총 20턴에 도달하면 `awaiting-user`로 바꾸고 멈춥니다.
+- **autopilot 모드에서는** `ai/claude_skills/autopilot/SKILL.md`의 Autonomy Override가 이 Review 규칙 섹션보다 우선합니다 (예: review 턴 한도 50턴, 자율 판단 등). 절대 규칙과 일반 모드의 20턴 규칙은 변하지 않습니다.
 - review 세션 종료 시 `ai/workspace/reports/reviews/`에 주요 쟁점과 결론을 요약한 report를 작성합니다.
 
 ## Always Read

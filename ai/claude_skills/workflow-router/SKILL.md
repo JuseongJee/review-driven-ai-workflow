@@ -1,6 +1,6 @@
 ---
 name: workflow-router
-description: Route work through this repository's AI development workflow. Use when a user is starting a task, when the next workflow step is unclear, or when you need to recommend the right next skill among request-to-reviewed-plan, small-task-implement, implement-reviewed-plan, and final-diff-review.
+description: Recommend the next workflow skill for this repository's AI development workflow. Use when a user is starting a task, when the next workflow step is unclear, or when you need to recommend the right next skill among request-to-reviewed-plan, small-task-implement, implement-reviewed-plan, and final-diff-review.
 user-invocable: false
 ---
 

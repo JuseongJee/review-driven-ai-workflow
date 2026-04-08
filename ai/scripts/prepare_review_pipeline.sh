@@ -28,6 +28,21 @@ review-kind:
 EOF
 }
 
+read_current_task_field() {
+  local field="$1"
+  local task_file="${project_root}/CURRENT_TASK.md"
+  [[ -f "$task_file" ]] || return 1
+  local value
+  value="$(awk -v target="## ${field}" '
+    $0 == target { in_section = 1; next }
+    in_section && /^## / { exit }
+    in_section && NF { print; exit }
+  ' "$task_file")"
+  [[ -n "$value" && "$value" != "-" ]] || return 1
+  [[ -f "$value" ]] || return 1
+  printf '%s\n' "$value"
+}
+
 file_mtime() {
   local file="$1"
   stat -f '%m' "$file" 2>/dev/null || stat -c '%Y' "$file" 2>/dev/null || echo 0
@@ -109,9 +124,15 @@ case "$review_kind" in
     plan_path="${2:-}"
 
     if [[ -z "$spec_path" ]]; then
+      spec_path="$(read_current_task_field "Spec" || true)"
+    fi
+    if [[ -z "$spec_path" ]]; then
       spec_path="$(latest_markdown_file "ai/workspace/specs/changes" "ai/workspace/specs/base" || true)"
     fi
 
+    if [[ -z "$plan_path" ]]; then
+      plan_path="$(read_current_task_field "Plan" || true)"
+    fi
     if [[ -z "$plan_path" ]]; then
       plan_path="$(latest_markdown_file "ai/workspace/plans" || true)"
     fi
