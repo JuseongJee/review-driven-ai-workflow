@@ -73,7 +73,10 @@ autopilot 실행 중에는 아래 규칙이 **모든 하위 skill, prompt, 기�
 - `ai/workspace/backlog/FUTURE_REQUESTS.md`를 읽는다
 - `validated` 또는 `ready-for-request` 상태 항목만 후보로 제시한다
 - 후보가 없으면 `idea` 상태도 포함하되, 사용자에게 알린다
-- **AskUserQuestion으로 목록을 보여주고 사용자가 선택한다**
+- 후보 내에서 priority 순으로 정렬한다: P1 → P2 → P3 → unranked(priority가 `-`이거나 필드 없음). 동순위는 날짜 오름차순
+- priority는 후보 자격(status 게이트) 내에서의 정렬에만 사용한다. idea가 P1이라도 validated/ready-for-request 후보가 있으면 그쪽을 먼저 보여준다
+- 각 항목의 priority를 읽으려면 상세 파일(`items/*.md`)의 `priority` 필드를 확인한다. priority 읽기/fallback 규칙은 `/fr list`와 동일: 필드 없음/`-` → unranked, malformed 값 → unranked + 경고, 상세 파일 누락 → 건너뜀 + 경고
+- **AskUserQuestion으로 목록을 보여주고 사용자가 선택한다** — 목록에 priority 컬럼을 포함하여 정렬 이유를 사용자에게 보여준다
 - 선택된 항목의 `request seed`를 기반으로 `REQUEST.md`를 생성한다
 
 ### 2. 리뷰 — 3단계 전부 실행
