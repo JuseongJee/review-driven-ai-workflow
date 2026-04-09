@@ -26,6 +26,9 @@ Web / macOS / iOS / backend / library / script
 ## Typecheck
 실제 typecheck 명령
 
+## Template Source
+- template_repo: (배포 repo URL, 예: https://github.com/user/repo)
+
 ## Workflow Settings
 - auto_completion_report: false
 
