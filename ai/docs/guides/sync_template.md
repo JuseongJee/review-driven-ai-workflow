@@ -61,6 +61,7 @@ bash ai/scripts/sync_template.sh <배포 repo URL>
 - `ai/workspace/handoffs/` 안의 작업 내용물
 - `ai/config/review-tools.json` (프로젝트별 리뷰 도구 설정, `.example`은 동기화 대상)
 - `ai/config/verification.json` (프로젝트별 검증 설정, `.example`은 동기화 대상)
+- `ai/config/extensions.json` (설치된 extension 이력, `.example`은 동기화 대상)
 - 프로젝트 고유 설정 파일 (`.gitignore`, `.swiftlint.yml`, `.claude/` 등)
 
 ### 3. 사용자 확인
@@ -121,27 +122,125 @@ bash ai/scripts/install_claude_skills.sh project
 
 **이 단계를 완료한 뒤 반드시 9단계로 진행합니다.**
 
-### 9. 확장 기능 안내
+### 9. Extension 자동 재설치 및 신규 안내
 
-동기화 후 `ai/extensions/` 디렉토리에 새로운 extension이 있는지 **반드시 확인합니다**. 설치 여부는 사용자가 선택합니다.
+동기화 후 extension 설치 이력(`ai/config/extensions.json`)을 기반으로 자동 재설치하고, 새 extension만 사용자에게 안내합니다.
 
-프로젝트에 아직 설치되지 않은 extension이 있으면 사용자에게 안내합니다:
+#### 9.1 매니페스트 읽기
+
+`ai/config/extensions.json`을 읽고 파싱합니다.
+
+- 파일 없음 → `manifest = null`
+- JSON 파싱 실패 → `manifest = null` (손상된 매니페스트는 부재와 동일하게 처리)
+
+#### 9.2 파일시스템 상태 스캔
+
+`ai/extensions/` 내 각 extension 디렉토리에 대해 설치 여부를 확인합니다.
+
+설치 판정 기준 (extension별로 다름):
+- **verify, design-review**: `ai/claude_skills/{name}/SKILL.md`가 존재하면 설치됨. 디렉토리만 있고 SKILL.md가 없으면 미설치.
+- **presets**: 파일시스템으로 판정하지 않음. **매니페스트로만 판정**. (presets는 `ai/claude_skills/`를 사용하지 않고 `ai/config/verification.json`에 기록하지만, 해당 파일은 verify extension의 커스텀 설정일 수도 있어 presets 설치 증거로 쓸 수 없음)
+
+두 집합을 구성합니다:
+- `fs_installed`: 위 판정 기준에 따라 설치된 것으로 확인된 extension (presets 제외)
+- `fs_available`: `ai/extensions/` 내 모든 extension 디렉토리
+
+#### 9.3 매니페스트-파일시스템 조정
+
+`manifest != null`일 때만 실행합니다.
+
+**파일시스템 판정 가능 extension (verify, design-review):**
+
+| manifest | filesystem | 동작 |
+|----------|-----------|------|
+| 있음 | 설치됨 | 유지 (자동 재설치 대상) |
+| 있음 | 미설치 | manifest에서 제거 (삭제/손상된 것으로 판단) |
+| 없음 | 설치됨 | manifest에 추가 (`installed_at: now`) |
+
+**매니페스트 전용 extension (presets):**
+- manifest에 있으면 무조건 유지 (파일시스템 판정 대상이 아님)
+- manifest에 없으면 `new_extensions`로 분류
+
+조정 결과는 메모리에 보관합니다 (파일 저장은 9.8에서 한 번만).
+
+#### 9.4 분류
+
+- `manifest != null`: `auto_reinstall` = manifest에 있는 extension, `new_extensions` = `fs_available` 중 manifest에도 `fs_installed`에도 없는 것
+- `manifest == null`: `fs_installed`에 있는 extension은 `auto_reinstall`로, 나머지는 `new_extensions`로 분류합니다. 매니페스트가 없어도 이미 설치된 extension에 대해서는 불필요한 질문을 하지 않습니다.
+
+#### 9.5 자동 재설치
+
+`auto_reinstall`에 속한 extension을 **묻지 않고** 재설치합니다.
+
+- **verify, design-review**: `ai/extensions/{name}/SKILL.md`와 `rules.md`를 `ai/claude_skills/{name}/`에 복사 (덮어쓰기)
+- **presets**: 9.6 머지 알고리즘 실행
+
+**presets 특수 처리**: manifest에 `presets.preset` 값이 없으면 (legacy 프로젝트 등) 자동 머지를 수행할 수 없으므로 `new_extensions`로 이동하여 9.7에서 사용자에게 preset 선택을 질문합니다.
+
+자동 재설치 실패 시: 해당 extension을 manifest에서 제거하고 `new_extensions`로 이동하여 9.7에서 사용자에게 질문합니다.
+
+각 성공한 extension의 `installed_at`을 현재 시각으로 갱신합니다 (메모리).
+
+#### 9.6 Presets AI 자동 머지
+
+manifest에 presets가 있고 `preset` 값이 기록되어 있을 때 실행합니다.
+
+**입력:**
+- template preset: `ai/extensions/presets/{manifest.presets.preset}/verification.json`
+- project current: `ai/config/verification.json`
+
+**머지 규칙 (2-way):**
+
+각 verifier를 name 기준으로 비교합니다:
+
+| template | project | 결과 |
+|----------|---------|------|
+| 있음 | 있음 | **구조적 머지** (아래 참조) |
+| 있음 | 없음 | template에서 추가 |
+| 없음 | 있음 | **프로젝트 고유 항목 — 유지** |
+
+**구조적 머지 (양쪽 모두 있는 verifier):**
+- `run`: template 값 사용 (CLI 플래그, 버그 수정 반영)
+- `adapter`: template 값 사용 (경로 변경 반영)
+- `evaluate`: project 값 유지 (사용자 커스텀 보존)
+- `criteria`: name 기준 머지
+  - project에 있고 template에도 있는 name → project 값 유지 (커스텀 weight/description 보존)
+  - template에만 있는 name → 추가
+  - project에만 있는 name → template에서 삭제된 것으로 판단, 제거
+
+머지 결과를 `ai/config/verification.json`에 저장합니다.
+
+**머지 요약을 기록합니다** (10단계 완료 보고에 포함):
+- 추가된 verifier
+- 보존된 프로젝트 고유 verifier
+- 구조 업데이트된 verifier (run/adapter 변경)
+- 추가/제거된 criteria
+
+#### 9.7 새 Extension 질문
+
+`new_extensions`가 있을 때만 실행합니다.
+
+프로젝트에 아직 설치되지 않은 extension을 사용자에게 안내합니다:
 
 ```
 새로운 확장 기능이 감지되었습니다:
-1. design-review — UI 디자인 레퍼런스 확인 + AI 체크리스트
-2. verify — 런타임 검증 루프 (도구 실행 → AI 평가 → 수정 반복)
-3. presets — 플랫폼별 검증 프리셋 (react-web, api, cli, ios, macos)
+1. {name} — {설명}
+...
 
-설치할 확장을 선택하세요 (예: 1,2,3 또는 건너뛰기):
+설치할 확장을 선택하세요 (예: 1,2 또는 건너뛰기):
 ```
-
-설치 여부 판단: `ai/claude_skills/{name}/SKILL.md`가 없으면 미설치.
 
 사용자가 선택하면 해당 extension의 `ai/extensions/{name}/install.md`를 읽고 안내에 따라 설치합니다.
 `depends`가 있으면 먼저 설치할지 물어봅니다.
 
-기존에 설치된 extension은 동기화 과정에서 `ai/extensions/` 원본이 갱신되었으므로, 재설치(덮어쓰기)할지 사용자에게 물어봅니다.
+설치 성공한 extension을 manifest에 추가합니다 (메모리). 거절한 extension은 추가하지 않습니다 (다음 sync에서 다시 질문).
+
+#### 9.8 매니페스트 저장
+
+최종 manifest를 `ai/config/extensions.json`에 저장합니다.
+
+- manifest가 null이었고 사용자가 모든 extension을 건너뛰어도, `fs_installed` 기준으로 manifest를 생성합니다 (다음 sync에서 다시 묻지 않도록)
+- 이 시점에서 1회만 파일에 기록합니다 (중간 저장 없음)
 
 ### 10. 완료 보고
 
@@ -149,3 +248,5 @@ bash ai/scripts/install_claude_skills.sh project
 - 마이그레이션 실행 여부와 결과
 - 보존된 파일 요약
 - Skill 재설치 결과 (설치/건너뛴 수)
+- Extension 자동 재설치 결과 (자동 재설치/신규 설치/건너뛴 수)
+- Presets 머지 결과 요약 (추가/보존/업데이트된 verifier, 변경된 criteria) — presets가 자동 재설치된 경우에만

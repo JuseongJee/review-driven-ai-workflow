@@ -12,23 +12,23 @@ disable-model-invocation: true
 `/tpl`로 배포 repo에서 최신 템플릿을 가져와 프로젝트에 동기화한다.
 
 Typical user requests:
-- "/tpl"
-- "/tpl update"
-- "템플릿 업데이트해"
-- "template update"
+- "/tpl" → 사용법 출력
+- "/tpl update" → 업데이트 실행
+- "템플릿 업데이트해" → 업데이트 실행
+- "template update" → 업데이트 실행
 
 ## 인자 파싱
 
-- 인자 없음 또는 `update` → 업데이트 실행
-- 그 외 → 사용법 출력
+- `update` → 업데이트 실행
+- 인자 없음 또는 그 외 → 사용법 출력
 
 ### 사용법 출력
 
 ```
 /tpl 사용법:
-- `/tpl` 또는 `/tpl update` — 최신 템플릿으로 업데이트
+- `/tpl update` — 최신 템플릿으로 업데이트
 
-예: `/tpl`
+예: `/tpl update`
 ```
 
 ---
@@ -48,7 +48,7 @@ Typical user requests:
 
 `ai/docs/guides/sync_template.md`를 읽고, 문서에 정의된 절차를 **1단계부터 마지막 단계까지 전부** 실행한다.
 
-- 버전 확인 → 파일 분류 → 사용자 확인 → 마이그레이션 감지 → 동기화 → 검증 → 버전 갱신 → skill 재설치 → extension 안내 → 완료 보고
+- 버전 확인 → 파일 분류 → 사용자 확인 → 마이그레이션 감지 → 동기화 → 검증 → 버전 갱신 → skill 재설치 → extension 자동 재설치/신규 안내 → 완료 보고
 - 각 단계의 세부 규칙(보존 대상, 분류 기준 등)은 sync_template.md가 권위 문서다. 이 스킬은 진입점일 뿐이다.
 
 ### 3. 완료 요약

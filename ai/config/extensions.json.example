@@ -1,0 +1,14 @@
+{
+  "extensions": {
+    "verify": {
+      "installed_at": "2026-04-09T12:00:00Z"
+    },
+    "design-review": {
+      "installed_at": "2026-04-09T12:00:00Z"
+    },
+    "presets": {
+      "installed_at": "2026-04-09T12:00:00Z",
+      "preset": "react-web"
+    }
+  }
+}

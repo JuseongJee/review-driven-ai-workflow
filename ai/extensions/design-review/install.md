@@ -7,7 +7,9 @@
 
 1. `mkdir -p ai/claude_skills/design-review`
 2. `ai/extensions/design-review/SKILL.md`와 `rules.md`를 `ai/claude_skills/design-review/`에 복사
-3. `CURRENT_TASK.md`에 `## Design Review` 필드 추가 (기본값 `-`, `## Branch / Worktree` 앞에 삽입)
+3. `CURRENT_TASK.md`에 `## Design Review` 필드 추가 (기본값 `-`, `## Branch / Worktree` 앞에 삽입). 이미 존재하면 건너뜀
+4. `ai/config/extensions.json` 갱신 (파일이 없으면 `{"extensions": {}}` 생성)
+   - `extensions.design-review.installed_at`을 현재 ISO 8601 시각으로 기록
 
 ## 설치 확인
 - `ai/claude_skills/design-review/SKILL.md` 존재
@@ -20,3 +22,4 @@
 ## 제거
 - `ai/claude_skills/design-review/` 삭제
 - `CURRENT_TASK.md`에서 `## Design Review` 필드 제거
+- `ai/config/extensions.json`에서 `extensions.design-review` 항목 삭제
