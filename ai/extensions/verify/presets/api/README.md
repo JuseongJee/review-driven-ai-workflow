@@ -7,7 +7,7 @@ API 서버 검증용 프리셋. 부하 테스트(k6)와 스키마 검증(schema-
 ### 1. 프리셋 설치
 
 ```bash
-cp ai/extensions/presets/api/verification.json ai/config/verification.json
+cp ai/extensions/verify/presets/api/verification.json ai/config/verification.json
 ```
 
 ### 2. 도구 설치

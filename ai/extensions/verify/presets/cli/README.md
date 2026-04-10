@@ -7,7 +7,7 @@ CLI 도구용 검증 프리셋입니다. snapshot 테스트와 hyperfine 벤치�
 ### 1. 프리셋 설치
 
 ```bash
-cp ai/extensions/presets/cli/verification.json ai/config/verification.json
+cp ai/extensions/verify/presets/cli/verification.json ai/config/verification.json
 ```
 
 ## 처음부터 설정하기

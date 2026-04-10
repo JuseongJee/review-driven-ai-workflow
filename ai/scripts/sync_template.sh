@@ -29,7 +29,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # 임시 clone
 CLONE_DIR="$(mktemp -d)"
-trap 'rm -rf "$CLONE_DIR"' EXIT
+# 성공 시 cleanup은 호출자(sync_template.md 6단계)가 담당
+# 실패 시 스크립트가 self-cleanup
+cleanup_on_failure() { rm -rf "$CLONE_DIR"; }
+trap 'cleanup_on_failure' ERR
 
 echo "--- 템플릿 소스 clone ---" >&2
 git clone --depth 1 --quiet "$REPO_URL" "$CLONE_DIR/template"
@@ -61,6 +64,7 @@ if [[ -n "$REMOTE_VERSION" && -n "$LOCAL_VERSION" ]]; then
       echo "--force 지정됨. 계속 진행합니다." >&2
     else
       echo "강제 진행하려면 --force를 사용하세요." >&2
+      cleanup_on_failure
       exit 1
     fi
   fi

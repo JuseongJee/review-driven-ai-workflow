@@ -73,7 +73,7 @@ axe http://localhost:3000 --exit
 ### 1. 프리셋 설치
 
 ```bash
-cp ai/extensions/presets/react-web/verification.json ai/config/verification.json
+cp ai/extensions/verify/presets/react-web/verification.json ai/config/verification.json
 ```
 
 ### 2. 도구 설치

@@ -102,7 +102,7 @@ echo "[$NAME] 완료 — $OUTPUT_DIR 에서 스크린샷을 확인하세요."
 ### 1. 프리셋 설치
 
 ```bash
-cp ai/extensions/presets/macos/verification.json ai/config/verification.json
+cp ai/extensions/verify/presets/macos/verification.json ai/config/verification.json
 ```
 
 ### 2. Xcode 설정 확인
