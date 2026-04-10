@@ -18,6 +18,16 @@ verify.sh, verifiers/, verification.json.example은 `ai/extensions/verify/`에�
 - `ai/claude_skills/verify/rules.md` 존재
 - `bash ai/extensions/verify/verify.sh --help` 실행 가능
 
+## 업데이트 (템플릿 동기화 시)
+
+`/tpl update` 실행 시 매니페스트에 `verify.preset`이 기록되어 있으면 자동으로 AI 머지가 수행됩니다. 머지 규칙은 `ai/docs/guides/sync_template.md` 8.6단계를 참조하세요.
+
+## 제거
+- `ai/claude_skills/verify/` 삭제 (이것만으로 비활성화 완료)
+- `CURRENT_TASK.md`에서 `## Verify` 필드 제거
+- `ai/config/extensions.json`에서 `extensions.verify` 항목 삭제 (legacy `extensions.presets`가 남아 있으면 함께 삭제)
+- `verification.json`과 `.bak`는 사용자 데이터이므로 삭제하지 않음 (필요 시 수동 삭제)
+
 ## 프리셋 선택 (선택)
 
 verify 설치 후 플랫폼별 검증 프리셋을 선택할 수 있습니다.
@@ -55,13 +65,3 @@ cp ai/extensions/verify/presets/react-web/verification.json ai/config/verificati
 
 프리셋 선택 절차를 다시 실행하면 verification.json을 덮어씁니다 (.bak 정책 유지).
 `extensions.verify.preset`을 새 값으로 갱신합니다.
-
-## 업데이트 (템플릿 동기화 시)
-
-`/tpl update` 실행 시 매니페스트에 `verify.preset`이 기록되어 있으면 자동으로 AI 머지가 수행됩니다. 머지 규칙은 `ai/docs/guides/sync_template.md` 8.6단계를 참조하세요.
-
-## 제거
-- `ai/claude_skills/verify/` 삭제 (이것만으로 비활성화 완료)
-- `CURRENT_TASK.md`에서 `## Verify` 필드 제거
-- `ai/config/extensions.json`에서 `extensions.verify` 항목 삭제 (legacy `extensions.presets`가 남아 있으면 함께 삭제)
-- `verification.json`과 `.bak`는 사용자 데이터이므로 삭제하지 않음 (필요 시 수동 삭제)

@@ -1,5 +1,10 @@
 # Working With AI
 
+## 시작하기
+
+처음 설정하는 중이라면 [초기 설정 가이드](ai/docs/guides/setup_with_claude.md)를 따르세요.
+설정 파일 커스터마이징은 [Config 레퍼런스](ai/docs/guides/config_reference.md)를 참조하세요.
+
 일상적으로 AI에게 말하는 방법을 정리한 치트시트입니다.
 상세 워크플로는 `ai/docs/flows/WORKFLOW.md`, 전체 규칙은 `CLAUDE.md`를 참조하세요.
 
