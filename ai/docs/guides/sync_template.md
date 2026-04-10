@@ -146,6 +146,9 @@ manifest에 `extensions.presets`가 있으면 1회 이전을 수행합니다:
 **Invalid preset validation:**
 모든 Case에서 preset 값이 허용 목록(`react-web`, `api`, `cli`, `ios`, `macos`) 밖이면 해당 키를 삭제하고 사용자에게 preset 선택을 질문합니다.
 
+**파일시스템 마이그레이션:**
+프로젝트에 `ai/extensions/presets/`가 남아 있으면 `ai/extensions/verify/presets/`로 통합된 구버전 잔재이므로 삭제합니다. 삭제 전 별도 질문 없이 진행하되, 완료 보고에 "presets → verify/presets 통합으로 구 폴더 삭제됨"을 포함합니다.
+
 이전 결과는 메모리에 보관 (8.8에서 저장)
 
 #### 8.2 파일시스템 상태 스캔

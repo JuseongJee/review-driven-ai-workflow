@@ -21,8 +21,14 @@ if [[ "${SELF_REVIEW_WARNING:-true}" == "true" ]]; then
   echo "    셀프 리뷰는 독립성이 보장되지 않습니다." >&2
 fi
 
+# --model 옵션 (TOOL_MODEL이 있을 때만)
+model_args=()
+if [[ -n "${TOOL_MODEL:-}" ]]; then
+  model_args=(--model "$TOOL_MODEL")
+fi
+
 # Claude CLI 실행
-if ! "$claude_bin" -p \
+if ! "$claude_bin" -p "${model_args[@]}" \
   --allowedTools "Edit,Write,Read,Glob,Grep,Bash" \
   < "$PROMPT_FILE"; then
   echo "Claude CLI가 비정상 종료했습니다" >&2

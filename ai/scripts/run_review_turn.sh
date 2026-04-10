@@ -146,6 +146,7 @@ for tool in $PRIORITY; do
   fi
 
   tool_bin="$(get_tool_config "$tool" "bin" "")"
+  tool_model="$(get_tool_config "$tool" "model" "")"
   self_review_warning="$(get_tool_config "$tool" "self_review_warning" "true")"
 
   # 바이너리 존재 확인 (없으면 다음 도구로 — fallback 허용)
@@ -161,6 +162,7 @@ for tool in $PRIORITY; do
   export PROMPT_FILE="$prompt_file"
   export EXPECTED_TURN_FILE="$EXPECTED_TURN_FILE"
   export TOOL_BIN="$tool_bin"
+  export TOOL_MODEL="$tool_model"
   export PROJECT_ROOT="$project_root"
   export SELF_REVIEW_WARNING="$self_review_warning"
 
