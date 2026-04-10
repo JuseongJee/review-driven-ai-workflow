@@ -114,7 +114,7 @@ CLAUDE.md에 규칙을 쓰면 모델이 무시할 수 있습니다. 이 템플�
 이 템플릿은 내부적으로 다음을 사용합니다:
 
 - **Superpowers workflow** — 설계 → 계획 → 구현 순서를 구조화
-- **Codex cross-review** — AI 간 교차 리뷰로 품질 확보
+- **Cross-review** — 다른 모델(Codex, Gemini CLI, Claude Code 등)로 교차 리뷰하여 품질 확보
 - **Skill 라우팅** — 작업 유형에 따라 적절한 skill을 자동 선택
 
 사용자가 직접 다룰 필요는 없습니다. 상세가 궁금하면 `CLAUDE.md`를 참조하세요.

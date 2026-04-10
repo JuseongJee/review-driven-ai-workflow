@@ -61,7 +61,6 @@ Typical user requests:
 ```md
 # YYYY-MM-DD {short-title}
 - status: idea
-- priority: -
 - kind: {kind}
 - summary: {summary}
 - why: {사용자 입력에서 추론, 없으면 "-"}
@@ -99,11 +98,8 @@ Typical user requests:
 
 1. `ai/workspace/backlog/FUTURE_REQUESTS.md` 읽기.
 2. 인덱스에서 status가 `idea` / `validated` / `ready-for-request` 인 항목만 추린다.
-3. 각 항목의 상세 파일(`items/YYYY-MM-DD-{short-title}.md`)을 읽어 `priority` 필드를 확인한다.
-   - 상세 파일이 없으면 해당 항목을 건너뛰고 경고 출력.
-   - priority가 `P1` / `P2` / `P3` / `-` 이외의 값이면 unranked로 취급하고 경고 출력.
-4. 정렬: P1 → P2 → P3 → unranked (priority 없거나 `-`). 동순위는 날짜 오름차순.
-5. 결과 테이블 출력:
+3. 인덱스의 우선순위 컬럼을 기준으로 정렬: P1 → P2 → P3 → unranked (`-`). 동순위는 날짜 오름차순.
+4. 결과 테이블 출력:
 
 ```
 | # | 우선순위 | 날짜 | 제목 | 요약 | 상태 |
@@ -120,7 +116,7 @@ Typical user requests:
 ### 절차
 
 1. `ai/workspace/backlog/FUTURE_REQUESTS.md` 읽기.
-2. 활성 항목(idea / validated / ready-for-request)의 상세 파일을 읽어 `summary`, `why`, `related context`, 현재 `priority` 수집.
+2. 활성 항목(idea / validated / ready-for-request)의 인덱스 행에서 현재 우선순위를 확인하고, 상세 파일에서 `summary`, `why`, `related context`를 수집.
    - 상세 파일이 없으면 해당 항목을 건너뛰고 경고 출력.
 3. `PROJECT_CONTEXT.md` 읽기 (맥락 기반 판단 기준으로 사용. REQUEST.md 사용 금지 — 이 backlog는 전역 기준).
 4. 다음 기준으로 각 항목에 P1 / P2 / P3 부여 + 한 줄 근거 작성:
@@ -135,9 +131,7 @@ Typical user requests:
 ```
 
 6. 사용자 확인 요청. **확인 전에는 파일을 절대 수정하지 않는다.**
-7. 확인 후: 각 상세 파일의 `priority` 필드를 업데이트한다.
-   - `priority` 필드가 없으면 `status` 필드 바로 다음에 추가한다.
-   - 기존 값이 malformed이어도 확인 후 정상 값으로 덮어쓴다.
+7. 확인 후: `FUTURE_REQUESTS.md` 인덱스의 우선순위 컬럼을 업데이트한다.
 
 활성 항목이 0개이면: `검토할 활성 항목이 없습니다` 출력.
 
@@ -145,7 +139,7 @@ Typical user requests:
 
 ## 전역 규칙
 
-- `priority` 허용 값: `P1`, `P2`, `P3`, `-` 만 허용. 다른 값은 malformed.
+- `priority` 허용 값: `P1`, `P2`, `P3`, `-` 만 허용. 인덱스에서만 관리하고 상세 파일에는 넣지 않는다.
 - `/fr pri`에서 사용자 확인 전에는 어떤 파일도 수정하지 않는다.
 - `/fr add`는 FR 등록만 한다. REQUEST.md 작성, 구현 착수 금지.
 - 서브커맨드가 없거나 알 수 없으면 사용법만 출력하고 종료한다. 파일 수정 없음.

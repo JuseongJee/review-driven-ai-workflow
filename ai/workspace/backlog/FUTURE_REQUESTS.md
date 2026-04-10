@@ -30,7 +30,6 @@
 ```md
 # YYYY-MM-DD short-title
 - status: idea
-- priority: -
 - kind: feature | bug | refactor | tech-debt | tooling | research | test
 - summary: 한두 문장 요약
 - why: 왜 필요한지
