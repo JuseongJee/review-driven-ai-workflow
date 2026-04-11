@@ -14,7 +14,9 @@ AI가 구현만 하는 게 아니라, 매 단계마다 review를 거쳐서 품�
 
 프로젝트 디렉토리에서 Claude Code를 열고:
 
-> 이 AI 개발 템플릿 적용해: https://github.com/JuseongJee/review-driven-ai-workflow
+```text
+이 AI 개발 템플릿 적용해: https://github.com/JuseongJee/review-driven-ai-workflow
+```
 
 AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합니다.
 
