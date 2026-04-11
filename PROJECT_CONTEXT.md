@@ -30,13 +30,13 @@ Web / macOS / iOS / backend / library / script
 - template_repo: (배포 repo URL, 예: https://github.com/user/repo)
 
 ## Workflow & Intake Settings
-`ai/config/workflow.json` 참조. 기본값은 `ai/config/workflow.json.example`.
+`rd-workflow/config/workflow.json` 참조. 기본값은 `rd-workflow/config/workflow.json.example`.
 
 ## Verification Scope
 - pre-commit: lint, format (무거운 테스트 금지)
 - local: unit test, lint, typecheck
 - CI: full test, integration, E2E
-- 상세 가이드: `ai/docs/guides/verification-scope-guide.md`
+- 상세 가이드: `rd-workflow/docs/guides/verification-scope-guide.md`
 
 ## Architecture Rules
 - 기존 패턴을 우선 따른다

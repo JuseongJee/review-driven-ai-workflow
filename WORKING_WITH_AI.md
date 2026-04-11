@@ -2,11 +2,11 @@
 
 ## 시작하기
 
-처음 설정하는 중이라면 [초기 설정 가이드](ai/docs/guides/setup_with_claude.md)를 따르세요.
-설정 파일 커스터마이징은 [Config 레퍼런스](ai/docs/guides/config_reference.md)를 참조하세요.
+처음 설정하는 중이라면 [초기 설정 가이드](rd-workflow/docs/guides/setup_with_claude.md)를 따르세요.
+설정 파일 커스터마이징은 [Config 레퍼런스](rd-workflow/docs/guides/config_reference.md)를 참조하세요.
 
 일상적으로 AI에게 말하는 방법을 정리한 치트시트입니다.
-상세 워크플로는 `ai/docs/flows/WORKFLOW.md`, 전체 규칙은 `CLAUDE.md`를 참조하세요.
+상세 워크플로는 `rd-workflow/docs/flows/WORKFLOW.md`, 전체 규칙은 `CLAUDE.md`를 참조하세요.
 
 ## 상황별 프롬프트
 
@@ -18,7 +18,7 @@
 | 아이디어 기록 | "future request에 기록해줘" |
 | 기록된 아이디어 조회 | "future request 목록 보여줘" |
 | 아이디어를 작업으로 승격 | "이거 REQUEST로 올려서 진행해줘" |
-| 템플릿 업데이트 | "ai/docs/guides/sync_template.md 읽고 템플릿 업데이트 진행해줘" |
+| 템플릿 업데이트 | "rd-workflow/docs/guides/sync_template.md 읽고 템플릿 업데이트 진행해줘" |
 
 ## 각 단계에서 할 일
 
@@ -69,6 +69,6 @@
 | 상황 | 해결 |
 |------|------|
 | AI가 워크플로를 안 따를 때 | "CLAUDE.md 다시 읽고 워크플로대로 진행해" |
-| skill이 원하는 출력을 안 낼 때 | `ai/docs/prompts/recovery/` 참조 |
-| 자동 review가 안 될 때 | `ai/docs/prompts/manual/` 참조 |
+| skill이 원하는 출력을 안 낼 때 | `rd-workflow/docs/prompts/recovery/` 참조 |
+| 자동 review가 안 될 때 | `rd-workflow/docs/prompts/manual/` 참조 |
 | 검증 스크립트만 다시 채우고 싶을 때 | "프로젝트 파일 읽고 검증 스크립트 채워줘" |

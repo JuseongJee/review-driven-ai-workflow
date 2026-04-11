@@ -18,7 +18,7 @@ AI가 구현만 하는 게 아니라, 매 단계마다 review를 거쳐서 품�
 이 AI 개발 템플릿 적용해: https://github.com/JuseongJee/review-driven-ai-workflow
 ```
 
-> **Claude에게:** 이 요청을 받았다면 [`ai/docs/guides/setup_with_claude.md`](ai/docs/guides/setup_with_claude.md)를 읽고 절차대로 실행하세요.
+> **Claude에게:** 이 요청을 받았다면 [`rd-workflow/docs/guides/setup_with_claude.md`](rd-workflow/docs/guides/setup_with_claude.md)를 읽고 절차대로 실행하세요.
 
 AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합니다.
 
@@ -26,8 +26,8 @@ AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합�
 
 팀 repo에 템플릿 파일을 커밋하지 않고, 개인 private repo로 분리하여 여러 컴퓨터에서 사용할 수 있습니다.
 
-- 처음 설치: [team-overlay-fresh-install.md](https://github.com/JuseongJee/review-driven-ai-workflow/blob/main/ai/docs/guides/team-overlay-fresh-install.md)
-- 이미 설치된 프로젝트에서 분리: [team-overlay-migration.md](https://github.com/JuseongJee/review-driven-ai-workflow/blob/main/ai/docs/guides/team-overlay-migration.md)
+- 처음 설치: [team-overlay-fresh-install.md](https://github.com/JuseongJee/review-driven-ai-workflow/blob/main/rd-workflow/docs/guides/team-overlay-fresh-install.md)
+- 이미 설치된 프로젝트에서 분리: [team-overlay-migration.md](https://github.com/JuseongJee/review-driven-ai-workflow/blob/main/rd-workflow/docs/guides/team-overlay-migration.md)
 
 ### 적용 후 할 일
 
@@ -45,6 +45,16 @@ AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합�
 > 템플릿 업데이트해
 
 파일 분류 → 사용자 확인 → 동기화 → 스킬 재설치까지 자동 진행됩니다.
+
+#### `ai/` → `rd-workflow/` 구조 전환
+
+이전 버전에서 `ai/` 폴더를 사용하고 있었다면, **`/tpl update` 전에 먼저 마이그레이션을 실행**해야 합니다:
+
+```text
+이 마이그레이션 가이드 읽고 실행해: https://github.com/JuseongJee/review-driven-ai-workflow/blob/main/rd-workflow/MIGRATIONS.md
+```
+
+마이그레이션 완료 후 `/tpl update`를 실행하면 정상적으로 동기화됩니다. 이후 업데이트부터는 `/tpl update`만으로 자동 처리됩니다.
 
 ## 워크플로
 
@@ -87,7 +97,7 @@ AI가 자체적으로 크기를 판단하지 않습니다. 사용자가 명시�
 
 작업 중 범위 밖 아이디어가 나오면 `"future request에 기록해줘"`로 백로그에 저장하고, 나중에 `"autopilot으로 돌려"`로 자동 실행할 수 있습니다.
 
-상세 사용법은 `ai/docs/USER_MANUAL.md` 참조.
+상세 사용법은 `rd-workflow/docs/USER_MANUAL.md` 참조.
 
 ## 구조
 
@@ -97,13 +107,13 @@ PROJECT_CONTEXT.md     ← 프로젝트 기술 컨텍스트 (처음에 한 번 �
 REQUEST.md             ← 현재 작업 요청
 CURRENT_TASK.md        ← 작업 진행 상태 (AI가 자동 업데이트)
 WORKING_WITH_AI.md     ← 사용자 치트시트
-ai/
+rd-workflow/
 ├── claude_skills/     ← 13개 AI 스킬
 ├── extensions/        ← 선택적 확장 (design-review, verify)
 ├── config/            ← 설정 (workflow, review-tools, model-strategy, verification)
 ├── docs/              ← 가이드, 프롬프트, 매뉴얼
-├── scripts/           ← 검증 및 리뷰 파이프라인 스크립트
-└── workspace/         ← 작업 산출물 (specs, plans, reports, backlog)
+└── scripts/           ← 검증 및 리뷰 파이프라인 스크립트
+rd-workflow-workspace/ ← 작업 산출물 (specs, plans, reports, backlog)
 ```
 
 ## 설계 원칙
@@ -133,6 +143,6 @@ CLAUDE.md에 규칙을 쓰면 모델이 무시할 수 있습니다. 이 템플�
 ## 상세 문서
 
 - `WORKING_WITH_AI.md` — 일상 사용 치트시트
-- `ai/docs/USER_MANUAL.md` — 전체 기능 종합 매뉴얼
-- `ai/docs/flows/WORKFLOW.md` — 워크플로 상세
-- `ai/docs/AI_DOC_MAP.md` — 전체 문서 맵
+- `rd-workflow/docs/USER_MANUAL.md` — 전체 기능 종합 매뉴얼
+- `rd-workflow/docs/flows/WORKFLOW.md` — 워크플로 상세
+- `rd-workflow/docs/AI_DOC_MAP.md` — 전체 문서 맵
