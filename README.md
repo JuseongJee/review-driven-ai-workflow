@@ -18,6 +18,8 @@ AI가 구현만 하는 게 아니라, 매 단계마다 review를 거쳐서 품�
 이 AI 개발 템플릿 적용해: https://github.com/JuseongJee/review-driven-ai-workflow
 ```
 
+> **Claude에게:** 이 요청을 받았다면 [`ai/docs/guides/setup_with_claude.md`](ai/docs/guides/setup_with_claude.md)를 읽고 절차대로 실행하세요.
+
 AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합니다.
 
 ### 팀 프로젝트에서 개인 전용으로 사용

@@ -50,7 +50,9 @@ rm -rf /tmp/ai-dev-template-src
 
 ### 3. PROJECT_CONTEXT.md 채우기
 
-프로젝트의 실제 파일 구조, 빌드 시스템, 설정 파일 등을 읽고 `PROJECT_CONTEXT.md`를 채웁니다.
+템플릿 파일 외에 프로젝트 고유 파일(소스 코드, package.json, README 등)이 있는지 확인합니다.
+
+**프로젝트 고유 파일이 있는 경우:** 파일 구조, 빌드 시스템, 설정 파일 등을 읽고 `PROJECT_CONTEXT.md`를 채웁니다.
 
 - `Project Type`: 프로젝트 종류 파악 (Web, macOS, iOS, backend 등)
 - `Product Summary`: README나 주요 코드에서 제품 요약 추출
@@ -60,6 +62,16 @@ rm -rf /tmp/ai-dev-template-src
 - `Platform Notes`: 해당 플랫폼 섹션만 채우고 나머지는 삭제
 
 파일만으로 확정할 수 없는 항목은 사용자에게 질문합니다.
+
+**프로젝트 고유 파일이 없는 경우:** 아래 질문을 하나씩 물어봅니다. 한 번에 여러 개를 묻지 않습니다.
+
+1. "어떤 종류의 프로젝트인가요? (Web/iOS/macOS/backend/library 등)" → `Project Type`
+2. "이 프로젝트가 뭘 하는 건가요?" → `Product Summary`
+3. "주요 기술 스택은요?" → `Tech Stack` (미정이면 비워둠)
+4. "빌드/테스트/린트 도구는요?" → `Build / Test / Lint / Typecheck` (미정이면 나중에 채우기로)
+5. "코드 스타일이나 아키텍처 원칙이 있나요?" → `Architecture Rules`, `Code Style`
+
+답변을 바탕으로 `PROJECT_CONTEXT.md`를 채웁니다. 아직 정해지지 않은 항목은 비워두고, 프로젝트가 진행되면서 채우면 됩니다.
 
 ### 4. 검증 스크립트 채우기
 
