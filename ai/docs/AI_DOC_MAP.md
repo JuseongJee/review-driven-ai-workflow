@@ -17,10 +17,14 @@
 `WORKING_WITH_AI.md`
 - 평상시 작업 순서
 
+`ai/docs/USER_MANUAL.md`
+- 전체 기능과 사용법을 담은 종합 매뉴얼
+
 ## 진입점
 
 - 저장소 도입과 초기 설정은 템플릿 저장소의 `README.md`를 봅니다
 - 프로젝트에 복사된 뒤 평소 보는 문서는 `WORKING_WITH_AI.md`입니다
+- 전체 기능을 파악하려면 `ai/docs/USER_MANUAL.md`를 봅니다
 
 ## ai/docs
 

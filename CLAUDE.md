@@ -62,7 +62,7 @@
 - 작업 완료 시 현재 `REQUEST.md`를 `ai/workspace/backlog/request-archive/YYYY-MM-DD-HHMM-작업명.md`로 복사합니다.
 - `REQUEST.md`의 `Source FR`이 `-`가 아니면 해당 FR 항목의 status를 `done`으로 변경하고 `FUTURE_REQUESTS.md` 인덱스에서 삭제합니다.
 - 아카이브 후 `REQUEST.md`를 초기 템플릿 상태로 비웁니다.
-- `PROJECT_CONTEXT.md`에 `auto_completion_report: true`이면 자동으로, 아니면 "작업 요약 report를 남길까요?" 질문 후 `ai/workspace/reports/completions/YYYY-MM-DD-HHMM-작업명.md`에 report를 작성합니다.
+- `ai/config/workflow.json`의 `auto_completion_report`가 `true`이면 자동으로, 아니면 "작업 요약 report를 남길까요?" 질문 후 `ai/workspace/reports/completions/YYYY-MM-DD-HHMM-작업명.md`에 report를 작성합니다. (파일이 없으면 기본값 `false`)
 
 ## 절대 규칙 (모든 skill에 공통 적용)
 

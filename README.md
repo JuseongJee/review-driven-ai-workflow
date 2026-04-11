@@ -34,7 +34,13 @@ AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합�
 
 이미 적용된 프로젝트에서:
 
-> https://github.com/JuseongJee/review-driven-ai-workflow/blob/main/ai/docs/guides/sync_template.md 읽고 템플릿 업데이트 진행해줘
+> /tpl update
+
+또는 자연어로:
+
+> 템플릿 업데이트해
+
+파일 분류 → 사용자 확인 → 동기화 → 스킬 재설치까지 자동 진행됩니다.
 
 ## 워크플로
 
@@ -63,21 +69,21 @@ AI가 자체적으로 크기를 판단하지 않습니다. 사용자가 명시�
 | 검증 | 테스트, 린트, 타입체크 실행 |
 | diff review | 최종 변경사항을 AI가 리뷰 |
 
-### 범위 밖 아이디어
+## 주요 기능
 
-작업 중 범위를 벗어나지만 가치 있는 아이디어가 나오면:
+| 카테고리 | 기능 |
+|---------|------|
+| **워크플로 스킬** | request-to-reviewed-plan, small-task-implement, implement-reviewed-plan, final-diff-review, gap-check, planning-design-intake |
+| **자동화** | autopilot (FR → 전체 파이프라인 자율 실행), workflow-router (다음 단계 자동 추천) |
+| **백로그 관리** | /fr (add, list, pri, archive, park, status, pull, push, sync) — GitHub Issues 양방향 연동 |
+| **리뷰 파이프라인** | Codex/Gemini/Claude 교차 리뷰, 파일 기반 세션, 최대 20턴 자동 수렴 |
+| **감사** | comprehensive-audit (UI/UX, 성능, 코드품질, 보안 등 8개 카테고리) |
+| **확장 기능** | design-review (디자인 검증 게이트), verify (런타임 품질 검증) |
+| **설정** | model-strategy (단계별 모델 선택), review-config (리뷰 도구 설정) |
 
-> "future request에 기록해줘"
+작업 중 범위 밖 아이디어가 나오면 `"future request에 기록해줘"`로 백로그에 저장하고, 나중에 `"autopilot으로 돌려"`로 자동 실행할 수 있습니다.
 
-AI가 `ai/workspace/backlog/FUTURE_REQUESTS.md`에 기록합니다.
-
-기록된 항목을 꺼내서 작업하려면:
-
-> "future request 목록 보여줘"
-
-원하는 항목을 골라서:
-
-> "이거 REQUEST로 올려서 진행해줘"
+상세 사용법은 `ai/docs/USER_MANUAL.md` 참조.
 
 ## 구조
 
@@ -88,9 +94,12 @@ REQUEST.md             ← 현재 작업 요청
 CURRENT_TASK.md        ← 작업 진행 상태 (AI가 자동 업데이트)
 WORKING_WITH_AI.md     ← 사용자 치트시트
 ai/
-├── claude_skills/     ← AI skill 정의
-├── docs/              ← 가이드, 프롬프트, 정책
-└── scripts/           ← 검증 스크립트
+├── claude_skills/     ← 13개 AI 스킬
+├── extensions/        ← 선택적 확장 (design-review, verify)
+├── config/            ← 설정 (workflow, review-tools, model-strategy, verification)
+├── docs/              ← 가이드, 프롬프트, 매뉴얼
+├── scripts/           ← 검증 및 리뷰 파이프라인 스크립트
+└── workspace/         ← 작업 산출물 (specs, plans, reports, backlog)
 ```
 
 ## 설계 원칙
@@ -109,9 +118,7 @@ CLAUDE.md에 규칙을 쓰면 모델이 무시할 수 있습니다. 이 템플�
 
 워크플로 각 단계가 파일(`REQUEST.md`, `CURRENT_TASK.md`, `specs/`, `plans/`)로 체크포인트를 남깁니다. 대화 히스토리가 아니라 파일에 상태가 있으므로, `/clear`로 세션을 비워도 새 세션이 바로 이어갑니다.
 
-## 내부 동작
-
-이 템플릿은 내부적으로 다음을 사용합니다:
+### AI 역할 분리
 
 - **Superpowers workflow** — 설계 → 계획 → 구현 순서를 구조화
 - **Cross-review** — 다른 모델(Codex, Gemini CLI, Claude Code 등)로 교차 리뷰하여 품질 확보
@@ -122,5 +129,6 @@ CLAUDE.md에 규칙을 쓰면 모델이 무시할 수 있습니다. 이 템플�
 ## 상세 문서
 
 - `WORKING_WITH_AI.md` — 일상 사용 치트시트
+- `ai/docs/USER_MANUAL.md` — 전체 기능 종합 매뉴얼
 - `ai/docs/flows/WORKFLOW.md` — 워크플로 상세
 - `ai/docs/AI_DOC_MAP.md` — 전체 문서 맵

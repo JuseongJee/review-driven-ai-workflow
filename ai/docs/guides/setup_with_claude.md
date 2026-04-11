@@ -80,11 +80,34 @@ rm -rf /tmp/ai-dev-template-src
 bash ai/scripts/install_claude_skills.sh project
 ```
 
-### 6. PROJECT_CONTEXT 검토 (선택)
+### 6. 리뷰 도구 감지
+
+외부 리뷰 도구(Codex, Gemini CLI)가 설치되어 있는지 확인합니다.
+
+```bash
+command -v codex &>/dev/null && echo "codex: 설치됨" || echo "codex: 없음"
+command -v gemini &>/dev/null && echo "gemini: 설치됨" || echo "gemini: 없음"
+```
+
+**하나 이상 설치된 경우:** "리뷰 도구가 감지되었습니다. `/review-config setup`으로 우선순위를 설정할 수 있습니다." 안내 후 다음 단계로 진행.
+
+**모두 없는 경우:** 아래 메시지를 출력합니다.
+
+```
+외부 리뷰 도구(Codex, Gemini CLI)가 감지되지 않았습니다.
+현재 상태에서도 Claude self-review로 동작하지만,
+다른 모델로 교차 리뷰하면 품질이 크게 올라갑니다.
+
+나중에 설치하면 `/review-config setup`으로 설정할 수 있습니다.
+```
+
+이 단계는 정보 제공만 합니다. 설치를 강제하거나 중단하지 않습니다.
+
+### 7. PROJECT_CONTEXT 검토 (선택)
 
 3단계에서 채운 내용에 빈칸이나 불확실한 부분이 있으면 사용자에게 PROJECT_CONTEXT review를 돌릴지 물어봅니다.
 
-### 7. 확장 기능 설치 (선택)
+### 8. 확장 기능 설치 (선택)
 
 프로젝트에 복사된 `ai/extensions/` 디렉토리에서 사용 가능한 확장 기능을 확인하고 사용자에게 안내합니다.
 
@@ -100,7 +123,7 @@ bash ai/scripts/install_claude_skills.sh project
 1. 해당 extension의 `install.md`를 읽고 안내에 따라 설치
 2. 설치 확인 항목 체크
 
-### 8. 완료 보고
+### 9. 완료 보고
 
 설치 결과를 사용자에게 보고합니다.
 

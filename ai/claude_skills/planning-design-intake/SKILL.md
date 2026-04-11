@@ -13,8 +13,9 @@ Typical user requests:
 - "이 기획서로 intake 진행해줘"
 - "디자인이랑 기획서 있어, REQUEST 만들어줘"
 
-Read these first (Always Read files are already loaded):
-- `PROJECT_CONTEXT.md`의 `## Intake Settings` (있으면)
+Read these first:
+- Always Read 파일 (이미 로드됨)
+- `ai/config/workflow.json`의 `intake_source`, `design_reference_format` (파일이 없으면 `.example` 기본값 사용)
 
 ## v1 범위
 

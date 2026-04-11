@@ -84,8 +84,8 @@ autopilot 실행 중에는 아래 규칙이 **모든 하위 skill, prompt, 기�
 모든 리뷰는 아래 패턴을 따른다:
 
 ```bash
-# 세션 생성
-bash ai/scripts/prepare_review_pipeline.sh <review-kind> [args...]
+# 세션 생성 (autopilot에서는 반드시 REVIEW_TURN_LIMIT=50을 넘긴다)
+REVIEW_TURN_LIMIT=50 bash ai/scripts/prepare_review_pipeline.sh <review-kind> [args...]
 
 # Claude 턴 작성 → Reviewer 턴 실행
 bash ai/scripts/run_review_turn.sh <session-path>
@@ -116,6 +116,7 @@ bash ai/scripts/run_review_turn.sh <session-path>
 - **Superpowers가 사용 가능하면 반드시 사용한다:** `brainstorming` → `writing-plans` → `executing-plans`. 사용 가능한데 건너뛰지 않는다.
 - 테스트 실패, 빌드 에러 발생 시 `superpowers:systematic-debugging`으로 자율 디버깅한다
 - 디버깅 3회 실패 시 현재 상태를 보고하고 사용자에게 넘긴다
+- **model-strategy 적용**: `ai/config/model-strategy.json`이 존재하면 `subagent` 값을 읽어 subagent dispatch 시 Agent 도구의 `model` 파라미터로 전달한다. 파일 미존재/파싱 실패/키 누락/허용되지 않은 값(`opus`, `sonnet`, `haiku` 외) → model 파라미터를 생략한다(기본 동작 유지). 설정 형식 상세는 `/model-strategy` skill 참조.
 
 ### 5. 세션 한계 대응
 

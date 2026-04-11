@@ -29,12 +29,8 @@ Web / macOS / iOS / backend / library / script
 ## Template Source
 - template_repo: (배포 repo URL, 예: https://github.com/user/repo)
 
-## Workflow Settings
-- auto_completion_report: false
-
-## Intake Settings
-- intake_source: text (text | text+design)
-- design_reference_format: url+screenshot (프로젝트별 디자인 입력 형식)
+## Workflow & Intake Settings
+`ai/config/workflow.json` 참조. 기본값은 `ai/config/workflow.json.example`.
 
 ## Verification Scope
 - pre-commit: lint, format (무거운 테스트 금지)
