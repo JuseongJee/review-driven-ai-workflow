@@ -43,6 +43,8 @@ clone한 디렉토리가 템플릿 소스입니다.
 - 프로젝트에 `.gitignore`가 없으면 템플릿의 `.gitignore`를 그대로 복사합니다.
 - 이미 존재하면 템플릿의 `.gitignore` 내용 중 프로젝트에 없는 항목을 기존 파일에 머지합니다. 기존 항목은 건드리지 않습니다.
 
+사용자가 제공한 배포 repo URL을 `PROJECT_CONTEXT.md`의 `template_repo`에 저장합니다. (이후 `/tpl update`에서 사용)
+
 임시 clone 디렉토리가 있으면 정리합니다:
 ```bash
 rm -rf /tmp/ai-dev-template-src
