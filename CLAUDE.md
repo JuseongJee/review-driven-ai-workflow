@@ -51,11 +51,11 @@
 
 ### 큰 작업
 
-`REQUEST 작성 -> REQUEST review -> spec/change spec -> plan -> spec/plan review -> 구현 -> 검증 -> final diff review -> REQUEST 아카이브`
+`REQUEST 작성 → REQUEST review → spec/change spec → plan → spec/plan review → 구현 → 검증 → final diff review → REQUEST 아카이브`
 
 ### 작은 작업
 
-`REQUEST 정리 -> 구현 -> 검증 -> 필요 시 final diff review -> REQUEST 아카이브`
+`REQUEST 정리 → 구현 → 검증 → 필요 시 final diff review → REQUEST 아카이브`
 
 ### REQUEST 아카이브
 

@@ -60,11 +60,11 @@
 
 ### 작은 작업
 
-`REQUEST 정리 -> 구현 -> 검증 -> 필요 시 final diff review -> REQUEST 아카이브`
+`REQUEST 정리 → 구현 → 검증 → 필요 시 final diff review → REQUEST 아카이브`
 
 ### 큰 작업 / 기존 코드베이스의 중간 이상 변경
 
-`REQUEST 정리 -> REQUEST review -> spec/change spec -> plan -> spec/plan review -> 구현 -> 검증 -> final diff review -> REQUEST 아카이브`
+`REQUEST 정리 → REQUEST review → spec/change spec → plan → spec/plan review → 구현 → 검증 → final diff review → REQUEST 아카이브`
 
 ### Spec 종류 선택 기준
 

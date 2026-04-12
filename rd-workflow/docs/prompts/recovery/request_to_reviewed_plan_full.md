@@ -6,7 +6,7 @@
 3. 범위를 넓히지 말고 꼭 필요한 정보만 질문한다
 4. `Execution Path`를 판단한다
 5. `small-task`면 이유만 남기고 멈춘다
-6. 큰 작업이면 `REQUEST review -> spec/change spec -> plan -> spec/plan review` 순서로 진행한다
+6. 큰 작업이면 `REQUEST review → spec/change spec → plan → spec/plan review` 순서로 진행한다
 7. review는 `prepare_review_pipeline.sh`와 `run_review_turn.sh ...`를 사용한다
 8. Superpowers를 쓸 수 있으면 그 workflow를 실행하고, 아니면 같은 위치에 같은 산출물을 만든다
 9. 구현은 하지 않는다
