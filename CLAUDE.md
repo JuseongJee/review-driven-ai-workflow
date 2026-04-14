@@ -23,7 +23,23 @@
 4. 큰 작업과 기존 코드베이스의 중간 이상 변경은 reviewed spec / plan 없이 바로 구현하지 않습니다. 판단 기준은 `rd-workflow/docs/flows/WORKFLOW.md`에 있습니다.
 5. 사용자가 명시적으로 small-task로 지정한 작업만 바로 구현할 수 있습니다. AI가 자체적으로 small로 판단하지 않습니다.
 6. 구현 후에는 검증을 실행합니다 (절대 규칙 참조).
-7. 중요한 구조 결정은 `rd-workflow/docs/adr/`에 기록합니다.
+
+## Intake 규칙
+
+사용자가 새로운 작업을 요청하면 (구현, 작성, 수정, 생성 등 실행 가능한 작업):
+
+1. FR에 등록한다 (`/fr add`와 동일 절차 — `FUTURE_REQUESTS.md` 인덱스 + `items/` 상세 파일)
+2. "FR 등록: **{title}** — {summary}. 다음 단계를 지정해주세요." 출력
+3. 사용자 지시를 기다린다
+
+Source FR은 이 시점에 채우지 않는다. 해당 FR을 현재 작업으로 승격하여 REQUEST.md를 작성할 때 채운다.
+
+작업 진행 중(`CURRENT_TASK.md` Status ≠ `대기 중`)에 새로운 독립 요청이 들어오면: FR에 등록하되, 현재 작업을 중단하지 않는다. "FR 등록: **{title}**. 현재 작업 완료 후 진행합니다." 알림 후 복귀.
+
+등록하지 않는 경우:
+- `/fr add` 직접 호출 (이미 FR skill이 처리)
+- 단순 질문/확인, 워크플로 지시 (진행 중 작업의 다음 단계), 메타 대화
+- 이미 FR 등록된 요청의 후속 대화 (clarification, 수정, 재시도)
 
 ## Workflow 우선순위
 
@@ -51,11 +67,11 @@
 
 ### 큰 작업
 
-`REQUEST 작성 → REQUEST review → spec/change spec → plan → spec/plan review → 구현 → 검증 → final diff review → REQUEST 아카이브`
+`FR 자동 등록 → REQUEST 작성 → REQUEST review → spec/change spec → plan → spec/plan review → 구현 → 검증 → final diff review → REQUEST 아카이브`
 
 ### 작은 작업
 
-`REQUEST 정리 → 구현 → 검증 → 필요 시 final diff review → REQUEST 아카이브`
+`FR 자동 등록 → REQUEST 정리 → 구현 → 검증 → 필요 시 final diff review → REQUEST 아카이브`
 
 ### REQUEST 아카이브
 

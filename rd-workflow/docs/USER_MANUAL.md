@@ -106,10 +106,10 @@ cp rd-workflow/config/review-tools.json.example rd-workflow/config/review-tools.
 
 | 분류 | 기준 | 절차 |
 |------|------|------|
-| **작은 작업 (small-task)** | 사용자가 명시적으로 지정 | REQUEST 정리 → 구현 → 검증 → diff review → 아카이브 |
-| **큰 작업** | 새 기능, 기존 코드 중간 이상 변경 | REQUEST → review → spec/plan → review → 구현 → 검증 → diff review → 아카이브 |
+| **작은 작업 (small-task)** | 사용자가 명시적으로 지정 | FR 자동 등록 → REQUEST 정리 → 구현 → 검증 → diff review → 아카이브 |
+| **큰 작업** | 새 기능, 기존 코드 중간 이상 변경 | FR 자동 등록 → REQUEST → review → spec/plan → review → 구현 → 검증 → diff review → 아카이브 |
 
-> AI가 스스로 "이건 작은 작업이니 바로 구현하겠습니다"라고 판단하지 않습니다. 사용자가 `small-task`라고 명시해야 합니다.
+> 사용자가 작업을 요청하면 먼저 FR에 자동 등록됩니다. AI가 자체적으로 크기를 판단하지 않습니다. 사용자가 `small-task`라고 명시해야 합니다.
 
 ### 3.2 핵심 문서 4종
 

@@ -61,19 +61,54 @@ AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합�
 
 마이그레이션 완료 후 `/tpl update`를 실행하면 정상적으로 동기화됩니다. 이후 업데이트부터는 `/tpl update`만으로 자동 처리됩니다.
 
+## 사용 예시 — 단계별 프롬프트
+
+### 큰 작업
+
+```text
+1. "이 요구사항으로 진행해줘: 사진 슬라이드쇼에 줌/팬 기능 추가"
+   → AI가 REQUEST를 작성하고 review를 시작합니다
+
+2. (review 확인, AI의 질문에 답변 후) "진행해"
+   → AI가 spec과 plan을 작성하고 review를 시작합니다
+
+3. (spec/plan review 확인, 필요시 수정 방향 전달 후) "진행해"
+   → AI가 구현을 시작합니다
+
+4. 구현 완료 → AI가 자동으로 검증 + diff review를 진행합니다
+
+5. (diff review 확인 후) "커밋해줘"
+```
+
+### 작은 작업
+
+```text
+1. "small-task로 바로 해줘: 로그인 버튼 색상을 파란색으로 변경"
+   → AI가 바로 구현 → 검증 → diff review까지 진행합니다
+```
+
+### Autopilot
+
+```text
+1. "/autopilot"
+   → 백로그에서 작업을 선택하고 전체 파이프라인을 자율 실행합니다
+```
+
+사용자가 하는 건 **요구사항 전달 + review 결과 판단** 정도입니다. 나머지는 워크플로가 이어갑니다.
+
 ## 워크플로
 
 모든 작업은 크기에 따라 두 경로로 나뉩니다.
 
 ### 큰 작업 (기능 추가, 중간 이상 변경)
 
-REQUEST 작성 → REQUEST review → spec → plan → spec/plan review → 구현 → 검증 → diff review
+FR 자동 등록 → REQUEST 작성 → REQUEST review → spec → plan → spec/plan review → 구현 → 검증 → diff review
 
 ### 작은 작업 (사용자가 small-task로 지정)
 
-REQUEST 정리 → 구현 → 검증 → diff review
+FR 자동 등록 → REQUEST 정리 → 구현 → 검증 → diff review
 
-AI가 자체적으로 크기를 판단하지 않습니다. 사용자가 명시적으로 small-task로 지정한 경우에만 작은 작업 경로를 탑니다.
+사용자가 작업을 요청하면 먼저 FR(Future Request)에 자동 등록된 뒤 워크플로가 시작됩니다. AI가 자체적으로 크기를 판단하지 않습니다. 사용자가 명시적으로 small-task로 지정한 경우에만 작은 작업 경로를 탑니다.
 
 ### 각 단계가 하는 일
 

@@ -49,22 +49,30 @@
 
 ### 자유 텍스트 요구사항 (기본)
 
-사용자가 직접 요구사항을 말하면 → `/request-to-reviewed-plan`
+사용자가 직접 요구사항을 말하면:
+1. FR에 자동 등록 (Intake 규칙 적용)
+2. 사용자가 다음 단계를 지정 → 해당 skill로 진행
+
+### /fr add 직접 호출
+
+등록만 수행, 실행하지 않음 (기존과 동일).
 
 ### 기획서 (외부 문서)
 
-기획서 텍스트가 있으면 → `/planning-design-intake` → REQUEST.md 생성 → `/request-to-reviewed-plan`
+기획서 텍스트가 있으면:
+1. FR에 자동 등록 (Intake 규칙 적용)
+2. `/planning-design-intake` → REQUEST.md 생성 → `/request-to-reviewed-plan`
 (v1: 기획서 텍스트 필수. 디자인 URL/스크린샷은 선택 — 있으면 Design Reference Memo로 수집)
 
 ## 기본 분기
 
 ### 작은 작업
 
-`REQUEST 정리 → 구현 → 검증 → 필요 시 final diff review → REQUEST 아카이브`
+`FR 자동 등록 → REQUEST 정리 → 구현 → 검증 → 필요 시 final diff review → REQUEST 아카이브`
 
 ### 큰 작업 / 기존 코드베이스의 중간 이상 변경
 
-`REQUEST 정리 → REQUEST review → spec/change spec → plan → spec/plan review → 구현 → 검증 → final diff review → REQUEST 아카이브`
+`FR 자동 등록 → REQUEST 정리 → REQUEST review → spec/change spec → plan → spec/plan review → 구현 → 검증 → final diff review → REQUEST 아카이브`
 
 ### Spec 종류 선택 기준
 

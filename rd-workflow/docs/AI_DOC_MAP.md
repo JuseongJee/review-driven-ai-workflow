@@ -50,8 +50,6 @@
 `AGENTS.md`
 - Git 워크플로 규칙과 핸드오프 규칙
 
-`adr/`
-- 운영 규칙과 구조 결정을 남긴 기록
 
 `guides/`
 - Team Overlay, 검증 범위 등 운영 가이드
