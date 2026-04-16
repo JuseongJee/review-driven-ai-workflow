@@ -36,7 +36,7 @@ Claude Code + Codex 기반 리뷰 주도 AI 개발 워크플로 템플릿의 전
 - **리뷰 주도**: REQUEST, spec/plan, 최종 diff — 모든 주요 단계에서 리뷰를 거침
 - **자연어 인터페이스**: 짧은 한국어 요청으로 모든 기능 사용 (`"이거 FR에 넣어줘"`, `"autopilot으로 돌려"`)
 - **산출물 보존**: spec, plan, 리뷰 기록이 파일로 남아 이력 추적 가능
-- **역할 분리**: Claude(Builder) + Codex/Gemini(Reviewer) — 작성자와 검토자를 분리
+- **역할 분리**: Claude(Builder) + Codex(Reviewer) — 작성자와 검토자를 분리
 
 ---
 
@@ -63,7 +63,7 @@ AI가 `rd-workflow/docs/guides/setup_with_claude.md` 절차를 따릅니다:
 2. `PROJECT_CONTEXT.md` 채우기 (프로젝트 타입, 기술 스택, 빌드 명령 등)
 3. 검증 스크립트 설정 (`rd-workflow/scripts/test.sh`, `lint.sh`, `typecheck.sh`)
 4. 스킬 설치 (`rd-workflow/scripts/install_claude_skills.sh`)
-5. 리뷰 도구 감지 (Codex/Gemini 설치 여부 확인 + 안내)
+5. 리뷰 도구 감지 (Codex 설치 여부 확인 + 안내)
 6. (선택) 확장 기능 설치, PROJECT_CONTEXT review
 
 ### 2.2 필수 설정 파일
@@ -154,7 +154,7 @@ parked (보류)                           done / dropped
 
 AI가 자동으로:
 1. `REQUEST.md` 작성
-2. REQUEST review (Codex/Gemini가 검토)
+2. REQUEST review (Codex가 검토)
 3. Brainstorming → spec → plan 작성
 4. Spec/plan review
 5. 구현 (subagent 병렬 실행)
@@ -309,7 +309,6 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 | 도구 | 역할 | 설정 |
 |------|------|------|
 | **Codex (기본)** | 독립 Reviewer | `rd-workflow/scripts/adapter_codex.sh` |
-| **Gemini** | 독립 Reviewer | `rd-workflow/scripts/adapter_gemini.sh` |
 | **Claude** | Self-review fallback | `rd-workflow/scripts/adapter_claude.sh` |
 
 우선순위는 `rd-workflow/config/review-tools.json`의 `default_priority`로 설정.
@@ -320,7 +319,7 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 
 모든 설정은 `rd-workflow/config/`에 위치합니다. `.example` 파일을 복사하여 사용합니다.
 
-> **설치 직후에는 설정 없이 동작합니다.** 리뷰 도구는 설치된 것을 자동 감지하여 fallback합니다 (Codex → Gemini → Claude self-review 순). 외부 리뷰 도구가 없으면 Claude self-review로 진행됩니다. 필요할 때 아래 설정 스킬로 변경하세요.
+> **설치 직후에는 설정 없이 동작합니다.** 리뷰 도구는 설치된 것을 자동 감지하여 fallback합니다 (Codex → Claude self-review 순). 외부 리뷰 도구가 없으면 Claude self-review로 진행됩니다. 필요할 때 아래 설정 스킬로 변경하세요.
 
 ### 7.1 workflow.json
 
@@ -346,10 +345,9 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 
 ```json
 {
-  "default_priority": ["codex", "gemini", "claude"],
+  "default_priority": ["codex", "claude"],
   "tools": {
     "codex": { "bin": "codex", "model": "gpt-5.4" },
-    "gemini": { "bin": "gemini", "model": "gemini-2.5-pro" },
     "claude": { "bin": "claude", "model": "opus" }
   }
 }
@@ -436,7 +434,6 @@ UI 작업 시 디자인 레퍼런스 대비 검증 게이트.
 | `rd-workflow/scripts/sync_template.sh` | 배포 repo에서 최신 템플릿 동기화 |
 | `rd-workflow/scripts/check_claudemd_size.sh` | CLAUDE.md 200줄 초과 경고 |
 | `rd-workflow/scripts/adapter_codex.sh` | Codex 리뷰 어댑터 |
-| `rd-workflow/scripts/adapter_gemini.sh` | Gemini 리뷰 어댑터 |
 | `rd-workflow/scripts/adapter_claude.sh` | Claude 리뷰 어댑터 (self-review) |
 
 ---
@@ -482,7 +479,7 @@ UI 작업 시 디자인 레퍼런스 대비 검증 게이트.
     │   ├── build.sh, test.sh, lint.sh, typecheck.sh  # 검증
     │   ├── prepare_review_pipeline.sh                 # 리뷰 세션 생성
     │   ├── run_review_turn.sh                         # 리뷰 턴 실행
-    │   ├── adapter_codex.sh, adapter_gemini.sh, adapter_claude.sh  # 리뷰어
+    │   ├── adapter_codex.sh, adapter_claude.sh  # 리뷰어
     │   ├── install_claude_skills.sh                   # 스킬 설치
     │   └── sync_template.sh                           # 템플릿 동기화
     │
@@ -540,7 +537,7 @@ UI 작업 시 디자인 레퍼런스 대비 검증 게이트.
 **Q: 리뷰가 끝나지 않습니다.**
 → 20턴(autopilot은 50턴) 도달 시 자동으로 사용자에게 넘깁니다. `USER_ACTION.md`에 남은 쟁점이 정리되어 있습니다.
 
-**Q: Codex/Gemini 리뷰어를 사용할 수 없습니다.**
+**Q: Codex 리뷰어를 사용할 수 없습니다.**
 → `rd-workflow/config/review-tools.json`에서 우선순위를 변경하거나, `/review-config setup`으로 재설정하세요. Claude self-review가 fallback입니다.
 
 **Q: 템플릿을 업데이트하고 싶습니다.**

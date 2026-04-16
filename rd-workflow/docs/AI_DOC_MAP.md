@@ -112,9 +112,6 @@
 `adapter_codex.sh`
 - Codex 어댑터
 
-`adapter_gemini.sh`
-- Gemini CLI 리뷰 어댑터
-
 `adapter_claude.sh`
 - Claude CLI 셀프 리뷰 어댑터
 
