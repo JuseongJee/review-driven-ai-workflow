@@ -173,7 +173,9 @@ Review goal:
 ${review_goal}
 
 You must do all of the following:
-1. Read SESSION.md, CHECKPOINT.md, USER_ACTION.md, the latest turn files, and the review target.
+1. Read SESSION.md, CHECKPOINT.md, USER_ACTION.md, and the latest turn file (LATEST_TURN_FILE). Then read the review target.
+   - Previous turn files are available at ${session_dir_rel}/turns/ — only read specific ones if CHECKPOINT context is insufficient to understand an open issue or prior agreement.
+   - Do NOT read all previous turns by default.
 2. Create exactly one new turn file at EXPECTED_TURN_FILE.
 3. Update CHECKPOINT_FILE.
 4. Update SESSION_FILE so that Current Owner is no longer Reviewer.

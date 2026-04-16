@@ -67,6 +67,8 @@ review kind:
 - `CHECKPOINT.md`와 `SESSION.md`를 함께 갱신한다
 - 구현이나 머지를 직접 확정하지 않는다
 - 이미 합의된 쟁점은 반복하지 않는다
+- 이전 턴 파일을 전부 읽지 않는다. CHECKPOINT.md와 최신 턴 파일로 맥락을 파악하고, 부족할 때만 특정 턴을 선택적으로 참조한다 (턴 파일 경로: SESSION_DIR/turns/NNN_role.md)
+- CHECKPOINT.md의 Open Issues에는 근거 턴, 해소 조건, 미해결 사유를 포함한다. Agreed Points에는 합의 내용과 근거 턴 번호를 포함한다
 
 ## 종료 규칙
 
