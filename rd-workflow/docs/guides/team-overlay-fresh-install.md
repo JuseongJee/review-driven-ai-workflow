@@ -93,7 +93,22 @@ PROJECT_CONTEXT.md
 EOF
 ```
 
-### 4. setup.sh 생성 (다른 컴퓨터용)
+### 4. 프로젝트 설정
+
+파일 복사와 symlink가 완료되었으면, `rd-workflow/docs/guides/setup_with_claude.md`의 **3단계(PROJECT_CONTEXT.md 채우기)부터** 따라 진행한다.
+
+```text
+이 가이드대로 설정 이어해줘: rd-workflow/docs/guides/setup_with_claude.md (3단계부터)
+```
+
+이 단계에서 처리되는 항목:
+- PROJECT_CONTEXT.md 채우기
+- 검증 스크립트(build/test/lint/typecheck) 채우기
+- Skill 설치
+- 리뷰 도구 감지
+- 확장 기능 설치 (선택)
+
+### 5. setup.sh 생성 (다른 컴퓨터용)
 
 개인 overlay repo에 setup script를 넣어둔다:
 
@@ -138,7 +153,7 @@ git commit -m "chore: setup script 추가"
 git push
 ```
 
-### 5. 다른 컴퓨터에서 설정
+### 6. 다른 컴퓨터에서 설정
 
 ```bash
 # 1. 팀 repo clone
