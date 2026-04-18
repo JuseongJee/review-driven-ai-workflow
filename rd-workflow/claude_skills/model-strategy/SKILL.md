@@ -46,7 +46,7 @@ description: Configure model strategy per workflow stage — interactive wizard 
 
 ### 1. 현재 설정 표시
 
-`rd-workflow/config/model-strategy.json`을 읽는다. 파일이 없으면 "설정 없음 — subagent는 세션 모델 상속" 표시.
+`rd-workflow/config/model-strategy.json`을 읽는다. 파일이 없으면 "설정 없음 — subagent는 기본값 sonnet 적용" 표시.
 
 ### 2. 추천 프리셋 제시
 
@@ -93,4 +93,4 @@ AskUserQuestion으로 묻는다:
 ## 오류 처리
 
 - 기존 설정 파일의 JSON 파싱 실패 → 경고 출력, 새로 생성할지 확인
-- 허용되지 않은 모델 값 → 경고 출력, 기본값(파라미터 생략)으로 대체
+- 허용되지 않은 모델 값 → 경고 출력, 기본값(`"sonnet"`)으로 대체
