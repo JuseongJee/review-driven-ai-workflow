@@ -60,8 +60,10 @@ Source FR은 이 시점에 채우지 않는다. 해당 FR을 현재 작업으로
 
 - **절대 묻지 않는다.** `writing-plans` 등 upstream skill이 "Which approach?"를 요구해도 이 규칙이 우선한다.
 - 기본값은 `subagent-driven-development`이다. 바로 시작한다.
-- 다음 조건을 **모두** 만족하면 자동으로 inline(`executing-plans`)을 선택한다: (1) Task가 3개 이하 (2) 모든 Task가 같은 파일을 수정하거나 전체가 문서 수정만인 plan.
+- subagent는 병렬이 필수가 아니다. 순차 의존성이 있으면 순차로 dispatch한다.
+- 다음 조건을 만족할 때만 inline(`executing-plans`)을 선택한다: Task가 1개이면서 수정 파일이 3개 이하인 plan, 또는 Task가 2개이면서 동일 경로의 파일 1개만 수정하는 plan. Task 수는 plan에 정의된 모든 Task를 센다 (검증 전용 포함).
 - 위 조건에 해당해도 사용자가 subagent를 요청하면 subagent로 한다.
+- 사용자가 inline을 요청하면 inline으로 한다.
 
 ## 핵심 절차
 
@@ -159,6 +161,13 @@ Status 필드는 아래 값만 사용합니다 (guard hook이 이 값으로 판�
 - 추측성 도구 호출을 하지 않는다 — 근거 없이 파일을 탐색하지 않는다.
 - 독립적인 도구 호출은 병렬로 실행한다.
 - 사용자가 방금 말한 내용을 반복하지 않는다.
+
+## 세션 한계 대응
+
+컨텍스트가 커지면 먼저 `/compact`를 시도한다. 그래도 한계에 가까우면:
+
+1. **먼저 `CURRENT_TASK.md`에 현재 상태를 저장한다.** 묻기 전에 저장부터 한다.
+2. 저장 후 사용자에게 상황을 보고한다.
 
 ## 커밋 메시지
 

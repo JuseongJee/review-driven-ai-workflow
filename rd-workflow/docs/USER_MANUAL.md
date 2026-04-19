@@ -129,7 +129,7 @@ Claude Code의 내장 워크플로 기능입니다. 큰 작업에서는 반드�
 | 설계 | `brainstorming` | 요구사항 탐색, 설계 대안 비교 |
 | 계획 | `writing-plans` | spec + plan 파일 |
 | 구현 | `subagent-driven-development` (기본) | 코드 변경 |
-| 구현 (대안) | `executing-plans` | 단일 세션 구현 (task 3개 이하일 때 자동 선택) |
+| 구현 (대안) | `executing-plans` | 단일 세션 구현 (task 1개+파일 3개 이하, 또는 task 2개+동일 파일 1개일 때 자동 선택) |
 
 ### 3.4 Future Request (FR)
 
@@ -157,7 +157,7 @@ AI가 자동으로:
 2. REQUEST review (Codex가 검토)
 3. Brainstorming → spec → plan 작성
 4. Spec/plan review
-5. 구현 (subagent 병렬 실행)
+5. 구현 (subagent dispatch — 병렬·순차 모두 가능)
 6. 검증 (`test.sh`, `lint.sh`, `typecheck.sh`)
 7. Final diff review
 8. REQUEST 아카이브 + 완료 보고
