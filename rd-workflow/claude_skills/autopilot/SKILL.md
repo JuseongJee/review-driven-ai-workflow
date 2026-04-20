@@ -78,6 +78,7 @@ autopilot 실행 중에는 아래 규칙이 **모든 하위 skill, prompt, 기�
 - 각 항목의 priority를 읽으려면 상세 파일(`items/*.md`)의 `priority` 필드를 확인한다. priority 읽기/fallback 규칙은 `/fr list`와 동일: 필드 없음/`-` → unranked, malformed 값 → unranked + 경고, 상세 파일 누락 → 건너뜀 + 경고
 - **AskUserQuestion으로 목록을 보여주고 사용자가 선택한다** — 목록에 priority 컬럼을 포함하여 정렬 이유를 사용자에게 보여준다
 - 선택된 항목의 `request seed`를 기반으로 `REQUEST.md`를 생성한다
+- REQUEST.md 생성 후 `CURRENT_TASK.md` Notes에 `started_at: YYYY-MM-DD HH:MM` 형식으로 현재 시각을 기록한다. autopilot 재실행 시 이전 값을 덮어쓴다.
 
 ### 2. 리뷰 — 3단계 전부 실행
 
@@ -168,6 +169,10 @@ compact 후에도 한계에 가까워지면:
 - REQUEST review: [한줄 요약] → `rd-workflow-workspace/reports/reviews/...-request-review.md`
 - Spec/Plan review: [한줄 요약] → `rd-workflow-workspace/reports/reviews/...-spec-plan-review.md`
 - Final diff review: [한줄 요약] → `rd-workflow-workspace/reports/reviews/...-diff-review.md`
+
+## 실행 메트릭
+- 소요 시간: [HH시간 MM분 또는 MM분 — `CURRENT_TASK.md` Notes의 `started_at` 기준으로 시스템 시계(로컬 시간대) 계산. started_at 없음 또는 형식 오류 시: `N/A (started_at 없음 또는 형식 오류)`]
+- 토큰 사용량: N/A (Claude Code CLI 출력에서 확인)
 
 ## Rollback
 - 브랜치: `autopilot/<작업명>-<timestamp>`
