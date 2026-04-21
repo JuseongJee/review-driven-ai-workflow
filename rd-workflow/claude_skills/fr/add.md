@@ -9,7 +9,26 @@
    - **short-title**: 영문 kebab-case, 간결하게 (예: `autopilot-review-gate`)
    - **summary**: 한국어 한두 문장 요약
    - **kind**: feature | bug | refactor | tech-debt | tooling | research | test (맥락에서 추론, 불확실하면 feature)
-3. 상세 파일 생성: `rd-workflow-workspace/backlog/items/YYYY-MM-DD-{short-title}.md`
+3. raw capture 파일 생성:
+   - 경로: `rd-workflow-workspace/raw-captures/YYYY-MM-DD-HHMM-fr-{short-title}.md`
+   - 디렉토리 없으면 생성 후 기록
+   - 동일 분 동일 slug 충돌 시 `-2`, `-3` suffix 순차 부여 (덮어쓰기 금지)
+   - source: 직접 호출이면 `direct`, 자연어 라우팅이면 `routed`
+   - 원본 텍스트: 직접 호출이면 인자 원문, 자연어 라우팅이면 세션 컨텍스트에서 접근 가능한 마지막 사용자 메시지 본문 그대로 (모델 재구성·요약 금지; 원문 접근 불가 시 캡처 생략)
+   - 형식:
+     ```md
+     ---
+     date: YYYY-MM-DD HH:MM
+     fr-title: {short-title}
+     source: direct | routed
+     ---
+
+     ## 원본 입력
+
+     {원본 텍스트}
+     ```
+   - 생성 실패 시 FR 등록을 차단하지 않고 경고만 출력
+4. 상세 파일 생성: `rd-workflow-workspace/backlog/items/YYYY-MM-DD-{short-title}.md`
 
 ```md
 # YYYY-MM-DD {short-title}
@@ -25,15 +44,24 @@
 - request seed: {REQUEST로 만들 때 쓸 초안, 없으면 summary 반복}
 ```
 
-4. `FUTURE_REQUESTS.md`의 `## 인덱스` 테이블 끝에 행 추가:
+5. `FUTURE_REQUESTS.md`의 `## 인덱스` 테이블 끝에 행 추가:
 
 ```
 | {날짜} | {short-title} | {summary} | idea | - | - | [상세](items/YYYY-MM-DD-{short-title}.md) |
 ```
 
-5. 완료 메시지 출력:
+6. 완료 메시지 출력:
 
 > FR 등록: **{short-title}** — {summary}
+> 캡처 파일: `rd-workflow-workspace/raw-captures/YYYY-MM-DD-HHMM-fr-{short-title}.md` (민감 정보 포함 시 직접 편집 필요)
+
+캡처 실패 시:
+> FR 등록: **{short-title}** — {summary}
+> 캡처 파일: 생성 실패 (FR 등록은 완료됨)
+
+캡처 원문 접근 불가 시:
+> FR 등록: **{short-title}** — {summary}
+> 캡처 파일: 원문 확보 불가 (FR 등록은 완료됨)
 
 ### 규칙
 
