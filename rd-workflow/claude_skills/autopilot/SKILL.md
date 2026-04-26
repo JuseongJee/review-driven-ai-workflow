@@ -137,8 +137,49 @@ compact 후에도 한계에 가까워지면:
 
 - **Final diff review가 완료(Reviewer "이의 없음" 명시)되기 전에는 마무리 단계로 넘어가지 않는다.**
 - `superpowers:finishing-a-development-branch` skill의 옵션 중 추천을 자동 선택한다
-- REQUEST를 `rd-workflow-workspace/backlog/request-archive/`에 아카이브한다
-- FUTURE_REQUESTS.md 인덱스에서 해당 항목의 상태를 `done`으로 변경하고, `items/` 상세 파일에서도 status를 `done`으로 표기한다
+- REQUEST 아카이브 절차 (아래 5단계를 순서대로 실행):
+
+  1. **Short Title 읽기**: `CURRENT_TASK.md`의 `## Short Title` 섹션을 읽어 `SHORT_TITLE` 변수로 저장한다.
+
+  2. **REQUEST.md 백업** (collision-safe — immutable BASE 패턴):
+     ```bash
+     BASE="rd-workflow-workspace/backlog/request-archive/{YYYY-MM-DD-HHMM}-{title}.md"
+     DEST="$BASE"
+     N=2
+     while [ -e "$DEST" ]; do
+       DEST="${BASE%.md}-${N}.md"
+       N=$((N+1))
+     done
+     cp REQUEST.md "$DEST"
+     ```
+
+  3. **같은 short-title 의 `request`/`spec`/`plan` stage 캡처를 `raw-captures/archive/` 로 이동**
+     (`fr` stage 는 이동 안 함 — `/fr archive` 책임):
+     ```bash
+     mkdir -p rd-workflow-workspace/raw-captures/archive
+     for STAGE in request spec plan; do
+       find rd-workflow-workspace/raw-captures -maxdepth 1 -type f -name "*-${STAGE}-*.md" 2>/dev/null \
+         | while IFS= read -r f; do
+             if awk -v t="${SHORT_TITLE}" -v s="${STAGE}" '
+                 BEGIN{c=0; st=0; sg=0}
+                 /^---$/{c++; if(c==2)exit}
+                 c==1 && $0=="short-title: " t {st=1}
+                 c==1 && $0=="stage: " s {sg=1}
+                 END{exit !(st && sg)}
+               ' "$f"; then
+               mv "$f" rd-workflow-workspace/raw-captures/archive/
+             fi
+           done
+     done
+     ```
+
+  4. **Source FR 처리**: FUTURE_REQUESTS.md 인덱스에서 해당 항목의 상태를 `done`으로 변경하고, `items/` 상세 파일에서도 status를 `done`으로 표기한다.
+
+  5. **REQUEST.md 비우기 + Short Title reset**: `REQUEST.md`를 초기 템플릿 상태로 비우고, `CURRENT_TASK.md`의 `## Short Title`을 기본값 `-`로 reset한다.
+
+  6. **fr stage capture archive**: Source FR 의 status 가 `done` 으로 변경되었으므로 `/fr archive` 를 호출하여 같은 short-title 의 `fr` stage 캡처를 `raw-captures/archive/` 로 이동한다. (autopilot REQUEST archive 에서 `request`/`spec`/`plan` 캡처는 3단계에서 이미 이동됨. `fr` stage 는 이 단계에서 `/fr archive` 에 위임)
+
+**책임 경계**: `fr` stage 캡처는 `/fr archive` 책임이다. `request`/`spec`/`plan` stage 캡처는 REQUEST archive(autopilot 또는 수동) 책임이다.
 
 ### 7. 최종 보고
 

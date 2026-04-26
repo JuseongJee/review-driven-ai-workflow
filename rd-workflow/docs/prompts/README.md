@@ -8,12 +8,17 @@
 
 - 평소에는 입력창에 짧은 자연어 요청을 먼저 넣습니다.
 - skill이 있으면 skill 이름만 붙여도 원하는 단계까지 가는 경우가 많습니다.
-- 프롬프트 파일은 보정, 수동 복구에만 씁니다.
+- 프롬프트 파일은 예문, 보정, 수동 복구에만 씁니다.
 
 짧은 요청 예:
 
 ```text
-이 요구사항으로 request-to-reviewed-plan skill로 진행해줘.
+이 요구사항으로 planning-design-intake skill로 진행해줘.
+```
+(새 자유 텍스트 큰 작업은 planning-design-intake 로 REQUEST.md 를 만든 후 request-to-reviewed-plan 으로 진행)
+
+```text
+REQUEST.md 있으니 request-to-reviewed-plan으로 spec/plan 진행해줘.
 ```
 
 ```text

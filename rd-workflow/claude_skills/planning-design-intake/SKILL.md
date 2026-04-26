@@ -13,9 +13,8 @@ Typical user requests:
 - "이 기획서로 intake 진행해줘"
 - "디자인이랑 기획서 있어, REQUEST 만들어줘"
 
-Read these first:
-- Always Read 파일 (이미 로드됨)
-- `rd-workflow/config/workflow.json`의 `intake_source`, `design_reference_format` (파일이 없으면 `.example` 기본값 사용)
+Read these first (Always Read files are already loaded):
+- `PROJECT_CONTEXT.md`의 `## Intake Settings` (있으면)
 
 ## v1 범위
 
@@ -23,14 +22,69 @@ Read these first:
 - URL/API/PDF 직접 호출 없음
 - 디자인: 사용자가 직접 제공한 URL/스크린샷 참조만. Figma API 호출 없음
 
-## 기존 REQUEST.md 처리
+## 기존 REQUEST.md 처리 — overwrite-backup (implicit archive)
 
-REQUEST.md가 이미 존재하면 사용자에게 알린다:
+**실행 시점: 사용자 입력(기획서 텍스트)을 받은 후, short-title 부여 전에 실행한다.**
+(skill 진입 직후가 아님 — 사용자가 입력을 주기 전에 기존 REQUEST 를 silent archive 하는 eager archive 방지)
 
-> "기존 REQUEST.md가 있습니다. 덮어쓸까요? (기존 파일은 request-archive에 백업됩니다)"
+### 분기 1a: REQUEST.md 존재 + `CURRENT_TASK.md ## Short Title` = non-`-` (정상 happy path)
 
-- 승인: 기존 REQUEST.md를 `rd-workflow-workspace/backlog/request-archive/YYYY-MM-DD-HHMMSS-intake-backup.md`에 백업 후 새로 생성 (초 단위 timestamp로 충돌 방지)
-- 거부: 중단
+- `CURRENT_TASK.md ## Short Title` 에서 `SHORT_TITLE` 변수를 read
+- 기존 REQUEST.md 를 collision-safe 백업:
+  ```bash
+  # collision-safe: BASE immutable + DEST 매 iter 재계산
+  BASE="rd-workflow-workspace/backlog/request-archive/{date-time}-${SHORT_TITLE}.md"
+  DEST="$BASE"
+  N=2
+  while [ -e "$DEST" ]; do
+    DEST="${BASE%.md}-${N}.md"
+    N=$((N+1))
+  done
+  cp REQUEST.md "$DEST"
+  ```
+- 같은 short-title 의 `request`/`spec`/`plan` stage 캡처를 frontmatter exact match 로 `raw-captures/archive/` 로 이동:
+  ```bash
+  mkdir -p rd-workflow-workspace/raw-captures/archive
+  for STAGE in request spec plan; do
+    find rd-workflow-workspace/raw-captures -maxdepth 1 -type f -name "*-${STAGE}-*.md" 2>/dev/null \
+      | while IFS= read -r f; do
+          if awk -v t="${SHORT_TITLE}" -v s="${STAGE}" '
+              BEGIN{c=0; st=0; sg=0}
+              /^---$/{c++; if(c==2)exit}
+              c==1 && $0=="short-title: " t {st=1}
+              c==1 && $0=="stage: " s {sg=1}
+              END{exit !(st && sg)}
+            ' "$f"; then
+            mv "$f" rd-workflow-workspace/raw-captures/archive/
+          fi
+        done
+  done
+  ```
+- `CURRENT_TASK.md ## Short Title` 을 default `-` 로 reset
+- 사용자에게 한 줄 알림: "기존 REQUEST `{old-title}` 을 archive 했습니다 — 캡처 N 건 이동, short-title reset"
+- 이후 새 REQUEST 작성 단계 진행 — `## Short Title` 이 `-` 이므로 baseline 분기로 새 short-title 부여
+
+### 분기 1b: REQUEST.md 존재 + `## Short Title` = `-` 또는 부재 (drift 상태)
+
+archive key 가 없으므로 캡처 매칭 불가:
+- REQUEST.md 백업은 collision-safe 로 정상 진행:
+  ```bash
+  # collision-safe: BASE immutable + DEST 매 iter 재계산
+  BASE="rd-workflow-workspace/backlog/request-archive/{date-time}-orphan.md"
+  DEST="$BASE"
+  N=2
+  while [ -e "$DEST" ]; do
+    DEST="${BASE%.md}-${N}.md"
+    N=$((N+1))
+  done
+  cp REQUEST.md "$DEST"
+  ```
+- **캡처 archive 는 skip** (short-title 모름)
+- 사용자에게 명시적 경고:
+  > 경고: `CURRENT_TASK.md ## Short Title` 이 비어 있어 raw capture archive 매칭을 skip 했습니다.
+  > `rd-workflow-workspace/raw-captures/` 디렉토리에서 미archive 된 이전 작업 캡처를 수동으로 정리하세요.
+- `## Short Title` 은 이미 `-`/부재이므로 reset 불필요
+- baseline 분기 진행
 
 ## 실행 흐름
 
@@ -41,7 +95,50 @@ REQUEST.md가 이미 존재하면 사용자에게 알린다:
 
 > "기획서 텍스트를 붙여넣어 주세요. (v1은 텍스트 붙여넣기만 지원합니다)"
 
-### 2. REQUEST.md 필드 매핑
+**사용자 입력(기획서 텍스트)을 받은 직후** → overwrite-backup (분기 1a / 1b) 수행 후 2단계로 진행.
+
+### 2. short-title 부여 (equality-aware 3-way)
+
+사용자 입력 / REQUEST 후보 제목에서 short-title 후보 추론 → `CANDIDATE`
+
+canonical 정규화: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$` (영문 kebab-case, 영숫자 시작·끝, 사이만 `-` 허용)
+
+추가 거절 케이스: `-` 단독, empty, hyphen-only (`---` 등) — reserved sentinel 충돌이므로 보정 요청.
+
+위반 시 1줄 보정 요청:
+> "short-title 후보: `{CANDIDATE}`. 이대로 진행할까요? (`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, `-` 단독 금지)"
+
+확정 후 현재 `## Short Title` 값 read → `CURRENT_TITLE` 변수
+
+- **legacy 케이스 (`## Short Title` 섹션 자체가 부재):** `## Task` 다음에 `## Short Title\n{CANDIDATE}\n` 섹션을 자동 추가 + 사용자 알림 ("legacy 템플릿이므로 `## Short Title` 섹션을 추가했습니다 — sync_template 마이그레이션 권장") → 그 후 baseline 분기 (a) 와 동일하게 진행. (`/fr add` 와 다름 — `planning-design-intake` 는 명시적 새 작업 시작 진입점이라 자동 추가 안전)
+
+**3-way 분기 (섹션이 있는 경우):**
+
+- **(a) `CURRENT_TITLE = -` → `CANDIDATE` 를 `CURRENT_TASK.md ## Short Title` 에 기록 (baseline)**
+- **(b) `CURRENT_TITLE = CANDIDATE` (equal) → read-only continue.** `CURRENT_TASK` 변경 없음 (이미 같은 값)
+- **(c) `CURRENT_TITLE ≠ CANDIDATE` AND ≠ `-` → active-task guard.** 명시 경고 + skill 진행 차단:
+  > 다른 작업 (`${CURRENT_TITLE}`) 이 진행 중입니다. 새 작업 (`${CANDIDATE}`) 을 시작하려면 현재 작업을 archive 한 뒤 다시 진입하세요.
+
+비고: REQUEST.md 가 있는 overwrite-backup 케이스는 분기 1 에서 implicit archive 후 `## Short Title = -` 이 되므로 (c) 도달 안 함.
+
+### 3. REQUEST.md 신규 생성 직전 raw capture
+
+- 경로: `rd-workflow-workspace/raw-captures/{date}-request-{short-title}.md`
+- frontmatter 4 필드:
+  ```yaml
+  ---
+  date: YYYY-MM-DD HH:MM
+  stage: request
+  short-title: {short-title}
+  source: direct | routed
+  ---
+  ```
+- 본문: `## 원본 입력` 섹션 + 사용자 입력 원문 (byte-level 동일, 가공 금지)
+- 충돌 시 `-2`, `-3` suffix
+- 캡처 실패 시 경고만 (REQUEST 작성 차단 안 함)
+- 원문 접근 불가 (routed) 시 캡처 생략 + 경고
+
+### 4. REQUEST.md 필드 매핑
 
 기획서 텍스트를 분석하여 REQUEST.md 필드를 채운다:
 
@@ -57,7 +154,7 @@ REQUEST.md가 이미 존재하면 사용자에게 알린다:
 | Affected Area | 영향 범위 (추론) |
 | Platform | PROJECT_CONTEXT.md 참조 |
 
-### 3. 빈 필드 알림 + 신뢰도 판단
+### 5. 빈 필드 알림 + 신뢰도 판단
 
 한 번에 변환한 뒤, 못 채운 필드를 목록으로 제시한다:
 
@@ -71,7 +168,7 @@ REQUEST.md가 이미 존재하면 사용자에게 알린다:
 
 > "⚠ 기획서 정보가 부족합니다 (6개 필드 중 N개 미채움). 추가 입력을 권장합니다. 그대로 진행하시겠습니까?"
 
-### 4. 디자인 레퍼런스
+### 6. 디자인 레퍼런스
 
 기획서 변환 후 디자인 레퍼런스를 묻는다:
 
@@ -87,7 +184,7 @@ REQUEST.md가 이미 존재하면 사용자에게 알린다:
 - [피그마 URL / 스크린샷 경로 / 설명]
 ```
 
-### 5. REQUEST.md 저장
+### 7. REQUEST.md 저장
 
 REQUEST.md를 저장하고 안내한다:
 

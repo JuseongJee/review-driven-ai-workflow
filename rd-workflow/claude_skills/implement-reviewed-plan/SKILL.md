@@ -16,6 +16,7 @@ Read these first (Always Read files are already loaded):
 - latest plan from `rd-workflow-workspace/plans/`
 
 Execution rules:
+- 이 skill 은 `CURRENT_TASK.md` 의 `## Short Title` 을 read-only 로 사용한다 (변경 / 삭제 금지). short-title 은 작업 시작 시점 (`/fr add`, `planning-design-intake`, `small-task-implement` 3 곳 중 하나) 에 1회 부여되고 archive 까지 immutable 이다.
 - If there is no credible reviewed spec / plan yet, stop and recommend `/request-to-reviewed-plan`.
 - **구현 시작 전 `REQUEST.md`의 Acceptance Criteria를 읽는다.** AC가 비어있거나(`-`) 모호하면 구현을 시작하지 않고 사용자에게 확인을 요청한다.
 - **Superpowers가 사용 가능하면 반드시 사용한다.** CLAUDE.md 실행 모드 규칙에 따라 `subagent-driven-development` 또는 `executing-plans`를 선택한다. 사용 불가능할 때만 직접 구현한다.
