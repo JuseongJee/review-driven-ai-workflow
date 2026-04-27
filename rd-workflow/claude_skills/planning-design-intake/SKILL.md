@@ -32,19 +32,60 @@ Read these first (Always Read files are already loaded):
 - `CURRENT_TASK.md ## Short Title` 에서 `SHORT_TITLE` 변수를 read
 - 기존 REQUEST.md 를 collision-safe 백업:
   ```bash
+  # assert_no_symlink_in_path: POSIX dirname 반복으로 절대경로 component 단위 traverse
+  # bash/sh/zsh/dash 호환 — local 미사용, IFS split 의존 안 함
+  assert_no_symlink_in_path() {
+    _aslnp_p="$1"
+    case "$_aslnp_p" in
+      /*) ;;
+      *)  _aslnp_p="$PWD/$_aslnp_p" ;;
+    esac
+    _aslnp_d="$_aslnp_p"
+    while [ "$_aslnp_d" != "/" ] && [ -n "$_aslnp_d" ]; do
+      if [ -L "$_aslnp_d" ]; then
+        echo "경고: path component ($_aslnp_d) 가 symlink 입니다. 보안상 중단합니다." >&2
+        unset _aslnp_p _aslnp_d
+        return 1
+      fi
+      _aslnp_d=$(dirname "$_aslnp_d")
+    done
+    unset _aslnp_p _aslnp_d
+    return 0
+  }
+
   # collision-safe: BASE immutable + DEST 매 iter 재계산
+  # SHORT_TITLE 은 CURRENT_TASK.md ## Short Title 에서 read (canonical 검증된 값)
   BASE="rd-workflow-workspace/backlog/request-archive/{date-time}-${SHORT_TITLE}.md"
   DEST="$BASE"
+
+  # 조상 경로 symlink escape 방어
+  assert_no_symlink_in_path "$(dirname "$DEST")" || exit 1
+
   N=2
-  while [ -e "$DEST" ]; do
+  while [ -e "$DEST" ] || [ -L "$DEST" ]; do
     DEST="${BASE%.md}-${N}.md"
     N=$((N+1))
   done
+  # DEST 자체가 symlink 면 거부
+  if [ -L "$DEST" ]; then
+    echo "경고: archive 대상 ($DEST) 이 symlink 입니다. 보안상 중단합니다." >&2
+    exit 1
+  fi
   cp REQUEST.md "$DEST"
   ```
 - 같은 short-title 의 `request`/`spec`/`plan` stage 캡처를 frontmatter exact match 로 `raw-captures/archive/` 로 이동:
   ```bash
-  mkdir -p rd-workflow-workspace/raw-captures/archive
+  archive_dir="rd-workflow-workspace/raw-captures/archive"
+  parent_dir="rd-workflow-workspace/raw-captures"
+
+  # 조상 경로 symlink escape 방어
+  assert_no_symlink_in_path "$archive_dir" || exit 1
+
+  # 디렉토리 생성 + 권한 hardening (기존 0755 보정 포함)
+  mkdir -p "$archive_dir"
+  chmod 0700 "$parent_dir"
+  chmod 0700 "$archive_dir"
+
   for STAGE in request spec plan; do
     find rd-workflow-workspace/raw-captures -maxdepth 1 -type f -name "*-${STAGE}-*.md" 2>/dev/null \
       | while IFS= read -r f; do
@@ -55,7 +96,7 @@ Read these first (Always Read files are already loaded):
               c==1 && $0=="stage: " s {sg=1}
               END{exit !(st && sg)}
             ' "$f"; then
-            mv "$f" rd-workflow-workspace/raw-captures/archive/
+            mv "$f" "$archive_dir/"
           fi
         done
   done
@@ -70,13 +111,23 @@ archive key 가 없으므로 캡처 매칭 불가:
 - REQUEST.md 백업은 collision-safe 로 정상 진행:
   ```bash
   # collision-safe: BASE immutable + DEST 매 iter 재계산
+  # orphan 은 path-safe 고정 문자열
   BASE="rd-workflow-workspace/backlog/request-archive/{date-time}-orphan.md"
   DEST="$BASE"
+
+  # 조상 경로 symlink escape 방어
+  assert_no_symlink_in_path "$(dirname "$DEST")" || exit 1
+
   N=2
-  while [ -e "$DEST" ]; do
+  while [ -e "$DEST" ] || [ -L "$DEST" ]; do
     DEST="${BASE%.md}-${N}.md"
     N=$((N+1))
   done
+  # DEST 자체가 symlink 면 거부
+  if [ -L "$DEST" ]; then
+    echo "경고: archive 대상 ($DEST) 이 symlink 입니다. 보안상 중단합니다." >&2
+    exit 1
+  fi
   cp REQUEST.md "$DEST"
   ```
 - **캡처 archive 는 skip** (short-title 모름)
@@ -124,15 +175,28 @@ canonical 정규화: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$` (영문 kebab-case, 영�
 ### 3. REQUEST.md 신규 생성 직전 raw capture
 
 - 경로: `rd-workflow-workspace/raw-captures/{date}-request-{short-title}.md`
-- frontmatter 4 필드:
-  ```yaml
+- 디렉토리 0700 보장 + umask 077 subshell 로 캡처 파일 0600 보장:
+  ```bash
+  if ! assert_no_symlink_in_path "rd-workflow-workspace/raw-captures"; then
+    echo "경고: raw-captures 경로에 symlink 가 있어 캡처를 건너뜁니다." >&2
+  else
+    mkdir -p rd-workflow-workspace/raw-captures
+    chmod 0700 rd-workflow-workspace/raw-captures
+    ( umask 077 && cat > "$capture_path" <<EOF
   ---
   date: YYYY-MM-DD HH:MM
   stage: request
   short-title: {short-title}
   source: direct | routed
   ---
+
+  ## 원본 입력
+  {사용자 입력 원문}
+  EOF
+    )
+  fi
   ```
+- frontmatter 4 필드: `date`, `stage`, `short-title`, `source` (`direct` | `routed`)
 - 본문: `## 원본 입력` 섹션 + 사용자 입력 원문 (byte-level 동일, 가공 금지)
 - 충돌 시 `-2`, `-3` suffix
 - 캡처 실패 시 경고만 (REQUEST 작성 차단 안 함)
