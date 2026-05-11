@@ -112,6 +112,30 @@ review종류: `request-review`, `spec-plan-review`, `diff-review`, `project-cont
 - [변경한 내용]
 ```
 
+## Branch Context schema (fr-branch-tag-lifecycle FR 도입)
+
+Review pipeline session의 `SESSION.md`는 `## Branch Context` 섹션에 5필드를 보존한다:
+
+```
+## Branch Context
+- fr-branch: fr/{slug} | null | main
+- worktree-path: {absolute-path} | null
+- short-title: {slug} | unknown
+- lifecycle-stage: request-review | spec-review | plan-review | implementing | validating | archive-pending | archived
+- remote-mode: remote | local-only
+```
+
+### Producer / Consumer
+- **Producer**: `rd-workflow/scripts/prepare_review_pipeline.sh` — session 생성 시 자동 채움.
+- **Consumer**: `rd-workflow/scripts/review_common.sh`의 `validate_branch_context()` — `run_review_turn.sh`가 adapter 호출 직전에 strict 검증.
+
+### 검증 정책
+- 5필드 모두 strict parse — 라벨/값 누락 시 hard error.
+- `fr-branch` (null/main 외) → `git rev-parse --verify` 검증, 미존재 시 hard error.
+- `worktree-path` (null/main 외) → 디렉토리 존재 검증, 미존재 시 hard error.
+- `short-title` / `remote-mode` → 현재 상태와 비교, 불일치 시 informational warning.
+- `## Branch Context` 섹션 부재 = legacy session → warning + skip (grandfathering).
+
 ## 수동 fallback
 
 Claude가 CLI를 실행할 수 없을 때만 `rd-workflow/docs/prompts/manual/` 안의 프롬프트를 사용합니다.

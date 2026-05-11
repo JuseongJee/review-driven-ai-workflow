@@ -214,6 +214,38 @@ ${session_path}
 - \`awaiting-user\`가 되면 \`USER_ACTION.md\` 질문에 답하거나 마무리를 승인한다.
 EOF
 
+# Branch Context section (Task 8 — fr-branch-tag-lifecycle)
+CTX_FR_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+[[ "$CTX_FR_BRANCH" != fr/* ]] && CTX_FR_BRANCH="null"
+CTX_WT_PATH="$(git rev-parse --show-toplevel 2>/dev/null || echo "null")"
+CTX_SHORT_TITLE="$(awk '/^## Short Title/{flag=1; next} flag && /^[^#]/{sub(/^[ \t]+/,""); sub(/[ \t]+$/,""); print; exit}' CURRENT_TASK.md 2>/dev/null || true)"
+[[ -z "$CTX_SHORT_TITLE" || "$CTX_SHORT_TITLE" == "-" ]] && CTX_SHORT_TITLE="unknown"
+# lifecycle-stage 는 alias 가 정규화된 review_type 을 source-of-truth 로 삼는다.
+# review_kind 는 alias(`request|request-review`, `diff|diff-review|final-diff` 등)를 받지만
+# review_type 은 case 문에서 단일 값으로 정규화된 뒤 stage 매핑된다.
+case "${review_type:-}" in
+  request-review) CTX_STAGE="request-review" ;;
+  spec-plan-review) CTX_STAGE="spec-review" ;;
+  diff-review) CTX_STAGE="validating" ;;
+  project-context-review) CTX_STAGE="implementing" ;;
+  *) CTX_STAGE="implementing" ;;
+esac
+if git remote get-url origin >/dev/null 2>&1 && [[ -z "${RD_LIFECYCLE_NO_REMOTE:-}" ]]; then
+  CTX_REMOTE_MODE="remote"
+else
+  CTX_REMOTE_MODE="local-only"
+fi
+
+cat >> "${session_path}/SESSION.md" <<EOF
+
+## Branch Context
+- fr-branch: $CTX_FR_BRANCH
+- worktree-path: $CTX_WT_PATH
+- short-title: $CTX_SHORT_TITLE
+- lifecycle-stage: $CTX_STAGE
+- remote-mode: $CTX_REMOTE_MODE
+EOF
+
 cat <<EOF
 review pipeline prepared
 

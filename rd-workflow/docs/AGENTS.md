@@ -10,11 +10,12 @@ AI 협업 기본 규칙은 프로젝트 루트의 `CLAUDE.md`를 기준으로 �
 
 ### 브랜치 전략
 - 기능 개발 시작 시 반드시 새 브랜치를 생성합니다.
-- 브랜치 네이밍:
-  - feature/기능명
-  - refactor/작업명
-  - fix/버그명
-- 작업 완료 후 브랜치는 삭제하지 않는다 (히스토리 보존).
+- 브랜치 네이밍: `fr/{slug}` 단일 규칙.
+  - slug 정규화는 `rd-workflow/scripts/lifecycle/slug.sh`의 `normalize_slug()` 사용.
+  - 예: `fr/my-feature`, `fr/fix-login-bug`
+- 작업 완료 후 lifecycle 정책에 따라 archive 처리:
+  - `main --no-ff merge → fr/{YYYY-MM-DD-HHMM}/{slug} tag → branch 삭제 (local + remote)`
+  - 자세한 절차는 `rd-workflow/scripts/lifecycle/README.md` 참조.
 
 ### 커밋 규칙
 - 커밋 메시지 언어와 형식은 `CLAUDE.md`를 따릅니다.
@@ -26,7 +27,21 @@ Fast Forward 머지 금지
 
 예:
 
-git merge --no-ff feature/기능명
+git merge --no-ff fr/기능명
+
+---
+
+## Handoff Branch Context
+
+review_pipeline 세션의 `SESSION.md`에는 `## Branch Context` 섹션(5필드)을 보존한다:
+
+- `fr-branch`: 현재 작업 중인 fr/{slug} 브랜치 이름 (null 또는 main 가능)
+- `worktree-path`: worktree 절대 경로 (null이면 main worktree)
+- `short-title`: fr branch의 slug 식별자 (unknown이면 미확정)
+- `lifecycle-stage`: 현재 lifecycle 단계 (request-review / spec-review / plan-review / implementing / validating / archive-pending / archived)
+- `remote-mode`: remote 또는 local-only
+
+자세한 schema와 검증 정책은 `rd-workflow/docs/flows/FILE_BASED_REVIEW_PIPELINE.md` 참조.
 
 ---
 

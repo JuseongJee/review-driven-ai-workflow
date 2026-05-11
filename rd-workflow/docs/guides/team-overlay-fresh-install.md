@@ -167,6 +167,50 @@ git clone git@github.com:me/myproject-ai-overlay.git ~/ai-overlays/myproject
 bash ~/ai-overlays/myproject/setup.sh
 ```
 
+## Optional: 브랜치 자동 동기화 (overlay-branch-sync hook)
+
+**목적:**
+- 팀 프로젝트 브랜치 전환 시 overlay repo 브랜치를 자동 1:1 동기화. REQUEST.md/CURRENT_TASK.md 같은 작업 산출물이 항상 팀 브랜치와 정렬되도록.
+
+**설치:**
+```bash
+cd /path/to/team-project
+bash rd-workflow/scripts/install_overlay_branch_sync.sh
+```
+
+자동 탐지가 실패하면 명시 모드로:
+```bash
+bash rd-workflow/scripts/install_overlay_branch_sync.sh --overlay /abs/path/to/overlay
+```
+
+**동작 정책:**
+- 모든 브랜치 1:1 (main/master 포함).
+- overlay에 같은 이름 브랜치가 없으면: overlay의 기본 브랜치(`origin/HEAD` → `main` → `master` 순)에서 자동 생성.
+- overlay가 dirty(uncommitted)이면: skip + 경고. 팀 프로젝트의 checkout/merge는 그대로 성공.
+- detached HEAD 또는 신생 overlay repo: skip + 경고.
+- 모든 환경 오류에서 hook은 팀 프로젝트의 git 동작을 막지 않는다.
+
+**언인스톨:**
+```bash
+bash rd-workflow/scripts/install_overlay_branch_sync.sh --uninstall
+```
+
+**`core.hooksPath` 충돌:**
+팀 프로젝트가 `core.hooksPath`를 hooks 디렉토리와 다른 경로로 설정한 경우, 인스톨러는 거부하고 두 가지 옵션을 안내한다:
+1. `core.hooksPath`가 가리키는 경로에 wrapper를 수동으로 추가한다. 마커 블록 형식은 `install_overlay_branch_sync.sh` 인스톨러가 표준 hook 파일(`.git/hooks/post-checkout`, `post-merge`)에 작성한 형태와 동일하다.
+2. `git config --unset core.hooksPath`로 해제 후 재설치.
+
+(`--force` 같은 강제 우회는 제공하지 않는다 — Git이 그 경로의 hook만 읽으므로 강제 설치는 "성공처럼 보이지만 동작하지 않는 죽은 설정"이 되기 때문.)
+
+**플랫폼:**
+- macOS와 Linux를 대상으로 한다. Windows는 미지원이며, WSL 환경에서는 Linux로 취급한다.
+- macOS 기본 `/bin/bash`(3.2)와 Linux Bash 4+ 모두에서 동작.
+- 외부 인터프리터(`python3`/`perl`) 의존 없음.
+
+**한계:**
+- 동기화는 단방향(team → overlay)이다. overlay에서 직접 만든 브랜치는 팀 repo가 모른다.
+- 다른 hook 도구(husky 등)가 hook 파일을 완전 재생성하는 정책이면 우리 마커 블록이 사라질 수 있다. 그 경우 해당 도구의 통합 설정에 wrapper 호출을 추가하거나 hook chain에 본체 호출을 직접 등록한다.
+
 ## 일상 작업 흐름
 
 ```bash

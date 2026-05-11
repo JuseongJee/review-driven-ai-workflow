@@ -247,6 +247,88 @@ validate_turn_output() {
   echo "$updated_status"
 }
 
+# === Task 8 — Branch Context schema ===
+
+parse_branch_context() {
+  local session_dir="$1"
+  local file="$session_dir/SESSION.md"
+  [[ -f "$file" ]] || return 2
+  awk '
+    /^## Branch Context/{flag=1; next}
+    flag && /^## /{flag=0}
+    flag && /^- /{print}
+  ' "$file"
+}
+
+# 5필드 strict 검증 — 라벨 누락 / 값 누락 / enum 위반 / git 상태 불일치 모두 hard error
+# Returns 0 on success or legacy session, 1 on validation failure
+validate_branch_context() {
+  local session_dir="$1"
+  local lines fr_branch worktree_path short_title lifecycle_stage remote_mode
+  lines="$(parse_branch_context "$session_dir")"
+
+  if [[ -z "$lines" ]]; then
+    printf '[branch-context] WARN — ## Branch Context 부재 (legacy session). 재진입 검증 skip.\n' >&2
+    return 0
+  fi
+
+  fr_branch="$(printf '%s\n' "$lines" | awk -F': ' '/^- fr-branch:/{sub(/^[ \t]+/,"",$2); sub(/[ \t]+$/,"",$2); print $2; exit}')"
+  worktree_path="$(printf '%s\n' "$lines" | awk -F': ' '/^- worktree-path:/{sub(/^[ \t]+/,"",$2); sub(/[ \t]+$/,"",$2); print $2; exit}')"
+  short_title="$(printf '%s\n' "$lines" | awk -F': ' '/^- short-title:/{sub(/^[ \t]+/,"",$2); sub(/[ \t]+$/,"",$2); print $2; exit}')"
+  lifecycle_stage="$(printf '%s\n' "$lines" | awk -F': ' '/^- lifecycle-stage:/{sub(/^[ \t]+/,"",$2); sub(/[ \t]+$/,"",$2); print $2; exit}')"
+  remote_mode="$(printf '%s\n' "$lines" | awk -F': ' '/^- remote-mode:/{sub(/^[ \t]+/,"",$2); sub(/[ \t]+$/,"",$2); print $2; exit}')"
+
+  for f in fr_branch worktree_path short_title lifecycle_stage remote_mode; do
+    if [[ -z "${!f:-}" ]]; then
+      printf '[branch-context] FAIL — 라벨/값 누락: %s\n' "$f" >&2
+      return 1
+    fi
+  done
+
+  case "$lifecycle_stage" in
+    request-review|spec-review|plan-review|implementing|validating|archive-pending|archived) ;;
+    *) printf '[branch-context] FAIL — lifecycle-stage enum 위반: [%s]\n' "$lifecycle_stage" >&2; return 1 ;;
+  esac
+  case "$remote_mode" in
+    remote|local-only) ;;
+    *) printf '[branch-context] FAIL — remote-mode enum 위반: [%s]\n' "$remote_mode" >&2; return 1 ;;
+  esac
+
+  if [[ "$fr_branch" != "null" && "$fr_branch" != "main" ]]; then
+    if ! git rev-parse --verify "$fr_branch" >/dev/null 2>&1; then
+      printf '[branch-context] FAIL — fr-branch [%s] 미존재. handoff 갱신 또는 git switch 필요\n' "$fr_branch" >&2
+      return 1
+    fi
+  fi
+
+  if [[ "$worktree_path" != "null" && "$worktree_path" != "main" ]]; then
+    if [[ ! -d "$worktree_path" ]]; then
+      printf '[branch-context] FAIL — worktree-path [%s] 디렉토리 부재\n' "$worktree_path" >&2
+      return 1
+    fi
+  fi
+
+  # short-title 비교 (informational — halt 안 함)
+  local current_short=""
+  if [[ -f CURRENT_TASK.md ]]; then
+    current_short="$(awk '/^## Short Title/{flag=1; next} flag && /^[^#]/{sub(/^[ \t]+/,""); sub(/[ \t]+$/,""); print; exit}' CURRENT_TASK.md)"
+  fi
+  if [[ -n "$current_short" && "$current_short" != "$short_title" ]]; then
+    printf '[branch-context] WARN — short-title [%s] ↔ CURRENT_TASK [%s] 불일치 (informational)\n' "$short_title" "$current_short" >&2
+  fi
+
+  # remote-mode 비교 (informational)
+  local current_remote=""
+  if command -v detect_remote_mode >/dev/null 2>&1; then
+    current_remote="$(detect_remote_mode 2>/dev/null || echo "")"
+  fi
+  if [[ -n "$current_remote" && "$current_remote" != "$remote_mode" ]]; then
+    printf '[branch-context] WARN — remote-mode [%s] ↔ 현재 [%s] 불일치 (informational)\n' "$remote_mode" "$current_remote" >&2
+  fi
+
+  return 0
+}
+
 # SESSION.md에 Tool History 행 추가
 append_tool_history() {
   local session_file="$1"
