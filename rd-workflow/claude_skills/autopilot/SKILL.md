@@ -65,6 +65,7 @@ autopilot 실행 중에는 아래 규칙이 **모든 하위 skill, prompt, 기�
 - 사람의 우선순위 결정이 반드시 필요한 경우 (기술적 판단이 아닌 비즈니스 판단)
 - 세션 한계 도달
 - brainstorming에서 모든 옵션이 필수 제약을 위반하거나 판단 근거가 전혀 없는 경우
+- **loop-guard 임계 도달** (`loop_guard_check` 가 return 1): 동일 검증 연속 실패·동일 파일 churn+검증실패·반복 rollback 이 임계를 넘으면 즉시 `awaiting-user` 로 전환하고 사유(loop_guard_check stdout)를 보고한다. 이는 50턴·디버깅 3회와 독립된 별도 중단 조건이다.
 
 ## Execution Rules
 
@@ -88,9 +89,11 @@ autopilot 실행 중에는 아래 규칙이 **모든 하위 skill, prompt, 기�
 # 세션 생성 (autopilot에서는 반드시 REVIEW_TURN_LIMIT=50을 넘긴다)
 REVIEW_TURN_LIMIT=50 bash rd-workflow/scripts/prepare_review_pipeline.sh <review-kind> [args...]
 
-# Claude 턴 작성 → Reviewer 턴 실행
-bash rd-workflow/scripts/run_review_turn.sh <session-path>
+# Claude 턴 작성 → Reviewer 턴 실행 (RD_AUTOPILOT=1 로 Attempt History 주입 활성화)
+RD_AUTOPILOT=1 bash rd-workflow/scripts/run_review_turn.sh <session-path>
 ```
+
+- `RD_AUTOPILOT=1`을 review 턴 실행에 넘기면 reviewer 입력 앞에 동일 fr 의 Attempt History(이전 종결 사유·재수정 누적·rollback 횟수)가 주입된다. 수동 모드에서는 넘기지 않는다.
 
 | 단계 | review-kind | 타이밍 |
 |------|------------|--------|
@@ -118,6 +121,14 @@ bash rd-workflow/scripts/run_review_turn.sh <session-path>
 - 테스트 실패, 빌드 에러 발생 시 `superpowers:systematic-debugging`으로 자율 디버깅한다
 - 디버깅 3회 실패 시 현재 상태를 보고하고 사용자에게 넘긴다
 - **model-strategy 적용**: `rd-workflow/config/model-strategy.json`이 존재하면 `subagent` 값을 읽어 subagent dispatch 시 Agent 도구의 `model` 파라미터로 전달한다. 파일 미존재/파싱 실패/키 누락/허용되지 않은 값(`opus`, `sonnet`, `haiku` 외) → 기본값 `"sonnet"`을 사용한다. 설정 형식 상세는 `/model-strategy` skill 참조.
+- **loop-guard 시그널 기록 (safeguard-autopilot-loop-detection):**
+  - `<slug>` 는 `CURRENT_TASK.md ## Short Title` 값이다. 모든 키는 slug-namespaced.
+  - 검증(`test.sh`/`lint.sh`/`typecheck.sh`) 실행 직후, 각 명령에 대해:
+    - 실패 시 `bash -c 'source rd-workflow/scripts/lifecycle/_lifecycle_common.sh; loop_state_record "verify-fail::<slug>::<cmd>" incr'`
+    - 성공 시 `... loop_state_record "verify-fail::<slug>::<cmd>" reset`
+    - `<cmd>`는 `test` / `lint` / `typecheck` 중 하나.
+  - 한 구현 사이클에서 직전 사이클과 **같은 파일**을 다시 수정했으면 `... loop_state_record "reedit::<slug>::<path>" incr` (`<path>`는 repo-relative).
+  - **각 구현↔검증↔리뷰 반복 사이클 시작 시** `bash -c 'source rd-workflow/scripts/lifecycle/_lifecycle_common.sh; loop_guard_check'` 를 호출한다 (slug 인자 생략 시 metadata short-title 자동 사용). exit 1 이면 출력된 사유를 `CURRENT_TASK.md` Notes 에 기록하고 `awaiting-user` 로 전환 후 멈춘다.
 
 ### 5. 세션 한계 대응
 

@@ -115,3 +115,129 @@ main
 -
 EOF
 }
+
+# === loop-guard state (safeguard-autopilot-loop-detection) ===
+LOOP_STATE_PATH="${LOOP_STATE_PATH:-rd-workflow-workspace/.lifecycle/loop-state}"
+
+# 키 검증: [A-Za-z0-9_:./-]+ 만 허용 (개행 / '=' 금지)
+_loop_state_valid_key() {
+  case "$1" in
+    "" ) return 1 ;;
+    *[!A-Za-z0-9_:./-]* ) return 1 ;;
+    * ) return 0 ;;
+  esac
+}
+
+# loop_state_get <key> → stdout 정수 (미존재 0)
+loop_state_get() {
+  local key="$1" v
+  [[ -f "$LOOP_STATE_PATH" ]] || { printf '0\n'; return 0; }
+  v="$(awk -F'=' -v k="$key" '$1==k{print $2; exit}' "$LOOP_STATE_PATH")"
+  if [[ "$v" =~ ^[0-9]+$ ]]; then printf '%s\n' "$v"; else printf '0\n'; fi
+}
+
+# loop_state_record <key> <incr|reset>
+loop_state_record() {
+  local key="$1" op="$2" cur new tmp
+  if ! _loop_state_valid_key "$key"; then
+    printf 'loop_state_record: invalid key: %s\n' "$key" >&2; return 1
+  fi
+  cur="$(loop_state_get "$key")"
+  case "$op" in
+    incr) new=$((cur + 1)) ;;
+    reset) new=0 ;;
+    *) printf 'loop_state_record: unknown op: %s\n' "$op" >&2; return 1 ;;
+  esac
+  mkdir -p "$(dirname "$LOOP_STATE_PATH")"
+  tmp="$(mktemp "$(dirname "$LOOP_STATE_PATH")/.loop-state.XXXXXX")"
+  if [[ -f "$LOOP_STATE_PATH" ]]; then
+    awk -F'=' -v k="$key" -v val="$new" '
+      $1==k {print k"="val; found=1; next}
+      {print}
+      END{if(!found) print k"="val}
+    ' "$LOOP_STATE_PATH" > "$tmp"
+  else
+    printf '%s=%s\n' "$key" "$new" > "$tmp"
+  fi
+  mv "$tmp" "$LOOP_STATE_PATH"
+}
+
+# within-attempt 키만 제거 (verify-fail::, reedit::). rollback:: 보존.
+loop_state_clear_attempt() {
+  local tmp
+  [[ -f "$LOOP_STATE_PATH" ]] || return 0
+  tmp="$(mktemp "$(dirname "$LOOP_STATE_PATH")/.loop-state.XXXXXX")"
+  awk -F'=' '$1 !~ /^(verify-fail::|reedit::)/' "$LOOP_STATE_PATH" > "$tmp"
+  mv "$tmp" "$LOOP_STATE_PATH"
+}
+
+# 전체 상태 제거 (FR 종결)
+loop_state_clear_all() {
+  [[ -f "$LOOP_STATE_PATH" ]] && rm -f "$LOOP_STATE_PATH"
+  return 0
+}
+
+LOOP_GUARD_CONFIG="${LOOP_GUARD_CONFIG:-rd-workflow/config/loop-guard.json}"
+
+# enabled (default true). enabled=false면 return 1
+loop_guard_enabled() {
+  local v
+  if [[ -f "$LOOP_GUARD_CONFIG" ]] && command -v jq >/dev/null 2>&1; then
+    v="$(jq -r '.enabled' "$LOOP_GUARD_CONFIG" 2>/dev/null || echo true)"
+    [[ "$v" == "false" ]] && return 1
+  fi
+  return 0
+}
+
+# loop_guard_threshold <signal> → 정수 (기본 3)
+loop_guard_threshold() {
+  local signal="$1" v
+  if [[ -f "$LOOP_GUARD_CONFIG" ]] && command -v jq >/dev/null 2>&1; then
+    v="$(jq -r --arg s "$signal" '.thresholds[$s] // empty' "$LOOP_GUARD_CONFIG" 2>/dev/null || true)"
+    if [[ "$v" =~ ^[0-9]+$ ]]; then printf '%s\n' "$v"; return 0; fi
+  fi
+  printf '3\n'
+}
+
+# loop_guard_check [slug] → 임계 초과 시 사유 stdout + return 1, 아니면 return 0
+# slug 미지정 시 metadata short-title 사용. slug 없으면 판정 대상 없음 → return 0.
+# 현재 slug 키만 판정한다 (FR scoping — Reviewer turn 002 Finding 1).
+loop_guard_check() {
+  loop_guard_enabled || return 0
+  [[ -f "$LOOP_STATE_PATH" ]] || return 0
+  local slug="${1:-}"
+  [[ -z "$slug" ]] && slug="$(metadata_read_field short-title 2>/dev/null || true)"
+  [[ -z "$slug" || "$slug" == "-" ]] && return 0
+  local th_vf th_rb th_re half max_vf=0 reasons="" k v
+  th_vf="$(loop_guard_threshold verify_fail)"
+  th_rb="$(loop_guard_threshold rollback)"
+  th_re="$(loop_guard_threshold reedit)"
+  half=$(( (th_vf + 1) / 2 ))   # ceil(th_vf/2)
+  local vf_pfx="verify-fail::${slug}::" re_pfx="reedit::${slug}::" rb_key="rollback::${slug}"
+  # 1패스: 현재 slug 의 verify-fail / rollback
+  while IFS='=' read -r k v; do
+    [[ "$v" =~ ^[0-9]+$ ]] || continue
+    case "$k" in
+      "$vf_pfx"*)
+        if (( v > max_vf )); then max_vf=$v; fi
+        if (( v >= th_vf )); then reasons="${reasons}검증 연속 실패 ${k#"$vf_pfx"}=$v (임계 $th_vf)"$'\n'; fi
+        ;;
+      "$rb_key")
+        if (( v >= th_rb )); then reasons="${reasons}반복 rollback ${slug}=$v (임계 $th_rb)"$'\n'; fi
+        ;;
+    esac
+  done < "$LOOP_STATE_PATH"
+  # 2패스: 현재 slug 의 reedit 결합 조건 (reedit≥임계 AND max verify-fail ≥ ceil(임계/2))
+  while IFS='=' read -r k v; do
+    [[ "$v" =~ ^[0-9]+$ ]] || continue
+    case "$k" in
+      "$re_pfx"*)
+        if (( v >= th_re )) && (( max_vf >= half )); then
+          reasons="${reasons}동일 파일 churn ${k#"$re_pfx"}=$v (임계 $th_re) + 검증 실패 동반"$'\n'
+        fi
+        ;;
+    esac
+  done < "$LOOP_STATE_PATH"
+  if [[ -n "$reasons" ]]; then printf '%s' "$reasons"; return 1; fi
+  return 0
+}

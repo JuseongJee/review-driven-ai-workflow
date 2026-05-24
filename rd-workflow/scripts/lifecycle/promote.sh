@@ -72,6 +72,8 @@ if [[ -z "$TARGET_BRANCH" ]]; then
   git branch "$TARGET_BRANCH"
   echo "promote: branch $TARGET_BRANCH 생성"
   metadata_write "$TARGET_BRANCH" "$SLUG" "${WORKTREE_PATH:-null}"
+  # loop-guard: 신규 FR 시작 → stale within-attempt 키 정리 (rollback:: 는 보존)
+  loop_state_clear_attempt || true
   git add "$LIFECYCLE_METADATA_PATH"
   RD_LIFECYCLE_BYPASS_REASON=lifecycle git commit -m "chore(lifecycle): promote $SLUG metadata 기록"
 fi

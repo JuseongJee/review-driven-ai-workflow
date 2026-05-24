@@ -70,6 +70,16 @@ review kind:
 - 이전 턴 파일을 전부 읽지 않는다. CHECKPOINT.md와 최신 턴 파일로 맥락을 파악하고, 부족할 때만 특정 턴을 선택적으로 참조한다 (턴 파일 경로: SESSION_DIR/turns/NNN_role.md)
 - CHECKPOINT.md의 Open Issues에는 근거 턴, 해소 조건, 미해결 사유를 포함한다. Agreed Points에는 합의 내용과 근거 턴 번호를 포함한다
 
+## diff-review iteration 중 commit (review-gate-iteration-commit)
+
+final-diff-review 진행 중 reviewer 가 코드 수정을 요청하면, author 는 fr branch 에 수정을 **그대로 commit** 한다 (iteration commit). review target 은 `git diff main...HEAD` 이므로, 수정이 HEAD 에 반영되어야 reviewer 가 다음 턴에서 확인할 수 있다.
+
+- author: 수정 commit → 새 author 턴 파일 작성 → `SESSION.md` Status 를 `awaiting-reviewer` 로 전환.
+- reviewer: `run_review_turn.sh` 로 갱신된 `main...HEAD` 를 재검토.
+- `pre_commit_review_gate.sh` 는 미종결 중 **archive/완료 신호 commit**(staged `request-archive/` 파일 추가 또는 `CURRENT_TASK.md` baseline reset)만 차단하고, iteration 수정 commit 은 허용한다. 종결 여부를 파싱할 수 없는 malformed 세션도 동일하게 archive 신호일 때만 차단한다.
+- 미검증 archive/merge 의 최종 차단은 `archive.sh` 의 review 종결 재검증이 담당한다(malformed 세션 포함 fail-closed). iteration commit 허용이 이 안전장치를 약화하지 않는다.
+- archive.sh 의 precheck 는 merge 전에 **fr branch tip** 에 commit 된 diff-review 세션을 검증한다(main 워킹트리 비의존). 따라서 "세션을 fr branch 에 commit → main switch → archive.sh" 표준 흐름이 force-skip 없이 통과한다.
+
 ## 종료 규칙
 
 아래 중 하나면 `awaiting-user`로 전환합니다.

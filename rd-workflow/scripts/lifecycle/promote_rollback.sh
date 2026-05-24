@@ -80,6 +80,11 @@ fi
 # CURRENT_TASK.md baseline reset (inline heredoc, runtime accessible)
 emit_current_task_baseline > CURRENT_TASK.md
 
+# loop-guard: rollback 카운터 증가 (cross-attempt 지속) + within-attempt 키 정리
+# metadata_clear 전에 SLUG 로 기록 (rollback 은 fr metadata 와 무관하게 누적되어야 함)
+loop_state_record "rollback::${SLUG}" incr || true
+loop_state_clear_attempt || true
+
 # Metadata clear
 metadata_clear
 

@@ -95,6 +95,26 @@ load_session_state() {
   REVIEW_GOAL="$(extract_section "$session_file" "Review Goal" | trim_blank_lines)"
 }
 
+# Turn Limit을 SESSION.md에서 읽음 (source-of-truth).
+# session_file 우선 → REVIEW_TURN_LIMIT env → default 20 순.
+# SESSION.md의 "## Turn Limit" 섹션 첫 줄에서 첫 숫자를 추출.
+read_session_turn_limit() {
+  local session_file="$1"
+  local from_session=""
+  if [[ -f "$session_file" ]]; then
+    from_session="$(extract_section "$session_file" "Turn Limit" \
+      | trim_blank_lines \
+      | awk 'NR==1 { for (i=1; i<=NF; i++) if ($i ~ /^[0-9]+$/) { print $i; exit } }')"
+  fi
+  if [[ -n "$from_session" && "$from_session" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$from_session"
+  elif [[ -n "${REVIEW_TURN_LIMIT:-}" && "${REVIEW_TURN_LIMIT}" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$REVIEW_TURN_LIMIT"
+  else
+    printf '20\n'
+  fi
+}
+
 # 다음 턴 번호 계산
 # 사용: compute_next_turn <turns_dir> <agent_label>
 # 설정: LATEST_TURN_FILE, NEXT_TURN_NUMBER, NEXT_TURN_INDEX, EXPECTED_TURN_FILE, EXISTING_TURN_COUNT 변수
@@ -134,6 +154,60 @@ compute_next_turn() {
   EXPECTED_TURN_FILE="${turns_dir}/${NEXT_TURN_NUMBER}_${agent_label}.md"
 }
 
+# === M2: cross-attempt Attempt History (safeguard-autopilot-loop-detection) ===
+# 사용: build_attempt_history <slug> <current_session_dir_rel>
+# 현재 slug 의 loop-state(reedit/rollback) + 직전 동일 slug review session 종결 사유를
+# 읽어 주입 블록 문자열을 stdout 으로. 주입할 내용이 전혀 없으면 빈 문자열.
+build_attempt_history() {
+  local short_title="$1" cur_session="${2:-}"
+  local loop_state="${LOOP_STATE_PATH:-rd-workflow-workspace/.lifecycle/loop-state}"
+  local reedit_block="없음" rollback=0 prev_reason="없음"
+
+  if [[ -f "$loop_state" ]]; then
+    local re
+    # 현재 slug 의 reedit 키만 (reedit::<slug>::<path>), 카운트 내림차순 상위 5.
+    # head 미사용 — pipefail 환경에서 head 조기 종료가 sort SIGPIPE 를 유발해
+    # 비-local 할당 `re=$(...)` 가 set -e 를 트리거하는 문제를 피하기 위해 awk NR<=5 로 제한 (Reviewer turn 004).
+    re="$(awk -F'=' -v p="reedit::${short_title}::" 'index($1,p)==1 && $2 ~ /^[0-9]+$/ {print $2"\t"substr($1,length(p)+1)}' "$loop_state" \
+      | sort -rn | awk -F'\t' 'NR<=5 {print "  - "$2"="$1}')"
+    [[ -n "$re" ]] && reedit_block="$re"
+    rollback="$(awk -F'=' -v st="$short_title" '$1=="rollback::"st && $2 ~ /^[0-9]+$/{print $2; exit}' "$loop_state")"
+    [[ "$rollback" =~ ^[0-9]+$ ]] || rollback=0
+  fi
+
+  # 직전 동일 short-title review session 의 CHECKPOINT Current Summary 첫 줄.
+  # 각 SESSION.md 의 Branch Context short-title 을 파싱해 문자열 동등 비교한다.
+  # (grep substring 매칭은 `api` 가 `api-v2` 세션까지 잡는 FR scoping 위반이라 금지 — diff review turn 002)
+  local sess_root="${PROJECT_ROOT:-.}/rd-workflow-workspace/handoffs/review_pipeline"
+  if [[ -d "$sess_root" ]]; then
+    local latest="" sf d st
+    # glob 은 정렬되어 전개 → 마지막 매치가 최신 (session-id 가 timestamp prefix)
+    for sf in "$sess_root"/*/SESSION.md; do
+      [[ -f "$sf" ]] || continue
+      d="$(dirname "$sf")"
+      [[ -n "$cur_session" && "$d" == *"$cur_session"* ]] && continue
+      st="$(awk '/^## Branch Context/{f=1} f&&/^- short-title:/{sub(/^- short-title:[ \t]*/,"");sub(/[ \t]+$/,"");print;exit}' "$sf")"
+      [[ "$st" == "$short_title" ]] || continue
+      latest="$d"
+    done
+    if [[ -n "$latest" && -f "$latest/CHECKPOINT.md" ]]; then
+      local summ
+      summ="$(awk '/^## Current Summary/{f=1;next} f&&/^## /{exit} f&&NF{print;exit}' "$latest/CHECKPOINT.md")"
+      [[ -n "$summ" ]] && prev_reason="$summ"
+    fi
+  fi
+
+  # 주입할 게 전혀 없으면 빈 문자열
+  if [[ "$reedit_block" == "없음" && "$rollback" -eq 0 && "$prev_reason" == "없음" ]]; then
+    return 0
+  fi
+
+  printf '## Attempt History (autopilot)\n'
+  printf -- '- 이전 review session 종결 사유: %s\n' "$prev_reason"
+  printf -- '- 동일 파일 재수정 누적:\n%s\n' "$reedit_block"
+  printf -- '- lifecycle: rollback %s회\n' "$rollback"
+}
+
 # 리뷰 프롬프트 생성
 build_review_prompt() {
   local output_file="$1"
@@ -149,7 +223,31 @@ build_review_prompt() {
   local turn_limit="${11}"
   local next_turn_number="${12}"
 
-  cat <<EOF > "$output_file"
+  # M2: autopilot 모드에서만 Attempt History prepend (Reviewer turn 002 Finding 2)
+  local _attempt_history=""
+  if [[ "${RD_AUTOPILOT:-}" == "1" ]]; then
+    local _short_title=""
+    # 정본: review 대상 SESSION.md ($3 = session_file_rel) Branch Context short-title
+    if [[ -f "${PROJECT_ROOT:-.}/${session_file_rel}" ]]; then
+      _short_title="$(awk '/^## Branch Context/{f=1} f&&/^- short-title:/{sub(/^- short-title:[ \t]*/,"");sub(/[ \t]+$/,"");print;exit}' "${PROJECT_ROOT:-.}/${session_file_rel}")"
+    fi
+    # fallback: CURRENT_TASK.md
+    if [[ -z "$_short_title" || "$_short_title" == "unknown" || "$_short_title" == "-" ]]; then
+      if [[ -f "${PROJECT_ROOT:-.}/CURRENT_TASK.md" ]]; then
+        _short_title="$(awk '/^## Short Title/{f=1;next} f&&/^[^#]/{sub(/^[ \t]+/,"");sub(/[ \t]+$/,"");print;exit}' "${PROJECT_ROOT:-.}/CURRENT_TASK.md")"
+      fi
+    fi
+    # 유효 slug 일 때만 주입. unknown/-/빈 값이면 섹션 생략 (legacy session 기존 동작 유지)
+    if [[ -n "$_short_title" && "$_short_title" != "unknown" && "$_short_title" != "-" ]]; then
+      _attempt_history="$(build_attempt_history "$_short_title" "$session_dir_rel" || true)"
+    fi
+  fi
+
+  {
+    if [[ -n "$_attempt_history" ]]; then
+      printf '%s\n\n' "$_attempt_history"
+    fi
+    cat <<EOF
 You are continuing an existing file-based review session.
 
 Follow the rules in:
@@ -179,6 +277,8 @@ You must do all of the following:
 2. Create exactly one new turn file at EXPECTED_TURN_FILE.
 3. Update CHECKPOINT_FILE.
 4. Update SESSION_FILE so that Current Owner is no longer Reviewer.
+   - Modify ONLY the "Status" and "Current Owner" sections.
+   - Do NOT modify "Turn Limit", "Stop Rule", "Finalize Rule", "Tool History", "Branch Context", or any other section in SESSION.md. Those sections are managed by the harness.
 5. If unresolved objections remain after your review, default to Status=awaiting-author and hand the session back to Author.
 6. Only set Status=awaiting-user if one of these is true: you explicitly have no remaining objections, user input is required, or this turn reaches the ${turn_limit}-turn limit.
 7. If you have no remaining objections, say that explicitly in Disagreement and Proposed Decision.
@@ -205,6 +305,7 @@ Required turn file sections:
 If you cannot continue safely, record the blocker in CHECKPOINT_FILE and set Current Owner to User with Status awaiting-user.
 At the end, print a short summary of what you changed.
 EOF
+  } > "$output_file"
 }
 
 # 턴 실행 후 출력 검증
@@ -329,7 +430,7 @@ validate_branch_context() {
   return 0
 }
 
-# SESSION.md에 Tool History 행 추가
+# SESSION.md에 Tool History 행 추가 (idempotent — 같은 turn_number 행이 있으면 skip)
 append_tool_history() {
   local session_file="$1"
   local turn_number="$2"
@@ -339,6 +440,11 @@ append_tool_history() {
   # Tool History 섹션이 없으면 추가
   if ! grep -q "^## Tool History" "$session_file"; then
     printf '\n## Tool History\n| Turn | Tool | Mode |\n|------|------|------|\n' >> "$session_file"
+  fi
+
+  # LLM이 SESSION.md 갱신 시 자기 turn 행을 이미 추가했을 수 있음 → 중복 회피
+  if grep -qE "^\| ${turn_number} \|" "$session_file"; then
+    return 0
   fi
 
   printf '| %s | %s | %s |\n' "$turn_number" "$tool_name" "$mode" >> "$session_file"

@@ -34,8 +34,9 @@ setup_repo() {
     else \
       printf '# Current Task\n\n## Short Title\n-\n\n## Branch / Worktree\nmain\n\n## Status\n대기 중\n' > CURRENT_TASK.md; \
     fi; \
-    mkdir -p rd-workflow/scripts/lifecycle rd-workflow-workspace/.lifecycle; \
+    mkdir -p rd-workflow/scripts/lifecycle rd-workflow/scripts/hooks rd-workflow-workspace/.lifecycle; \
     cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/lifecycle/*.sh rd-workflow/scripts/lifecycle/; \
+    cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/hooks/*.sh rd-workflow/scripts/hooks/; \
     git add -A; \
     git commit -q -m "init"
   )
@@ -66,8 +67,10 @@ run_promote "$REPO" --short-title test-foo --no-worktree >/dev/null
   echo "# archived" > REQUEST.md && git add REQUEST.md && git commit -q -m "archive content" )
 
 # Archive 호출 (--no-remote 모드)
+# review precheck 는 test_lifecycle.sh 가 단위 검증하므로, 여기서는 force-skip 으로 관문만 통과하고
+# git state 전이(merge/tag/branch 정리)에 집중한다.
 ( cd "$REPO" && git switch main -q && \
-  bash rd-workflow/scripts/lifecycle/archive.sh --no-remote ) >/dev/null
+  bash rd-workflow/scripts/lifecycle/archive.sh --no-remote --force-skip-review-check "통합 테스트 fixture" ) >/dev/null
 
 ( cd "$REPO" && ! git rev-parse --verify fr/test-foo >/dev/null 2>&1 ) && pass "archive: branch 삭제" || fail "archive: branch 잔존"
 ( cd "$REPO" && git tag --list "fr/*/test-foo" | grep -q . ) && pass "archive: tag 존재" || fail "archive: tag 부재"
@@ -111,7 +114,8 @@ run_promote "$REPO" --short-title test-baz --no-worktree >/dev/null
   git tag "fr/2026-04-29-9999/test-baz" )
 
 # 미push 상태에서 archive 재호출 (publish 실패 후 rerun 시뮬레이션)
-( cd "$REPO" && bash rd-workflow/scripts/lifecycle/archive.sh --fr-branch fr/test-baz ) >/dev/null 2>&1 || true
+# metadata 가 위에서 제거되어 short-title 매칭 불가 → precheck 는 force-skip 으로 통과시키고 push 멱등성만 검증.
+( cd "$REPO" && bash rd-workflow/scripts/lifecycle/archive.sh --fr-branch fr/test-baz --force-skip-review-check "통합 테스트 fixture" ) >/dev/null 2>&1 || true
 
 # 검증: bare mirror에 push 됐는가
 ( cd "$REPO" && git ls-remote origin refs/heads/main 2>/dev/null | grep -q . ) && pass "rerun: main pushed" || fail "rerun: main 미push"

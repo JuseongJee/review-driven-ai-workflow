@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "thresholds": {
+    "rollback": 3,
+    "verify_fail": 3,
+    "reedit": 3
+  }
+}
