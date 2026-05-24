@@ -197,6 +197,142 @@ echo "== M2 prev-session exact slug match (api vs api-v2) =="
   echo "  PASS: prev-session exact slug match (api ≠ api-v2)"
 ) && PASS=$((PASS+2)) || { FAIL=$((FAIL+1)); echo "  FAIL: M2 exact-match 블록 실패" >&2; }
 
+echo "== build_ac_enforcement_notice =="
+( # 서브셸 — review_common.sh의 set -e / PROJECT_ROOT 격리
+  set +e
+  source "$SCRIPT_DIR/../review_common.sh"
+  acn_tmp="$(mktemp -d)"; trap "rm -rf '$acn_tmp'" EXIT
+
+  mk_req() { # $1=AC 본문, $2=bypass 본문 → REQUEST.md 생성, 경로 echo
+    local f="$acn_tmp/REQUEST_$RANDOM.md"
+    printf '# Change Request\n\n## Acceptance Criteria\n%s\n\n## AC Bypass Reason\n%s\n\n## Source FR\n-\n' "$1" "$2" > "$f"
+    printf '%s' "$f"
+  }
+
+  # 1) AC 채워짐 → 무주입 (빈 문자열)
+  out="$(build_ac_enforcement_notice "$(mk_req '- 통과 조건 X' '-')")"
+  [[ -z "$out" ]] || { echo "  FAIL: AC 채워짐인데 notice 발생 — [$out]" >&2; exit 9; }
+  echo "  PASS: AC 채워짐 → 무주입"
+
+  # 2) AC 비어있음(-) + bypass 없음 → 주입
+  out="$(build_ac_enforcement_notice "$(mk_req '-' '-')")"
+  printf '%s' "$out" | grep -q "완료 기준이 정의되지 않" || { echo "  FAIL: 누락 주입 메시지 없음" >&2; exit 9; }
+  echo "  PASS: AC 비어있음 + 면제 없음 → 주입"
+
+  # 3) AC 비어있음 + bypass=small-task → 면제 인정 (주입 메시지 미포함)
+  out="$(build_ac_enforcement_notice "$(mk_req '-' 'small-task')")"
+  printf '%s' "$out" | grep -q "면제 사유: small-task" || { echo "  FAIL: 면제 주석 없음" >&2; exit 9; }
+  if printf '%s' "$out" | grep -q "완료 기준이 정의되지 않"; then echo "  FAIL: 면제인데 주입 메시지 포함" >&2; exit 9; fi
+  echo "  PASS: bypass=small-task → 면제 인정"
+
+  # 4) AC 비어있음 + bypass=오타 → 주입 + 경고
+  out="$(build_ac_enforcement_notice "$(mk_req '-' 'typo')")"
+  printf '%s' "$out" | grep -q "완료 기준이 정의되지 않" || { echo "  FAIL: 허용 외 값인데 주입 안 됨" >&2; exit 9; }
+  printf '%s' "$out" | grep -q "인식할 수 없는 AC_BYPASS_REASON 값: typo" || { echo "  FAIL: 경고 누락" >&2; exit 9; }
+  echo "  PASS: bypass=허용 외 값 → 주입 + 경고"
+
+  # 5) AC가 HTML comment + '-' 만 → 비어있음 판정 → 주입 (Finding 1)
+  out="$(build_ac_enforcement_notice "$(mk_req '<!-- 완료 기준을 적으세요 -->
+-' '-')")"
+  printf '%s' "$out" | grep -q "완료 기준이 정의되지 않" || { echo "  FAIL: comment+- 인데 채워짐으로 오판" >&2; exit 9; }
+  echo "  PASS: AC=comment+'-' → 비어있음 → 주입"
+
+  # 6) AC가 '-' 여러 줄(복수 placeholder) → 비어있음 → 주입 (Finding 1)
+  out="$(build_ac_enforcement_notice "$(mk_req '-
+-' '-')")"
+  printf '%s' "$out" | grep -q "완료 기준이 정의되지 않" || { echo "  FAIL: 복수 '-' 인데 채워짐으로 오판" >&2; exit 9; }
+  echo "  PASS: AC='-' 여러 줄 → 비어있음 → 주입"
+
+  # 7) REQUEST.md 부재 → 빈 출력 + 성공 종료 (Finding 2)
+  out="$(build_ac_enforcement_notice "$acn_tmp/NO_SUCH_REQUEST.md")" || { echo "  FAIL: 부재 경로에서 비정상 종료" >&2; exit 9; }
+  [[ -z "$out" ]] || { echo "  FAIL: REQUEST 부재인데 notice 발생 — [$out]" >&2; exit 9; }
+  echo "  PASS: REQUEST.md 부재 → 빈 출력 + 성공"
+
+  # 8) AC가 multi-line HTML comment 블록 + '-' 만 → 비어있음 판정 → 주입 (diff-review Finding 1)
+  out="$(build_ac_enforcement_notice "$(mk_req '<!--
+완료 기준을 여기에 적으세요
+placeholder 줄
+-->
+-' '-')")"
+  printf '%s' "$out" | grep -q "완료 기준이 정의되지 않" || { echo "  FAIL: multi-line comment 블록 내부를 의미있는 줄로 오판" >&2; exit 9; }
+  echo "  PASS: AC=multi-line comment 블록+'-' → 비어있음 → 주입"
+
+  echo "  (build_ac_enforcement_notice OK)"
+) || { FAIL=$((FAIL+1)); echo "FAIL: build_ac_enforcement_notice 단위 테스트" >&2; }
+PASS=$((PASS+1))
+
+echo "== build_review_prompt: AC enforcement 주입 =="
+( set +e
+  source "$SCRIPT_DIR/../review_common.sh"
+  bp_tmp="$(mktemp -d)"; trap "rm -rf '$bp_tmp'" EXIT
+  export PROJECT_ROOT="$bp_tmp"
+  # AC 비어있는 REQUEST.md
+  printf '# Change Request\n\n## Acceptance Criteria\n-\n\n## AC Bypass Reason\n-\n' > "$bp_tmp/REQUEST.md"
+  # 첫 reviewer 턴 세션 (turns/ 에 reviewer 파일 없음)
+  mkdir -p "$bp_tmp/sess/turns"; printf '# Turn 001 — Author\n' > "$bp_tmp/sess/turns/001_author.md"
+
+  out_f="$bp_tmp/p1.txt"
+  build_review_prompt "$out_f" sess sess/SESSION.md c u sess/turns/001_author.md sess/turns/002_reviewer.md request-review target goal 20 002
+  grep -q "완료 기준이 정의되지 않" "$out_f" || { echo "  FAIL: request-review 첫 턴 주입 누락" >&2; exit 9; }
+  echo "  PASS: request-review 첫 reviewer 턴 주입"
+
+  out_f="$bp_tmp/p2.txt"
+  build_review_prompt "$out_f" sess sess/SESSION.md c u sess/turns/001_author.md sess/turns/002_reviewer.md diff-review target goal 20 002
+  grep -q "완료 기준이 정의되지 않" "$out_f" || { echo "  FAIL: diff-review 첫 턴 주입 누락" >&2; exit 9; }
+  echo "  PASS: diff-review 첫 reviewer 턴 주입"
+
+  # 둘째 reviewer 턴: turns/ 에 reviewer 파일 존재 → 미주입
+  printf '# Turn 002 — Reviewer\n' > "$bp_tmp/sess/turns/002_reviewer.md"
+  out_f="$bp_tmp/p3.txt"
+  build_review_prompt "$out_f" sess sess/SESSION.md c u sess/turns/002_reviewer.md sess/turns/004_reviewer.md request-review target goal 20 004
+  if grep -q "완료 기준이 정의되지 않" "$out_f"; then echo "  FAIL: 둘째 reviewer 턴인데 주입됨" >&2; exit 9; fi
+  echo "  PASS: 둘째 reviewer 턴 → 미주입"
+
+  # legacy *_codex.md 턴도 reviewer 턴으로 취급 → 둘째 턴 미주입 (diff-review Finding 2)
+  rm -f "$bp_tmp/sess/turns/002_reviewer.md"
+  printf '# Turn 002 — Reviewer (codex)\n' > "$bp_tmp/sess/turns/002_codex.md"
+  out_f="$bp_tmp/p_legacy.txt"
+  build_review_prompt "$out_f" sess sess/SESSION.md c u sess/turns/002_codex.md sess/turns/004_reviewer.md request-review target goal 20 004
+  if grep -q "완료 기준이 정의되지 않" "$out_f"; then echo "  FAIL: legacy codex 턴 있는데 재주입됨" >&2; exit 9; fi
+  echo "  PASS: legacy *_codex.md 턴 → reviewer 인식 → 미주입"
+  rm -f "$bp_tmp/sess/turns/002_codex.md"
+
+  # spec-plan-review: 대상 아님 → 미주입 (첫 턴이어도)
+  rm -f "$bp_tmp/sess/turns/002_reviewer.md"
+  out_f="$bp_tmp/p4.txt"
+  build_review_prompt "$out_f" sess sess/SESSION.md c u sess/turns/001_author.md sess/turns/002_reviewer.md spec-plan-review target goal 20 002
+  if grep -q "완료 기준이 정의되지 않" "$out_f"; then echo "  FAIL: spec-plan-review에 주입됨" >&2; exit 9; fi
+  echo "  PASS: spec-plan-review → 미주입"
+) || { FAIL=$((FAIL+1)); echo "FAIL: build_review_prompt AC 주입 테스트" >&2; }
+PASS=$((PASS+1))
+
+echo "== build_review_prompt: autopilot 공존 (AC notice + attempt history) =="
+( set +e
+  source "$SCRIPT_DIR/../review_common.sh"
+  ar_tmp="$(mktemp -d)"; trap "rm -rf '$ar_tmp'" EXIT
+  export PROJECT_ROOT="$ar_tmp"
+  printf '# Change Request\n\n## Acceptance Criteria\n-\n\n## AC Bypass Reason\n-\n' > "$ar_tmp/REQUEST.md"
+  mkdir -p "$ar_tmp/cur/turns"
+  printf '## Branch Context\n- short-title: demo\n' > "$ar_tmp/cur/SESSION.md"
+  printf '# Turn 001 — Author\n' > "$ar_tmp/cur/turns/001_author.md"
+  prev="$ar_tmp/rd-workflow-workspace/handoffs/review_pipeline/20260101_000000_prev"
+  mkdir -p "$prev"
+  printf '## Branch Context\n- short-title: demo\n' > "$prev/SESSION.md"
+  printf '## Current Summary\n이전 시도 요약입니다.\n' > "$prev/CHECKPOINT.md"
+  export LOOP_STATE_PATH="$ar_tmp/loop-state"
+  printf 'reedit::demo::c1.sh=10\nrollback::demo=1\n' > "$LOOP_STATE_PATH"
+
+  out_f="$ar_tmp/auto.txt"
+  RD_AUTOPILOT=1 build_review_prompt "$out_f" cur cur/SESSION.md c u cur/turns/001_author.md cur/turns/002_reviewer.md request-review target goal 20 002
+  grep -q "완료 기준이 정의되지 않" "$out_f" || { echo "  FAIL: autopilot에서 AC notice 누락" >&2; exit 9; }
+  grep -q "Attempt History" "$out_f" || { echo "  FAIL: autopilot attempt history 누락" >&2; exit 9; }
+  ac_line="$(grep -n "완료 기준이 정의되지 않" "$out_f" | head -1 | cut -d: -f1)"
+  ah_line="$(grep -n "Attempt History" "$out_f" | head -1 | cut -d: -f1)"
+  [[ "$ac_line" -lt "$ah_line" ]] || { echo "  FAIL: AC notice 가 attempt history 보다 먼저가 아님 (ac=$ac_line ah=$ah_line)" >&2; exit 9; }
+  echo "  PASS: autopilot 공존 — AC notice 먼저 + 두 블록 존재"
+) || { FAIL=$((FAIL+1)); echo "FAIL: autopilot 공존 테스트" >&2; }
+PASS=$((PASS+1))
+
 echo "== review-gate 헬퍼 (safeguard-review-completion-checks) =="
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 GUARD_ROOT="$(mktemp -d)"

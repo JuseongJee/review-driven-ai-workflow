@@ -24,6 +24,10 @@ small-task / existing-code-change / new-feature-or-large-task
 ## Acceptance Criteria
 -
 
+## AC Bypass Reason
+<!-- AC 면제 사유. 허용 값: small-task | spike | bugfix | refactor. 면제 없으면 - -->
+-
+
 ## Risks
 -
 

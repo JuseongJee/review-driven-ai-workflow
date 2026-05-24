@@ -208,6 +208,71 @@ build_attempt_history() {
   printf -- '- lifecycle: rollback %s회\n' "$rollback"
 }
 
+# HTML comment(한 줄 + multi-line 블록) 제거. stdin → stdout.
+# 한 줄 sed(`s/<!--.*-->//g`)는 multi-line 블록 내부 줄을 못 지워 빈 AC 오판을 유발하므로
+# awk 로 `<!--` ~ `-->` 블록 상태를 추적하며 제거한다.
+_strip_html_comments() {
+  awk '
+    {
+      line = $0
+      while (1) {
+        if (inc) {                          # 블록 comment 진행 중
+          e = index(line, "-->")
+          if (e == 0) { line = ""; break }  # 이 줄 전체가 comment 내부
+          line = substr(line, e + 3); inc = 0
+        }
+        s = index(line, "<!--")
+        if (s == 0) break
+        rest = substr(line, s + 4)
+        e = index(rest, "-->")
+        if (e == 0) { line = substr(line, 1, s - 1); inc = 1; break }  # 블록 시작, 이 줄서 미종료
+        line = substr(line, 1, s - 1) substr(rest, e + 3)              # 한 줄서 열고 닫힘
+      }
+      print line
+    }
+  '
+}
+
+# AC 누락 enforcement notice 생성 (safeguard-ac-enforcement)
+# 사용: build_ac_enforcement_notice [request_md_path]
+# 출력: 주입할 notice 문자열. 주입 불필요(AC 채워짐) 시 빈 문자열.
+build_ac_enforcement_notice() {
+  local req="${1:-${PROJECT_ROOT:-.}/REQUEST.md}"
+  [[ -f "$req" ]] || return 0
+
+  local ac_meaningful reason
+  # AC 비어있음 판정 (강화): HTML comment(한 줄+multi-line) 제거 → '-' 단독/공백 줄 제외 → 남은 의미있는 줄
+  ac_meaningful="$(extract_section "$req" "Acceptance Criteria" \
+    | _strip_html_comments \
+    | awk 'NF && $0 !~ /^[[:space:]]*-[[:space:]]*$/ {print}')"
+
+  # 의미있는 AC 내용이 있으면 → 채워짐 → 무주입
+  if [[ -n "$ac_meaningful" ]]; then
+    return 0
+  fi
+
+  # bypass 파싱도 comment 무시. '-' / 빈 값 = 면제 없음
+  reason="$(extract_section "$req" "AC Bypass Reason" \
+    | _strip_html_comments \
+    | trim_blank_lines)"
+  [[ "$reason" == "-" ]] && reason=""
+
+  # 허용 면제 값 정확 일치 → 면제 인정 (정보성 주석)
+  case "$reason" in
+    small-task|spike|bugfix|refactor)
+      printf '## AC Bypass\n- AC 면제 사유: %s (면제 인정 — 완료 기준 평가 생략)\n' "$reason"
+      return 0
+      ;;
+  esac
+
+  # AC 비어있음 + 면제 없음/허용 외 값 → 주입
+  printf '## AC Enforcement (완료 기준 누락)\n'
+  printf -- '- REQUEST.md 의 Acceptance Criteria 가 비어 있습니다. 완료 기준이 정의되지 않았습니다 — 무엇을 기준으로 통과/불통을 판정할지 먼저 합의하세요.\n'
+  if [[ -n "$reason" ]]; then
+    printf -- '- 인식할 수 없는 AC_BYPASS_REASON 값: %s (유효 값: small-task | spike | bugfix | refactor). 면제로 인정하지 않습니다.\n' "$reason"
+  fi
+}
+
 # 리뷰 프롬프트 생성
 build_review_prompt() {
   local output_file="$1"
@@ -243,7 +308,28 @@ build_review_prompt() {
     fi
   fi
 
+  # AC enforcement notice (safeguard-ac-enforcement)
+  # request-review / diff-review 의 첫 reviewer 턴에만 주입.
+  local _ac_notice=""
+  case "$review_type" in
+    request-review|diff-review)
+      local _turns_dir="${PROJECT_ROOT:-.}/${session_dir_rel}/turns"
+      local _rev_count=0
+      if [[ -d "$_turns_dir" ]]; then
+        # legacy 세션은 reviewer 턴을 *_codex.md 로 쓴다 (compute_next_turn 이 codex→reviewer alias 정규화).
+        # 둘 다 reviewer 턴으로 세어 legacy 재진입 시 재주입을 막는다.
+        _rev_count="$(find "$_turns_dir" -maxdepth 1 \( -name '*_reviewer.md' -o -name '*_codex.md' \) 2>/dev/null | wc -l | tr -d ' ')"
+      fi
+      if [[ "$_rev_count" -eq 0 ]]; then
+        _ac_notice="$(build_ac_enforcement_notice || true)"
+      fi
+      ;;
+  esac
+
   {
+    if [[ -n "$_ac_notice" ]]; then
+      printf '%s\n\n' "$_ac_notice"
+    fi
     if [[ -n "$_attempt_history" ]]; then
       printf '%s\n\n' "$_attempt_history"
     fi
