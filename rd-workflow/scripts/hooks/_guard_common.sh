@@ -47,6 +47,13 @@ _session_short_title() {
   awk '/^## Branch Context/{f=1} f&&/^- short-title:/{sub(/^- short-title:[ \t]*/,"");sub(/[ \t]+$/,"");print;exit}' "$sf"
 }
 
+# 세션 SESSION.md의 Branch Context fr-branch 파싱
+_session_fr_branch() {
+  local sf="${1}/SESSION.md"
+  [[ -f "$sf" ]] || return 0
+  awk '/^## Branch Context/{f=1} f&&/^- fr-branch:/{sub(/^- fr-branch:[ \t]*/,"");sub(/[ \t]+$/,"");print;exit}' "$sf"
+}
+
 # 현재 fr 범위의 최신 final-diff-review 세션. 없으면 빈 값.
 # short-title 미상(매칭 불가) 세션은 fr-scope 판정 불가로 후보에서 제외(unscoped 통과).
 get_latest_diff_review_dir() {
@@ -96,7 +103,15 @@ archive_review_precheck() {
     # 전부 "세션 없음"으로 귀결 → fail-closed 차단. 진단보다 안전(미검증 archive 차단)을 우선한다.
     git -C "$project_root" archive "$fr_ref" -- rd-workflow-workspace/handoffs/review_pipeline 2>/dev/null \
       | tar -x -C "$tmp" 2>/dev/null || true
-    review_dir="$(get_latest_diff_review_dir "$tmp/rd-workflow-workspace/handoffs/review_pipeline")"
+    local fr_base="$tmp/rd-workflow-workspace/handoffs/review_pipeline" _d
+    # fr_ref identity 로 후보 고정: SESSION.md Branch Context fr-branch == fr_ref 인 최신 final-diff-review.
+    # main 워킹트리(get_current_short_title) 비의존 + stale/unrelated closed 세션 false-positive 방지
+    # + suffix(fr/foo-2) 정확 매칭. Branch Context fr-branch 부재(legacy/malformed)는 매칭 실패 → fail-closed.
+    for _d in "$fr_base/"*_final-diff-review; do
+      [[ -d "$_d" ]] || continue
+      [[ "$(_session_fr_branch "$_d")" == "$fr_ref" ]] || continue
+      review_dir="$_d"
+    done
     if [[ -n "$review_dir" ]] && is_review_session_resolved "$review_dir"; then
       resolved=0
     fi

@@ -77,7 +77,10 @@ Tech Stack 키워드 매칭:
   - severity 기준 (아래 참조)
   - 반환 형식: `severity | 항목 | 파일:라인 | 설명`
   - "코드를 수정하지 말 것, 읽기만 할 것"
+  - `rd-workflow/docs/guides/subagent-git-safety.md`의 Subagent Git 안전 문구 (git checkout/switch/branch 전환 금지, read-only git만)
   - "발견이 없으면 빈 목록을 반환할 것"
+
+검토 대상이 commit된 상태로 충분하면 각 Explore subagent에 `isolation: "worktree"` 격리를 권장한다 (공유 워킹트리 보호). 단, 미커밋·미추적 변경을 스캔해야 하면 격리하지 말고 git 안전 문구만 적용한다.
 
 **병렬 실행:** 독립적인 카테고리이므로 모든 subagent를 하나의 메시지에서 동시에 호출한다.
 

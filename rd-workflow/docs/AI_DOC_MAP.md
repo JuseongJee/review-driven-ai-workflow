@@ -89,7 +89,10 @@
 - build 실행
 
 `test.sh`
-- test 실행
+- 제품 코드 test 실행 (generated project 용 placeholder, 사용자가 교체)
+
+`self_test.sh`
+- 워크플로 인프라(rd-workflow) self-test entrypoint — lifecycle 단위·통합 테스트, 스크립트 구문 검사, CLAUDE.md 크기 제한 집약
 
 `lint.sh`
 - lint 실행

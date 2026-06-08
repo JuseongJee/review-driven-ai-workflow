@@ -172,7 +172,8 @@ echo "== M2 attempt history 주입 =="
   if grep -q "bar.sh" "$out_file"; then echo "  FAIL: top-5 cap 미적용 (rank6 bar.sh 노출)" >&2; exit 9; fi
   if grep -q "zzz.sh" "$out_file"; then echo "  FAIL: 다른 slug(other) 키가 샘" >&2; exit 9; fi
   out_file2="$TMPDIR_TEST/prompt_manual.txt"
-  build_review_prompt "$out_file2" sdir cur/SESSION.md cfile uafile ltfile etfile spec-plan-review target goal 20 003
+  # 수동 모드 — RD_AUTOPILOT 을 명시적으로 비워 외부 환경(autopilot 세션) 오염을 격리한다.
+  RD_AUTOPILOT="" build_review_prompt "$out_file2" sdir cur/SESSION.md cfile uafile ltfile etfile spec-plan-review target goal 20 003
   if grep -q "Attempt History" "$out_file2"; then echo "  FAIL: 수동 모드인데 prepend 됨" >&2; exit 9; fi
   echo "  PASS: M2 (prepend/reedit-top5/rollback/prev/negative-slug/manual)"
 ) && PASS=$((PASS+7)) || { FAIL=$((FAIL+1)); echo "  FAIL: M2 블록 실패" >&2; }
@@ -598,6 +599,91 @@ else
 fi
 
 rm -rf "$GUARD_ROOT"
+
+# === safeguard-self-review-block: self-review 게이트 ===
+source "$SCRIPT_DIR/../review_common.sh"
+
+echo "== resolve_self_review_policy =="
+assert_eq "$(resolve_self_review_policy block "")" "block" "policy=block 그대로"
+assert_eq "$(resolve_self_review_policy warn "")"  "warn"  "policy=warn 그대로"
+assert_eq "$(resolve_self_review_policy off "")"   "off"   "policy=off 그대로"
+assert_eq "$(resolve_self_review_policy "" false)" "off"   "미설정(빈값)+warning=false → off"
+assert_eq "$(resolve_self_review_policy "" true)"  "block" "미설정(빈값)+warning=true → block"
+assert_eq "$(resolve_self_review_policy "" "")"    "block" "미설정(빈값)+warning 미설정 → block"
+assert_eq "$(resolve_self_review_policy bogus "")" "block" "미인식 policy + warning 빈값 → block (fail-safe)"
+assert_eq "$(resolve_self_review_policy bogus false)" "block" "미인식 policy + warning=false → block (finding1 회귀방지)"
+
+echo "== evaluate_self_review_gate =="
+assert_eq "$(evaluate_self_review_gate off "" "")"   "proceed-silent"    "off → silent"
+assert_eq "$(evaluate_self_review_gate warn "" "")"  "proceed-warn"      "warn → warn"
+assert_eq "$(evaluate_self_review_gate block 1 "")"  "proceed-autopilot" "block+autopilot → autopilot"
+assert_eq "$(evaluate_self_review_gate block "" 1)"  "proceed-warn"      "block+approve → warn"
+assert_eq "$(evaluate_self_review_gate block "" "")" "block"             "block+일반 → block"
+assert_eq "$(evaluate_self_review_gate block 1 1)"   "proceed-autopilot" "block+autopilot이 approve보다 우선"
+
+echo "== record_self_review_block =="
+SR_UA="$(mktemp)"
+# 기본 USER_ACTION 템플릿(차단 안내가 지워져야 하는 문구 포함)
+printf '# User Action\n\n## Current Recommendation\n-\n\n## Why\n- \n\n## Question For User\n아직 사용자 확인이 필요한 단계가 아닙니다.\n' > "$SR_UA"
+record_self_review_block "$SR_UA"
+if grep -q "RD_SELF_REVIEW_APPROVE=1" "$SR_UA"; then PASS=$((PASS+1)); echo "  PASS: 승인 재실행 안내 포함"; \
+  else FAIL=$((FAIL+1)); echo "  FAIL: 승인 안내 누락" >&2; fi
+if grep -q "아직 사용자 확인이 필요한 단계가 아닙니다" "$SR_UA"; then \
+  FAIL=$((FAIL+1)); echo "  FAIL: 기본 no-action 문구가 남아 모순(finding3)" >&2; \
+  else PASS=$((PASS+1)); echo "  PASS: no-action 문구 제거됨"; fi
+sr_snap1="$(cat "$SR_UA")"
+record_self_review_block "$SR_UA"
+sr_snap2="$(cat "$SR_UA")"
+assert_eq "$sr_snap1" "$sr_snap2" "멱등 — 재호출 시 내용 동일"
+rm -f "$SR_UA"
+
+echo "== run_review_turn.sh self-review 차단 (script-level 통합) =="
+SR_INT="$(mktemp -d)"
+mkdir -p "$SR_INT/bin" "$SR_INT/session/turns"
+# fake claude: 게이트가 block이면 호출되지 않아야 함 (호출되면 흔적 파일 생성)
+cat > "$SR_INT/bin/claude" <<FAKE
+#!/bin/sh
+touch "$SR_INT/CLAUDE_WAS_CALLED"
+exit 99
+FAKE
+chmod +x "$SR_INT/bin/claude"
+# 임시 config: claude만 우선, policy=block
+cat > "$SR_INT/review-tools.json" <<'CFG'
+{ "default_priority": ["claude"], "tools": { "claude": { "self_review_policy": "block" } } }
+CFG
+# 최소 세션 fixture (Branch Context 생략 → validate_branch_context가 legacy로 skip)
+cat > "$SR_INT/session/SESSION.md" <<'SES'
+# Review Session
+## Status
+awaiting-reviewer
+## Current Owner
+Reviewer
+## Review Type
+spec-plan-review
+## Review Target
+target
+## Review Goal
+goal
+## Turn Limit
+20 total turns in `turns/*.md`
+SES
+printf '# Checkpoint\n## Current Summary\n-\n' > "$SR_INT/session/CHECKPOINT.md"
+printf '# User Action\n\n## Current Recommendation\n-\n\n## Why\n- \n\n## Question For User\n아직 사용자 확인이 필요한 단계가 아닙니다.\n' > "$SR_INT/session/USER_ACTION.md"
+printf '# Turn 001 Author\n' > "$SR_INT/session/turns/001_author.md"
+# 일반 모드 실행 (RD_AUTOPILOT / RD_SELF_REVIEW_APPROVE 미설정)
+sr_rc=0
+PATH="$SR_INT/bin:$PATH" REVIEW_TOOLS_CONFIG="$SR_INT/review-tools.json" \
+  RD_AUTOPILOT="" RD_SELF_REVIEW_APPROVE="" \
+  bash "$SCRIPT_DIR/../run_review_turn.sh" "$SR_INT/session" >/dev/null 2>&1 || sr_rc=$?
+assert_eq "$sr_rc" "3" "차단 exit code 3"
+if [ ! -f "$SR_INT/session/turns/002_reviewer.md" ]; then PASS=$((PASS+1)); echo "  PASS: reviewer turn 미생성"; \
+  else FAIL=$((FAIL+1)); echo "  FAIL: reviewer turn 생성됨" >&2; fi
+if grep -q "RD_SELF_REVIEW_APPROVE=1" "$SR_INT/session/USER_ACTION.md"; then PASS=$((PASS+1)); echo "  PASS: USER_ACTION 차단 안내 기록"; \
+  else FAIL=$((FAIL+1)); echo "  FAIL: USER_ACTION 차단 안내 누락" >&2; fi
+assert_eq "$(awk '/^## Status/{getline; gsub(/[ \t]/,"",$0); print; exit}' "$SR_INT/session/SESSION.md")" "awaiting-reviewer" "SESSION Status awaiting-reviewer 유지"
+if [ ! -f "$SR_INT/CLAUDE_WAS_CALLED" ]; then PASS=$((PASS+1)); echo "  PASS: fake claude 미호출(게이트가 adapter 전 차단)"; \
+  else FAIL=$((FAIL+1)); echo "  FAIL: claude adapter 실행됨" >&2; fi
+rm -rf "$SR_INT"
 
 echo "== 결과: PASS=$PASS FAIL=$FAIL =="
 [[ $FAIL -eq 0 ]]
