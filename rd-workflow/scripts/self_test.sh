@@ -52,6 +52,7 @@ run_step "lifecycle 통합 테스트 (test_integration.sh)" bash "${SCRIPT_DIR}/
 run_step "스크립트 구문 검사 (bash -n)" syntax_check
 run_step "autopilot SKILL lifecycle 정합 (promote/rollback 일원화)" autopilot_skill_lifecycle_check
 run_step "템플릿 동기화 검증 (test_template_sync.sh)" bash "${SCRIPT_DIR}/test_template_sync.sh"
+run_step "docs 동기화 검증 (test_docs_sync.sh)" bash "${SCRIPT_DIR}/test_docs_sync.sh"
 run_step "CLAUDE.md 크기 제한 (check_claudemd_size.sh)" bash "${SCRIPT_DIR}/check_claudemd_size.sh"
 
 echo ""
