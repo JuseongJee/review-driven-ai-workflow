@@ -34,7 +34,7 @@ Web / macOS / iOS / backend / library / script
 
 ## Verification Scope
 - pre-commit: lint, format (무거운 테스트 금지)
-- local: unit test, lint, typecheck
+- local: unit test, lint, typecheck, build
 - CI: full test, integration, E2E
 - 상세 가이드: `rd-workflow/docs/guides/verification-scope-guide.md`
 

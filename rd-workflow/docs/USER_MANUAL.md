@@ -61,7 +61,7 @@ AI가 `rd-workflow/docs/guides/setup_with_claude.md` 절차를 따릅니다:
 
 1. 템플릿 파일 복사 (배포 repo → 프로젝트 루트)
 2. `PROJECT_CONTEXT.md` 채우기 (프로젝트 타입, 기술 스택, 빌드 명령 등)
-3. 검증 스크립트 설정 (`rd-workflow/scripts/test.sh`, `lint.sh`, `typecheck.sh`)
+3. 검증 스크립트 설정 (`rd-workflow/scripts/test.sh`, `lint.sh`, `typecheck.sh`, `build.sh`)
 4. 스킬 설치 (`rd-workflow/scripts/install_claude_skills.sh`)
 5. 리뷰 도구 감지 (Codex 설치 여부 확인 + 안내)
 6. (선택) 확장 기능 설치, PROJECT_CONTEXT review
@@ -158,7 +158,7 @@ AI가 자동으로:
 3. Brainstorming → spec → plan 작성
 4. Spec/plan review
 5. 구현 (subagent dispatch — 병렬·순차 모두 가능)
-6. 검증 (`test.sh`, `lint.sh`, `typecheck.sh`)
+6. 검증 (`test.sh`, `lint.sh`, `typecheck.sh`, `build.sh`)
 7. Final diff review
 8. REQUEST 아카이브 + 완료 보고
 
@@ -411,7 +411,7 @@ UI 작업 시 디자인 레퍼런스 대비 검증 게이트.
 
 | 스크립트 | 용도 | 예시 |
 |---------|------|------|
-| `rd-workflow/scripts/build.sh` | 빌드 | `npm run build` |
+| `rd-workflow/scripts/build.sh` | 전체 빌드 (산출물 생성 — verify 게이트 포함) | `npm run build` |
 | `rd-workflow/scripts/test.sh` | 테스트 | `npm test` |
 | `rd-workflow/scripts/lint.sh` | 린트 | `npm run lint` |
 | `rd-workflow/scripts/typecheck.sh` | 타입 체크 | `tsc --noEmit` |
@@ -577,4 +577,4 @@ AI가 절차를 놓칠 때 수동으로 보정할 수 있습니다:
 
 1. 구현 완료 후 반드시 final diff review
 2. 큰 작업에서 Superpowers 반드시 사용
-3. 구현 후 검증 스크립트 실행 (`test.sh`, `lint.sh`, `typecheck.sh`)
+3. 구현 후 검증 스크립트 실행 (`test.sh`, `lint.sh`, `typecheck.sh`, `build.sh`)

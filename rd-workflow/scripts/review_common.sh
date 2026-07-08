@@ -95,16 +95,39 @@ load_session_state() {
   REVIEW_GOAL="$(extract_section "$session_file" "Review Goal" | trim_blank_lines)"
 }
 
+# SESSION.md "## Turn Limit" 섹션 첫 줄의 정본 형식에서 turn limit 정수를 추출한다.
+# 정본 형식 (init_review_pipeline.sh 가 작성하는 형식 — 변경 시 양쪽을 함께 갱신):
+#   <N> total turns in `turns/*.md`
+# 인자: $1 = 검사할 한 줄
+# 성공: 정수 N 을 stdout 으로 출력하고 0 반환
+# 실패(형식 불일치): 아무것도 출력하지 않고 1 반환
+parse_turn_limit_line() {
+  local line="$1"
+  # 백틱과 glob(*) 메타문자는 작은따옴표 리터럴 구간으로 묶어 정규식 메타 해석을 막는다.
+  # ^([0-9]+) 만 캡처 그룹. 앵커(^...$)로 줄 전체 일치를 요구한다. (bash 3.2 BASH_REMATCH 호환)
+  if [[ "$line" =~ ^([0-9]+)' total turns in `turns/*.md`'$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
 # Turn Limit을 SESSION.md에서 읽음 (source-of-truth).
 # session_file 우선 → REVIEW_TURN_LIMIT env → default 20 순.
-# SESSION.md의 "## Turn Limit" 섹션 첫 줄에서 첫 숫자를 추출.
+# "## Turn Limit" 섹션 첫 줄을 parse_turn_limit_line 으로 정본 형식 검증 후 추출한다.
+# 섹션이 존재하나 정본 형식과 불일치하면 숫자를 채택하지 않고 stderr 경고 후 fallback 한다.
 read_session_turn_limit() {
   local session_file="$1"
-  local from_session=""
+  local from_session="" first_line=""
   if [[ -f "$session_file" ]]; then
-    from_session="$(extract_section "$session_file" "Turn Limit" \
-      | trim_blank_lines \
-      | awk 'NR==1 { for (i=1; i<=NF; i++) if ($i ~ /^[0-9]+$/) { print $i; exit } }')"
+    first_line="$(extract_section "$session_file" "Turn Limit" | trim_blank_lines | awk 'NR==1')"
+    if [[ -n "$first_line" ]]; then
+      # if ! 로 받아 set -e 트리거를 막는다 (parse 실패 시 1 반환).
+      if ! from_session="$(parse_turn_limit_line "$first_line")"; then
+        from_session=""
+        printf '경고: SESSION.md Turn Limit 형식 미인식 — fallback 적용\n' >&2
+      fi
+    fi
   fi
   if [[ -n "$from_session" && "$from_session" =~ ^[0-9]+$ ]]; then
     printf '%s\n' "$from_session"

@@ -128,6 +128,56 @@ is_template_stub() {
 scripts_dir="${project_root}/rd-workflow/scripts"
 verification_scripts=("test.sh" "lint.sh" "typecheck.sh")
 
+# --- staged hash 캐시 (spec §2 결정 4): 성공만 기록, 불일치/손상/도구부재 → 전체 검증 ---
+VERIFY_CACHE="${project_root}/rd-workflow-workspace/.lifecycle/verify-cache"
+
+# hash 도구 선택 (shasum 우선, sha256sum 폴백, 부재 시 캐싱 비활성)
+_hash_cmd() {
+  if command -v shasum &>/dev/null; then
+    shasum -a 256 | awk '{print $1}'
+  elif command -v sha256sum &>/dev/null; then
+    sha256sum | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+# record-framed 파일 항목: 경로|존재여부|mode|내용hash
+# 경계·존재·권한 변경이 키에 반영되도록 프레이밍 (spec §2 결정 4)
+_file_record() {
+  local f="$1" h
+  if [[ -f "$f" ]]; then
+    h="$(_hash_cmd < "$f")" || return 1
+    printf '%s|present|%s|%s\n' "$f" "$(ls -l "$f" | awk '{print $1}')" "$h"
+  else
+    printf '%s|missing||\n' "$f"
+  fi
+}
+
+# 캐시 키 계산: staged index tree oid + 검증 스크립트 3종 + hook 자체 record-framed 항목
+# git diff --cached concat은 binary 안전성·레코드 경계가 불충분하므로 금지
+compute_verify_key() {
+  local tree
+  tree="$(git write-tree 2>/dev/null)" || return 1
+  {
+    printf 'tree|%s\n' "$tree"
+    local s
+    for s in "${verification_scripts[@]}"; do
+      _file_record "${scripts_dir}/${s}" || return 1
+    done
+    _file_record "${BASH_SOURCE[0]}" || return 1
+  } | _hash_cmd
+}
+
+verify_key="$(compute_verify_key 2>/dev/null || true)"
+if [[ -n "$verify_key" && -f "$VERIFY_CACHE" ]]; then
+  cached="$(head -1 "$VERIFY_CACHE" 2>/dev/null || true)"
+  if [[ "$cached" == "$verify_key" && "$verify_key" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "[hooks] staged 내용·검증 스크립트 무변경 (캐시 일치) — 검증 스킵" >&2
+    exit 0
+  fi
+fi
+
 for script_name in "${verification_scripts[@]}"; do
   script_path="${scripts_dir}/${script_name}"
 
@@ -147,5 +197,11 @@ for script_name in "${verification_scripts[@]}"; do
     exit 2
   fi
 done
+
+# 검증 3종 전부 성공 시에만 캐시 기록 (실패 경로에서는 기록 없음)
+[[ -n "$verify_key" ]] && {
+  mkdir -p "$(dirname "$VERIFY_CACHE")"
+  printf '%s\n' "$verify_key" > "$VERIFY_CACHE"
+}
 
 exit 0

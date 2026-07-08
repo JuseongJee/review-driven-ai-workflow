@@ -93,8 +93,8 @@ Source FR은 이 시점에 채우지 않는다. 해당 FR을 현재 작업으로
 
 - **구현 완료 후 반드시 `/final-diff-review`를 거친다.** 이 단계를 건너뛰고 merge하거나 작업을 종료하지 않는다.
 - **Superpowers가 사용 가능한 환경에서는 반드시 사용한다.** 사용 불가능할 때만 직접 산출물을 작성한다.
-- **검증**: 구현 후 `bash rd-workflow/scripts/test.sh`, `bash rd-workflow/scripts/lint.sh`, `bash rd-workflow/scripts/typecheck.sh`를 실행한다(프로젝트에 맞게 교체).
-- **워크플로 인프라 검증**: rd-workflow 인프라(lifecycle/review/sync 스크립트) 자체를 수정했다면 `bash rd-workflow/scripts/self_test.sh`로 검증한다.
+- **검증**: 구현 후 `bash rd-workflow/scripts/test.sh`, `bash rd-workflow/scripts/lint.sh`, `bash rd-workflow/scripts/typecheck.sh`, `bash rd-workflow/scripts/build.sh`를 실행한다(프로젝트에 맞게 교체). typecheck는 정적 타입/컴파일 검사, build는 산출물 생성까지의 전체 빌드다 — build 실패는 검증 실패다. 아직 교체 전(`TEMPLATE_STUB` 마커 존재)이면 이 스크립트들은 **설계상 exit 1을 반환한다** — plan의 검증 Expected에 exit 0으로 서술하지 말고, 실제 명령 교체 후의 기대값 또는 프로젝트가 정의한 실질 검증 명령 기준으로 쓴다.
+- **워크플로 인프라 검증**: rd-workflow 인프라(lifecycle/review 스크립트) 자체를 수정했다면 `bash rd-workflow/scripts/self_test.sh`로 검증한다.
 
 ## Review 규칙
 
@@ -124,6 +124,8 @@ Source FR은 이 시점에 채우지 않는다. 해당 FR을 현재 작업으로
 ## Task Tracking
 
 ### CURRENT_TASK.md 허용 상태값
+
+- Status/Short Title 변경은 rd task CLI를 경유합니다 (기계 판정 권위: rd-workflow-workspace/.lifecycle/task-state — CURRENT_TASK.md의 해당 필드는 표시용 미러).
 
 Status 필드는 아래 값만 사용합니다 (guard hook이 이 값으로 판정):
 

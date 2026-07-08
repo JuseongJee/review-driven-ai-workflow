@@ -4,6 +4,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd "${script_dir}/../../.." && pwd)"
 source "${script_dir}/_guard_common.sh"
+source "${script_dir}/../_state_common.sh"
 
 task_file="${project_root}/CURRENT_TASK.md"
 
@@ -23,7 +24,13 @@ if [[ ! -f "$task_file" ]]; then
 fi
 
 task="$(extract_section "$task_file" "Task")"
-status="$(extract_section "$task_file" "Status")"
+# Status: task-state 존재 시 task-state 읽기 (v2 2b — 판정 소스 단일화)
+# 부재(마이그레이션 전)에만 CURRENT_TASK.md 산문 파싱 fallback
+if state_file_exists; then
+  status="$(state_read_field "status")"
+else
+  status="$(extract_section "$task_file" "Status")"
+fi
 next_step="$(extract_section "$task_file" "Next Step")"
 
 [[ "$task" == "-" || -z "$task" ]] && task="(설정되지 않음)"

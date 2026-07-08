@@ -7,7 +7,8 @@
 -
 
 ## Status
-intake / planning / reviewing / implementing / validating / blocked / done
+대기 중
+<!-- 허용 상태값 8종은 CLAUDE.md의 Task Tracking 섹션 참조. 변경은 rd task set-status 경유 -->
 
 ## Request
 REQUEST.md
