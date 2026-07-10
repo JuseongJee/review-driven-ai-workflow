@@ -40,3 +40,11 @@ subagent dispatch 후 워킹트리가 교란된 것으로 의심되면:
 - `rd-workflow/claude_skills/comprehensive-audit/SKILL.md` (Phase 2 Explore dispatch)
 
 외부 superpowers skill(`subagent-driven-development`, `using-git-worktrees`)은 본 repo에서 직접 수정할 수 없으므로, 위 통제 지점에서 dispatch prompt에 1번 문구를 주입하는 방식으로 우회한다.
+
+## phase 병렬 dispatch
+
+phase 병렬 실행(`plan-parallel-phases.md`)에서 여러 구현자 subagent를 동시에 dispatch할 때:
+
+- 각 구현자는 자기 task의 **disjoint 파일만 Edit/Write**한다. git 조작(commit 포함)을 하지 않는다 — 동시 커밋은 index 경합을 일으킨다.
+- 커밋은 barrier 후 **orchestrator(실행 세션 본체)가 일괄** 수행한다.
+- 위 git 안전 문구(브랜치 전환 금지)는 병렬 구현자 각각의 dispatch prompt에도 동일하게 포함한다.

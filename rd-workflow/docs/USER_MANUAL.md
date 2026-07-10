@@ -328,7 +328,8 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
   "auto_completion_report": false,
   "intake_source": "text",
   "design_reference_format": "url+screenshot",
-  "fr_github": false
+  "fr_github": false,
+  "default_branch": ""
 }
 ```
 
@@ -338,6 +339,7 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 | `intake_source` | 기획서 입력 방식 | `"text"` / `"text+design"` |
 | `design_reference_format` | 디자인 참고 형식 | `"url+screenshot"` |
 | `fr_github` | FR-GitHub Issues 연동 | `true` / `false` |
+| `default_branch` | lifecycle·diff review 기준 기본 브랜치. 빈 값이면 자동 검출 (origin/HEAD → main/master 유일 매치). 검출 실패·모호 시 이 키 설정을 안내하는 에러 출력 | `""` / `"main"` / `"trunk"` |
 
 ### 7.2 review-tools.json
 
