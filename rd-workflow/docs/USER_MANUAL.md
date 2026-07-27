@@ -140,6 +140,7 @@ Claude Code의 내장 워크플로 기능입니다. 큰 작업에서는 반드�
 idea → validated → ready-for-request → (REQUEST로 승격)
   ↓                                       ↓
 parked (보류)                           done / dropped
+blocked (무인 드레인 set-aside → validated 로 복원 재시도)
 ```
 
 ---

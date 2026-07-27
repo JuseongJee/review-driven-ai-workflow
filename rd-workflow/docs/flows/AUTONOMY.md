@@ -59,3 +59,7 @@ autopilot 모드와 반자율(semi-auto) 모드가 공통으로 따르는 자율
 7. **loop-guard 임계 도달** (`loop_guard_check` 가 return 1): 동일 검증 연속 실패·동일 파일 churn+검증실패·반복 rollback 이 임계를 넘으면 즉시 `awaiting-user` 로 전환하고 사유(loop_guard_check stdout)를 보고한다. 이는 50턴·디버깅 3회와 독립된 별도 중단 조건이다.
 
 **loop-guard signal 기록 (자율 실행 공통)**: autopilot·반자율 모드 모두 autopilot SKILL.md §4와 동일한 규약으로 verify-fail·reedit 등 loop-guard signal 을 기록하고, 각 구현↔검증↔리뷰 사이클 시작 시 `loop_guard_check` 를 실행한다. 이 기록·체크가 있어야 위 중단 조건 7이 실제로 작동한다.
+
+## 무인(headless) 모드 outcome 매핑
+
+무인 진입(autopilot SKILL.md "무인 진입" 섹션)에서는 위 중단조건에 도달해도 사람을 기다릴 수 없다. 따라서 `awaiting-user` 로 멈춰 대기하는 대신, outcome 토큰 `blocked:<reason>` 을 `$RD_AUTOPILOT_OUTCOME_FILE` 에 기록하고 종료한다(중단조건 도달 시 skill 은 해당 FR status 를 `blocked` 로 기록하고 `CURRENT_TASK.md` 를 `대기 중`/Short Title `-` 로 reset 한다 — 보존 상태는 FR 의 blocked 항목이 든다. 상세는 autopilot SKILL.md "중단조건 → blocked 매핑"). 정상 완주는 `completed`, 세션 한계는 `resume`, 큐 빔은 `queue-empty` 다. wrapper `rd-workflow/scripts/autopilot_headless.sh` 가 이를 exit code(0/10/20/30/40)로 매핑한다. exit code 해석은 front-end(ralph/batch) 소관이다.
