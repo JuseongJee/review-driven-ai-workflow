@@ -344,17 +344,30 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 
 ### 7.2 review-tools.json
 
-리뷰 도구 우선순위와 모델 설정. `/review-config setup` 스킬로 대화형 설정 가능.
+리뷰 도구 우선순위와 모델·추론 깊이 설정. `/review-config setup` 스킬로 대화형 설정 가능.
 
 ```json
 {
   "default_priority": ["codex", "claude"],
   "tools": {
-    "codex": { "bin": "codex", "model": "gpt-5.4" },
+    "codex": { "bin": "codex", "reasoning_effort": null, "small_task_reasoning_effort": "medium" },
     "claude": { "bin": "claude", "model": "opus" }
+  },
+  "overrides": {
+    "request-review": { "tools": { "codex": { "reasoning_effort": "medium" } } }
   }
 }
 ```
+
+**codex 에는 `model` 을 두지 않습니다.** 모델은 전역 `~/.codex/config.toml` 이 단일 진실 원천이며,
+여기서 조절하는 것은 추론 깊이(`reasoning_effort`)뿐입니다. 설정을 두 곳에 두면 어느 쪽이 적용됐는지
+알 수 없게 되므로 의도적으로 뺀 필드입니다.
+
+- 키가 없으면 **아무것도 전달하지 않고** 전역 설정을 그대로 따릅니다 (이 기능 도입 전과 동일한 동작).
+- 우선순위: `RD_REVIEW_EFFORT_OVERRIDE` kill switch → small-task → 리뷰 타입 override → tool 기본 → 미전달.
+- `RD_REVIEW_EFFORT_OVERRIDE=0` 이면 설정을 남긴 채 즉시 무력화합니다.
+- 적용 결과는 턴 완료 시 `effort override: <상태>` 로 표시됩니다.
+- 키·허용값·하한 규칙은 `rd-workflow/docs/guides/config_reference.md` 를 참조하십시오.
 
 ### 7.3 model-strategy.json
 
