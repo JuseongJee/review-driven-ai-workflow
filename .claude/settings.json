@@ -5,7 +5,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "bash rd-workflow/scripts/hooks/stop_task_save_reminder.sh"
+                        "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/rd-workflow/scripts/hooks/stop_task_save_reminder.sh"
                     }
                 ]
             }
@@ -15,7 +15,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "bash rd-workflow/scripts/hooks/session_start.sh"
+                        "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/rd-workflow/scripts/hooks/session_start.sh"
                     }
                 ]
             }
@@ -26,19 +26,19 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "bash rd-workflow/scripts/hooks/pre_commit_verify.sh"
+                        "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/rd-workflow/scripts/hooks/pre_commit_verify.sh"
                     },
                     {
                         "type": "command",
-                        "command": "bash rd-workflow/scripts/hooks/pre_commit_review_gate.sh"
+                        "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/rd-workflow/scripts/hooks/pre_commit_review_gate.sh"
                     },
                     {
                         "type": "command",
-                        "command": "bash rd-workflow/scripts/hooks/pre_commit_archive_gate.sh"
+                        "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/rd-workflow/scripts/hooks/pre_commit_archive_gate.sh"
                     },
                     {
                         "type": "command",
-                        "command": "bash rd-workflow/scripts/hooks/fr_branch_gate.sh"
+                        "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/rd-workflow/scripts/hooks/fr_branch_gate.sh"
                     }
                 ]
             },
@@ -47,7 +47,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "bash rd-workflow/scripts/hooks/implementation_gate.sh"
+                        "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/rd-workflow/scripts/hooks/implementation_gate.sh"
                     }
                 ]
             },
@@ -56,7 +56,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "bash rd-workflow/scripts/hooks/implementation_gate.sh"
+                        "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/rd-workflow/scripts/hooks/implementation_gate.sh"
                     }
                 ]
             }
