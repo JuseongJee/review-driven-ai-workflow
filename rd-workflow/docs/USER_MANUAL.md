@@ -340,6 +340,7 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 | `intake_source` | 기획서 입력 방식 | `"text"` / `"text+design"` |
 | `design_reference_format` | 디자인 참고 형식 | `"url+screenshot"` |
 | `fr_github` | FR-GitHub Issues 연동 | `true` / `false` |
+| `defect_report_upstream` | rd-workflow 인프라 결함 보고서를 보낼 대상 저장소. `owner/repo`(github.com) 또는 `host/owner/repo`. 업그레이드 시 배포 URL에서 자동으로 채워지며, **이미 값이 있으면 덮어쓰지 않습니다**. 정본 저장소로 직접 보내려면 여기에 미리 적어 두면 업그레이드 후에도 유지됩니다 | `""` (미설정 — 전달 보류) |
 | `default_branch` | lifecycle·diff review 기준 기본 브랜치. 빈 값이면 자동 검출 (origin/HEAD → main/master 유일 매치). 검출 실패·모호 시 이 키 설정을 안내하는 에러 출력 | `""` / `"main"` / `"trunk"` |
 
 ### 7.2 review-tools.json

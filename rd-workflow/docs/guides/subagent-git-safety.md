@@ -7,8 +7,9 @@ subagent-driven-development으로 dispatch한 subagent는 **공유 git 워킹트
 subagent를 dispatch할 때 아래 문구를 dispatch prompt에 **그대로 포함**한다:
 
 > 이 작업은 공유 git 워킹트리에서 실행됩니다. `git checkout` / `git switch` / `git branch` / `git worktree` 등 브랜치·작업트리를 전환하거나 생성/삭제하는 명령을 절대 실행하지 마십시오. git은 읽기 전용(`git log` / `git diff` / `git show` / `git status` / `git rev-parse`)으로만 사용하십시오. 브랜치 전환이 필요하다고 판단되면 실행하지 말고 그 사실을 결과에 보고하십시오. commit은 메인 세션이 수행합니다.
+> 또한 `CURRENT_TASK.md` / `REQUEST.md` / `rd-workflow-workspace/.lifecycle/task-state` 는 orchestrator 전용 공유 진행 상태입니다. 수정하지 마십시오 — 진행 상황·완료 보고는 결과 텍스트로 반환하면 orchestrator 가 반영합니다.
 
-이 문구는 **advisory**다 — LLM이 무시할 수 있다. 구조적 차단은 2번(worktree 격리)만 보장한다.
+git 전환 금지는 **advisory**입니다 — LLM이 무시할 수 있고, 그 부분의 구조적 차단은 2번(worktree 격리)만 보장합니다. 반면 **공유 진행 상태 금지는 advisory가 아닙니다** — `implementation_gate.sh` 가 hook 입력 **최상위**의 subagent 전용 필드(`agent_type`, 없으면 `agent_id`) 존재와 대상 3종을 판정해 `exit 2` 로 차단합니다. `tool_input` 하위의 동명 필드는 판별에 쓰지 않습니다. 단 이 차단은 `Edit`·`Write` 도구 경유에 한합니다 — `Bash` 로 직접 쓰는 경로는 이 hook 의 matcher 밖이라 발동하지 않으며, 그 경우 위 dispatch 문구가 최종 방어선입니다.
 
 ## 2. worktree 격리 권장 (선택)
 
@@ -47,4 +48,4 @@ phase 병렬 실행(`plan-parallel-phases.md`)에서 여러 구현자 subagent�
 
 - 각 구현자는 자기 task의 **disjoint 파일만 Edit/Write**한다. git 조작(commit 포함)을 하지 않는다 — 동시 커밋은 index 경합을 일으킨다.
 - 커밋은 barrier 후 **orchestrator(실행 세션 본체)가 일괄** 수행한다.
-- 위 git 안전 문구(브랜치 전환 금지)는 병렬 구현자 각각의 dispatch prompt에도 동일하게 포함한다.
+- 위 git 안전 문구(브랜치 전환 금지 + 공유 진행 상태 수정 금지)는 병렬 구현자 각각의 dispatch prompt에도 동일하게 포함한다.
