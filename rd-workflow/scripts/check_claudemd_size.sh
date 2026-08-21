@@ -4,7 +4,20 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd "${script_dir}/../.." && pwd)"
 
-limit="${CLAUDEMD_LINE_LIMIT:-200}"
+# **재는 단위는 글자 수입니다 (줄 수가 아닙니다).**
+# 이 파일이 비용을 발생시키는 지점은 "매 세션 컨텍스트에 실리는 분량" 이고, 그것은 줄 수와
+# 비례하지 않습니다. 줄 수 제한은 한 줄에 무엇을 얼마나 넣든 세지 않으므로, 문장을 길게
+# 이어 붙이는 방식으로 얼마든지 우회되고(제한 안에서 분량이 2배가 되어도 통과) 반대로
+# 짧은 항목을 줄바꿈으로 나열하는 정상적인 편집은 분량이 늘지 않았는데도 막습니다.
+# 바이트가 아니라 글자로 재는 것은 한글이 UTF-8 에서 3바이트라 바이트 기준이 언어에 따라
+# 3배로 다른 제한이 되기 때문입니다 — 토큰 수에 더 가까운 쪽이 글자 수입니다.
+#
+# 구 변수 `CLAUDEMD_LINE_LIMIT` 는 의미가 달라졌으므로 값으로 인정하지 않고, 설정된 채로
+# 남아 있으면 "제한을 올려 뒀다고 착각한 상태" 이므로 경고합니다.
+limit="${CLAUDEMD_CHAR_LIMIT:-12000}"
+if [[ -n "${CLAUDEMD_LINE_LIMIT:-}" ]]; then
+  echo "[claudemd-guard] 경고: CLAUDEMD_LINE_LIMIT 는 더 이상 쓰이지 않습니다 — 글자 수 제한은 CLAUDEMD_CHAR_LIMIT 로 지정합니다 (현재 제한 ${limit}자)" >&2
+fi
 
 # 검사 대상은 둘입니다.
 #
@@ -35,7 +48,7 @@ _add_reason() {
 }
 
 _measure() {
-  local kind="$1" path="$2" label="$3" line_count
+  local kind="$1" path="$2" label="$3" char_count
   if [[ ! -f "$path" ]]; then
     if [[ "$kind" == "REQUIRED" ]]; then
       echo "[claudemd-guard] ${label}: 파일 없음 — ${path}" >&2
@@ -46,13 +59,16 @@ _measure() {
     fi
     return 0
   fi
-  line_count="$(wc -l < "$path" | tr -d '[:space:]')"
-  if [[ "$line_count" -gt "$limit" ]]; then
-    echo "[claudemd-guard] ${label}: ${line_count}줄 — 초과 (제한 ${limit}줄)" >&2
-    _add_reason "${label} ${line_count}줄 > 제한 ${limit}줄: ${path}"
+  # `wc -m` 은 로케일의 멀티바이트 해석에 의존합니다. C 로케일에서는 바이트를 세므로
+  # 한글 파일이 3배로 계산돼 같은 파일이 환경에 따라 통과·실패로 갈립니다. 그래서 여기서
+  # UTF-8 로케일을 명시합니다.
+  char_count="$(LC_ALL=en_US.UTF-8 wc -m < "$path" | tr -d '[:space:]')"
+  if [[ "$char_count" -gt "$limit" ]]; then
+    echo "[claudemd-guard] ${label}: ${char_count}자 — 초과 (제한 ${limit}자)" >&2
+    _add_reason "${label} ${char_count}자 > 제한 ${limit}자: ${path}"
     rc=1
   else
-    echo "[claudemd-guard] ${label}: ${line_count}줄 (제한 ${limit}줄 이내)"
+    echo "[claudemd-guard] ${label}: ${char_count}자 (제한 ${limit}자 이내)"
   fi
   return 0
 }
@@ -63,7 +79,7 @@ _measure OPTIONAL "${project_root}/_ROOT_FILES/CLAUDE.md"   "배포 정본 CLAUD
 if [[ "$rc" -ne 0 ]]; then
   echo "[claudemd-guard] 실패 이유:" >&2
   echo "$reasons" >&2
-  echo "[claudemd-guard] 각 줄에 대해 '이 줄을 삭제해도 실수가 발생하는가?' 테스트를 적용하세요." >&2
+  echo "[claudemd-guard] 각 문장에 대해 '이 문장을 삭제해도 실수가 발생하는가?' 테스트를 적용하세요." >&2
   exit 1
 fi
 

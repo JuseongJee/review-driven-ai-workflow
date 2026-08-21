@@ -449,7 +449,7 @@ UI 작업 시 디자인 레퍼런스 대비 검증 게이트.
 |---------|------|
 | `rd-workflow/scripts/install_claude_skills.sh` | 스킬을 Claude Code에 설치 (link/copy) |
 | `rd-workflow/scripts/sync_template.sh` | 배포 repo에서 최신 템플릿 동기화 |
-| `rd-workflow/scripts/check_claudemd_size.sh` | CLAUDE.md 200줄 초과 경고 |
+| `rd-workflow/scripts/check_claudemd_size.sh` | CLAUDE.md 12000자 초과 차단 (`CLAUDEMD_CHAR_LIMIT` 로 조정) |
 | `rd-workflow/scripts/adapter_codex.sh` | Codex 리뷰 어댑터 |
 | `rd-workflow/scripts/adapter_claude.sh` | Claude 리뷰 어댑터 (self-review) |
 
