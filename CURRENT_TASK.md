@@ -13,6 +13,10 @@
 ## Request
 REQUEST.md
 
+## Source FR
+-
+<!-- 권위는 rd-workflow-workspace/.lifecycle/task-state. 변경은 rd task set-source-fr 경유 -->
+
 ## Spec
 -
 
