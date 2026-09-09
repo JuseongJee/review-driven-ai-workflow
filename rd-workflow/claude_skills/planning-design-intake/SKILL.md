@@ -1,10 +1,11 @@
 ---
 name: planning-design-intake
 description: Convert planning document text into REQUEST.md. Use when the user has external planning docs (from Notion, Confluence, etc.) to convert into a structured REQUEST. v1 requires pasted planning text; design references (Figma URLs, screenshots) are optional.
-disable-model-invocation: true
 ---
 
 # Planning Design Intake
+
+`manual` 모드에서는 사용자의 단계 진입 지시 없이 이 skill 을 스스로 시작하지 않는다. 판정 기준은 `rd-workflow/docs/flows/AUTONOMY.md` 의 「실행 모드와 skill 호출 권한」 절이다.
 
 기획서 텍스트를 REQUEST.md로 변환한다. (v1: 기획서 텍스트 필수, 디자인 레퍼런스는 선택)
 
@@ -121,6 +122,8 @@ canonical 정규화: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$` (영문 kebab-case, 영�
 | Risks | 리스크, 의존성 |
 | Affected Area | 영향 범위 (추론) |
 | Platform | PROJECT_CONTEXT.md 참조 |
+
+생성 시 `## Risk Tier` 6항목(최종 등급 `- 최종 등급: full`, 최초 등급, baseline HEAD, 근거 신호, override·상향 이력, 변경 파일 요약)도 함께 채운다 — 이 skill 이 만드는 REQUEST 는 `full` 경로다.
 
 ### 5. 빈 필드 알림 + 신뢰도 판단
 

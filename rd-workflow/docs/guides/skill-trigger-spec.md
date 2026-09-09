@@ -50,19 +50,19 @@ REQUEST review → spec/plan 작성 → spec/plan review까지 끌고 갑니다.
   - "이거 큰 작업이니 spec부터 잡고 가자"
   - "기존 코드 중간 이상 바꾸는 거라 plan 리뷰까지 받자"
 - **should-NOT-trigger**
-  - "small-task로 보고 바로 구현해줘" → `small-task-implement`
+  - "이 버그 바로 고쳐줘: [설명]" (등급 판정 `standard`) → `small-task-implement`
   - "아직 요구사항이 자유 텍스트라 정리부터 해야 해" → `planning-design-intake` (REQUEST.md 선행 필요)
   - "plan은 이미 리뷰됐고 구현만 하면 돼" → `implement-reviewed-plan`
 
 ### small-task-implement
 
-`REQUEST.md`에서 작은 변경을 바로 구현합니다. **사용자가 명시적으로 small-task로 지정한 경우에만** 사용하며, AI가 스스로 작은 작업이라 판단해 쓰지 않습니다.
+`standard` 등급 변경을 바로 구현합니다. 등급은 `WORKFLOW.md` 위험 등급 절의 신호표로 판정하며 하향은 사용자만 합니다.
 
 - **should-trigger**
-  - "small-task로 보고 바로 구현해줘"
+  - "standard 로 보고 바로 구현해줘"
   - "이거 작은 수정이니 바로 처리해줘"
 - **should-NOT-trigger**
-  - "이거 큰 작업 같은데 어떻게 할까" → `workflow-router` / `request-to-reviewed-plan` (규모가 큼 — AI의 자체 small 판단 금지)
+  - "이거 큰 작업 같은데 어떻게 할까" → `workflow-router` / `request-to-reviewed-plan` (규모가 큼 — 모호하면 한 단계 위 등급)
   - "리뷰 끝난 plan대로 구현해" → `implement-reviewed-plan`
   - "이거 나중에 하게 기록만 해둬" → `fr`
 
@@ -117,12 +117,12 @@ future request(backlog) 관리입니다 — 등록·목록·우선순위·아카
 - **should-NOT-trigger**
   - "이 작업 단계별로 같이 보면서 하자" → 수동 워크플로 (`workflow-router` 등)
   - "FR 목록만 보여줘" → `fr`
-  - "small-task로 바로 구현해줘" → `small-task-implement`
+  - "바로 구현해줘: [설명]" (등급 판정 `standard`) → `small-task-implement`
 
 ---
 
 ## 알려진 경계 모호성
 
-- **request-to-reviewed-plan ↔ small-task-implement**: 규모로 갈립니다. 프로젝트 규칙상 AI가 스스로 small-task로 판단하는 것은 금지이며, 사용자가 명시해야 small-task-implement로 갑니다. 모호하면 `workflow-router`로 보냅니다.
+- **request-to-reviewed-plan ↔ small-task-implement**: 등급으로 갈립니다 — `full` 은 request-to-reviewed-plan, `standard` 는 small-task-implement. 모호하면 한 단계 위 등급이며 `workflow-router`로 보냅니다.
 - **implement-reviewed-plan ↔ request-to-reviewed-plan**: reviewed plan 존재 여부로 갈립니다. plan이 아직 없으면 r2rp가 먼저입니다.
 - **final-diff-review ↔ code-review ↔ review**: 위 final-diff-review 항목의 경계 주의 참고.

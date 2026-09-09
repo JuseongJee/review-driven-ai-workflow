@@ -23,7 +23,11 @@ source "${_TC_DIR}/hooks/_guard_common.sh"
 # slug 정규화 단일 출처 — promote.sh 와 같은 규칙이어야 두 경로가 같은 값을 만든다
 source "${_TC_DIR}/lifecycle/slug.sh"
 
-TASK_CANONICAL_STATUSES=("대기 중" "REQUEST review 대기" "spec/plan 작성 중" "spec/plan review 대기" "구현 중" "검증 중" "diff review 대기" "완료")
+# canonical 9종 (LC-19) — `_state_common.sh` 의 STATE_CANONICAL_STATUSES 와 **같은 집합**이어야
+# 합니다. 한쪽만 고치면 CLI 는 받아들이는데 권위 파일 검증이 거부하는 어긋난 중간 상태가
+# 생깁니다 (self_test 의 LC-19 3자 일치 검증이 이 어긋남을 잡습니다).
+# `아카이브 보류` 는 「리뷰 종결·발행 대기」입니다 (change-spec §4.1) — 완료가 아닙니다.
+TASK_CANONICAL_STATUSES=("대기 중" "REQUEST review 대기" "spec/plan 작성 중" "spec/plan review 대기" "구현 중" "검증 중" "diff review 대기" "아카이브 보류" "완료")
 
 task_status_canonical() {
   local s="$1" c
@@ -64,6 +68,9 @@ assert_no_symlink_in_path() {
 
 # LC-19/21: 상태 전이표 — 단일 출처 (spec §5). 모든 상태→'대기 중'은 중단/rollback 경로(LC-14).
 # '구현 중→spec/plan 작성 중'은 autopilot 모드 B→A 중간 승격 경로 (autopilot SKILL.md "실행 모드" 참조).
+# '아카이브 보류'(change-spec §4.1)는 리뷰 종결과 발행 사이의 상태다. 'diff review 대기' 에서
+# 들어와 '완료' 로 나가며, '구현 중' 으로 되돌아갈 수도 있다 — 리뷰 후 변경이 필요해진 경우이고,
+# 그때는 보호 트리 해시 판정이 기존 종결을 무효로 만든다.
 task_transition_allowed() {
   local from="$1" to="$2"
   [[ "$to" == "대기 중" ]] && return 0
@@ -74,7 +81,9 @@ task_transition_allowed() {
     "spec/plan review 대기→spec/plan 작성 중"|"spec/plan review 대기→구현 중"|\
     "구현 중→spec/plan 작성 중"|\
     "구현 중→검증 중"|"검증 중→구현 중"|"검증 중→diff review 대기"|\
-    "diff review 대기→구현 중"|"diff review 대기→완료") return 0 ;;
+    "diff review 대기→구현 중"|"diff review 대기→완료"|\
+    "diff review 대기→아카이브 보류"|"아카이브 보류→완료"|\
+    "아카이브 보류→구현 중") return 0 ;;
   esac
   return 1
 }
@@ -82,7 +91,7 @@ task_transition_allowed() {
 task_set_status() {
   local to="$1" force="${2:-0}" from rc=0
   if ! task_status_canonical "$to"; then
-    echo "허용되지 않은 Status 값: ${to} (canonical 8종만 허용 — LC-19)" >&2
+    echo "허용되지 않은 Status 값: ${to} (canonical 9종만 허용 — LC-19)" >&2
     return 4
   fi
   from="$(task_read_status)" || {
@@ -140,7 +149,7 @@ task_guard_decide() {
         echo "message=CURRENT_TASK.md에 ## Short Title 섹션이 없습니다. 갱신 없이 진행합니다."
         return 0
       fi
-      printf '## Short Title\n-\n\n' >> "$file"   # intake/promote: 부재 = write 대상 (small-task 현행 의미)
+      printf '## Short Title\n-\n\n' >> "$file"   # intake/promote: 부재 = write 대상 (`standard` 등급 현행 의미)
     fi
     cur="$(_extract_task_section "Short Title")"
   fi

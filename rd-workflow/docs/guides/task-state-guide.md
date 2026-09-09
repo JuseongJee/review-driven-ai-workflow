@@ -1,7 +1,7 @@
 # task-state 가이드
 
 `rd-workflow-workspace/.lifecycle/task-state` — v2 Phase 2b에서 도입된 단일 권위 상태 파일.
-**Short Title / Status / fr-branch / worktree-path / source-fr / extensions.*** 의 기계 판정 소스.
+**Short Title / Status / fr-branch / worktree-path / source-fr / base-commit / review-session / extensions.*** 의 기계 판정 소스.
 
 ## 스키마
 
@@ -9,14 +9,16 @@
 |----|--------|--------|------|
 | `schema` | `1` | lifecycle | 파일 형식 버전 |
 | `short-title` | kebab-case slug \| `-` (sentinel) | `rd task set-status` / promote | LC-18: 단 한 번 설정, 이후 immutable |
-| `status` | canonical 8종 (아래 목록) | `rd task set-status` / guard | LC-19: 집합 불변 |
+| `status` | canonical 9종 (아래 목록) | `rd task set-status` / guard | LC-19: 집합 불변 |
 | `fr-branch` | `fr/<slug>` \| `null` | promote / archive | fr 활성 여부는 `!= null` 로 판정 |
 | `worktree-path` | 절대 경로 \| `null` | promote / archive | worktree 미사용 시 `null` |
 | `source-fr` | `rd-workflow-workspace/backlog/items/<파일>.md` \| `-` | promote / `rd task set-source-fr` | FR 출처 경로 — 아래 'source-fr 계약' 참조 |
+| `base-commit` | full commit OID \| `null` | promote / `rd task set-base` | 작업 시작 커밋 — 아래 'base-commit / review-session 계약' 참조 |
+| `review-session` | diff-review session-id \| `null` | `prepare_review_pipeline.sh diff` / archive | final diff review 세션 포인터 — 같은 절 참조 |
 | `created-at` | `YYYY-MM-DD-HHMM` 형식 | promote | fr 활성 기간에만 기록; 비활성 시 부재 가능 |
 | `extensions.<ext-name>.<key>` | 자유 문자열 (개행 금지) | extension | 아래 규약 참조 |
 
-### canonical 8종 Status (LC-19)
+### canonical 9종 Status (LC-19)
 
 ```
 대기 중
@@ -26,8 +28,25 @@ spec/plan review 대기
 구현 중
 검증 중
 diff review 대기
+아카이브 보류
 완료
 ```
+
+`아카이브 보류` 의 의미는 「**리뷰 종결·발행 대기**」이며 **완료가 아닙니다.** final diff review 가 종결되고 종결 마커(`rd review seal`)를 만든 뒤, `archive.sh` 로 발행하기 전까지의 구간입니다. 이 상태에서만 `pre_commit_archive_gate.sh` 가 archive 기록 커밋(REQUEST 아카이브·FR done·completion report 등 워크플로 기록 경로만 바꾸는 커밋)을 통과시킵니다.
+
+전이는 세 가지입니다 (`_task_common.sh` 의 전이표가 단일 출처입니다).
+
+```
+diff review 대기 → 아카이브 보류      리뷰 종결 후 진입
+아카이브 보류   → 완료                 발행 완료
+아카이브 보류   → 구현 중              리뷰 후 변경이 필요해 되돌아감
+```
+
+되돌아가면 보호 경로가 바뀌므로 기존 마커의 트리 해시가 어긋나고, 재리뷰·재seal 없이는 다시 발행할 수 없습니다.
+
+**게이트가 보는 것은 index 만이 아닙니다.** hook 은 커밋 명령이 실행되기 **전**에 돌므로, `git commit -a`·`git commit <경로>` 처럼 커밋 집합을 명령 실행 중에 만드는 형태에서는 index 가 비어 있습니다. 그래서 판정 대상은 **index ∪ 워킹트리(추적 파일)** 이고, 보류 상태에서 기록 경로 밖의 파일이 **수정되어 있기만 해도** 커밋이 막힙니다. 코드 변경이 필요해진 것이므로 복구 경로는 상태를 되돌리는 것입니다: `bash rd-workflow/scripts/rd task set-status "구현 중"`.
+
+이 판정은 Source FR status 검사보다 **앞**에 있습니다. 정상 archive content commit 은 바로 그 커밋에서 FR 을 `done` 으로 바꾸므로, 순서가 뒤바뀌면 워킹트리의 `done` 표기 하나로 제한이 통째로 우회됩니다.
 
 ### 파일 형식 예시
 
@@ -38,6 +57,8 @@ status=구현 중
 fr-branch=fr/my-feature
 worktree-path=/path/to/worktree
 source-fr=rd-workflow-workspace/backlog/items/2026-07-05-my-feature.md
+base-commit=3f2a1c9d8e7b6a5f4c3d2e1b0a9f8e7d6c5b4a39
+review-session=20260906_101500_final-diff-review
 created-at=2026-07-05-1030
 ```
 
@@ -60,6 +81,24 @@ created-at=2026-07-05-1030
   - `lifecycle/promote.sh`: `--source-fr` 인자 > `REQUEST.md ## Source FR` 해석 > `-`. 명시 인자가 있으면 REQUEST 를 읽지도 해석하지도 않는다.
 - **리셋 시점**: `metadata_clear` (`lifecycle/archive.sh`·`lifecycle/promote_rollback.sh`) 가 `-`로 복원.
 - **정정 CLI**: `rd task source-fr` (조회), `rd task set-source-fr <값>` (검증 후 설정 — 직접 파일 편집 금지).
+
+### base-commit / review-session 계약
+
+두 필드의 **미설정 sentinel 은 `null`** 입니다 (`fr-branch`·`worktree-path` 와 같은 규칙). `-` 나 빈 문자열을 미설정으로 쓰지 않습니다.
+
+**`base-commit`** — 이 작업이 시작된 커밋. 값은 **full commit OID** 이며 `main` 같은 ref 이름을 저장하지 않습니다. ref 를 저장하면 그 ref 가 움직였을 때 "작업 시작 커밋" 이 조용히 달라집니다.
+
+- 기록: `lifecycle/promote.sh` 가 fr 브랜치 승격 **직전 HEAD** 를 OID 로 기록합니다.
+- 수동 설정: `rd task set-base <ref>` — **입력이 ref 여도 저장 시점에 `git rev-parse --verify <ref>^{commit}` 으로 OID 를 resolve** 해 기록하고, 커밋으로 해석되지 않으면 기록하지 않고 nonzero 로 끝냅니다. promote 를 쓰지 않는 프로젝트(fr 브랜치 없이 기본 브랜치에서 작업)는 이 명령으로 1회 설정합니다.
+- 소비: `prepare_review_pipeline.sh diff` 의 base 판정 우선순위 3번 (`FILE_BASED_REVIEW_PIPELINE.md` 참조).
+- 구현: `state_read_base_commit` / `state_write_base_commit` (`_state_common.sh`).
+
+**`review-session`** — final diff review 세션 포인터. `prepare_review_pipeline.sh diff` 가 세션을 만들 때 그 session-id 를 기록하고, 발행 게이트는 디렉터리를 뒤지지 않고 **이 값 하나로** 종결 마커 경로(`rd-workflow-workspace/.lifecycle/review-seals/<session-id>.seal`) 를 조립합니다.
+
+- 값은 session-id 하나입니다. **경로 구분자(`/`·`\`)나 `..` 가 섞이면 basename 으로 깎지 않고 거부**합니다 — 조용히 깎으면 사용자가 지정한 것과 다른 마커를 읽게 됩니다.
+- 구현: `state_read_review_session` / `state_write_review_session` (`_state_common.sh`).
+
+**리셋**: 두 필드 모두 `lifecycle_owned_state_keys`(`lifecycle/_lifecycle_common.sh` — archive 가 task-state 에서 바꾸는 키의 단일 출처) 에 포함되며, `metadata_clear` 가 `null` baseline 으로 되돌립니다 (`archive.sh`·`promote_rollback.sh`). 되돌리지 않으면 다음 작업이 이전 작업의 base·세션 포인터를 물려받습니다.
 
 ---
 
@@ -89,7 +128,7 @@ extensions.<ext-name>.<key>=<value>
 ```
 
 - `<ext-name>` 은 extension 디렉토리명 (`claude_skills/<ext-name>/`)과 일치시킵니다.
-- 예약 키(`schema`, `short-title`, `status`, `fr-branch`, `worktree-path`, `source-fr`, `created-at`)와 충돌하는 이름은 금지합니다. CLI가 자동 거부하지 않으므로 명명 규칙을 준수해야 합니다.
+- 예약 키(`schema`, `short-title`, `status`, `fr-branch`, `worktree-path`, `source-fr`, `base-commit`, `review-session`, `created-at`)와 충돌하는 이름은 금지합니다. CLI가 자동 거부하지 않으므로 명명 규칙을 준수해야 합니다.
 - 값에 개행 문자를 포함할 수 없습니다(LC-06).
 
 ---
@@ -102,7 +141,7 @@ extensions.<ext-name>.<key>=<value>
 2. `task-state` 부재, `CURRENT_TASK.md` 존재:
    - CURRENT_TASK.md의 `## Status` 섹션에서 Status를 추출합니다.
    - legacy alias `실행 중` → `구현 중` 자동 변환합니다.
-   - Status가 canonical 8종이 아니면 **fail-closed**: task-state를 만들지 않고 exit 3 + 복구 안내 메시지 출력(SEC-13).
+   - Status가 canonical 9종이 아니면 **fail-closed**: task-state를 만들지 않고 exit 3 + 복구 안내 메시지 출력(SEC-13).
    - `active-fr`(있으면)에서 fr-branch / worktree-path / short-title을 추출합니다.
    - 백업 저장: `.lifecycle/migration-backup/<YYYYMMDD-HHMMSS>/CURRENT_TASK.md` 및 `active-fr`
    - task-state 생성 후 active-fr 삭제(단일 트랜잭션 — 임시 파일 + mv).
@@ -118,7 +157,7 @@ rd-workflow-workspace/.lifecycle/migration-backup/<YYYYMMDD-HHMMSS>/
 
 ### 실패 시 복구
 
-1. `CURRENT_TASK.md`의 `## Status` 값을 canonical 8종 중 하나로 수정합니다.
+1. `CURRENT_TASK.md`의 `## Status` 값을 canonical 9종 중 하나로 수정합니다.
 2. task-state 파일이 잔존하면 삭제합니다(`rm rd-workflow-workspace/.lifecycle/task-state`).
 3. `rd task status` 재실행 → 마이그레이션 재시도.
 
@@ -140,7 +179,7 @@ v2 Phase 2b 이전의 `LIFECYCLE_METADATA_PATH` 환경 변수(`.lifecycle/active
 
 ## 관련 파일
 
-- `_state_common.sh` — task-state I/O 함수 (`state_file_exists`, `state_read_field`, `state_write_fields`, `state_ensure`)
+- `_state_common.sh` — task-state I/O 함수 (`state_file_exists`, `state_read_field`, `state_write_fields`, `state_ensure`) + 신설 필드 접근자 (`state_read_base_commit`, `state_write_base_commit`, `state_read_review_session`, `state_write_review_session`)
 - `_task_common.sh` — CLI 계층 (`TASK_CANONICAL_STATUSES`, `task_read_status`)
 - `hooks/_guard_common.sh` — guard 판정 함수 (`get_task_status`, `get_current_short_title`)
 - `lifecycle/_lifecycle_common.sh` — `metadata_*` 래퍼 + loop-guard helper

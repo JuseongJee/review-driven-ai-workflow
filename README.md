@@ -63,7 +63,7 @@ AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합�
 
 ## 사용 예시 — 단계별 프롬프트
 
-### 큰 작업
+### `full` 등급
 
 ```text
 1. "이 요구사항으로 진행해줘: 사진 슬라이드쇼에 줌/팬 기능 추가"
@@ -80,11 +80,11 @@ AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합�
 5. (diff review 확인 후) "커밋해줘"
 ```
 
-### 작은 작업
+### `standard` 등급
 
 ```text
-1. "small-task로 바로 해줘: 로그인 버튼 색상을 파란색으로 변경"
-   → AI가 바로 구현 → 검증 → diff review까지 진행합니다
+1. "로그인 버튼 색상을 파란색으로 바꿔줘"
+   → AI 가 등급(`standard`) 을 보고하고 구현 → 검증 → diff review 까지 진행합니다
 ```
 
 ### Autopilot
@@ -98,17 +98,19 @@ AI가 필요한 파일을 가져와서 프로젝트 구조에 맞게 배치합�
 
 ## 워크플로
 
-모든 작업은 크기에 따라 두 경로로 나뉩니다.
+모든 작업은 위험 등급(`light` / `standard` / `full`) 에 따라 절차가 달라집니다. 등급은 AI 가 `rd-workflow/docs/flows/WORKFLOW.md` 위험 등급 절의 신호표로 판정해 시작 보고를 내고, 하향은 사용자만 합니다.
 
-### 큰 작업 (기능 추가, 중간 이상 변경)
+### `full` (새 기능, 인터페이스·인프라 동작 변경)
 
 FR 자동 등록 → REQUEST 작성 → REQUEST review → spec → plan → spec/plan review → 구현 → 검증 → diff review
 
-### 작은 작업 (사용자가 small-task로 지정)
+### `standard` (국소 동작 변경)
 
-FR 자동 등록 → REQUEST 정리 → 구현 → 검증 → diff review
+promote → 축약 REQUEST → 구현 → 검증 → 재분류 → diff review → 아카이브
 
-사용자가 작업을 요청하면 먼저 FR(Future Request)에 자동 등록된 뒤 워크플로가 시작됩니다. AI가 자체적으로 크기를 판단하지 않습니다. 사용자가 명시적으로 small-task로 지정한 경우에만 작은 작업 경로를 탑니다.
+### `light` (문구·주석·포맷)
+
+구현 → 검증 → 재분류 → 기본 브랜치 커밋 1회 (+ `reports/tier-log.md` 행)
 
 ### 각 단계가 하는 일
 

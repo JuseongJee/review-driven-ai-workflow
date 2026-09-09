@@ -81,6 +81,8 @@ setup_repo() {
     cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/_state_common.sh rd-workflow/scripts/; \
     cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/_task_common.sh rd-workflow/scripts/; \
     cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/rd rd-workflow/scripts/; \
+    cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/_fr_register_common.sh rd-workflow/scripts/; \
+    cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/fr_backlog_scan.sh rd-workflow/scripts/; \
     git add -A; \
     git commit -q -m "init"
   )
@@ -650,17 +652,41 @@ _tag11="$(cd "$REPO" && git tag --list "fr/*/test-master" | head -1)"
 ( cd "$REPO" && git tag --list "fr/*/test-master" | grep -q . ) \
   && pass "master-archive: tag 생성" || fail "master-archive: tag 부재"
 
-# diff review 기본 target 일반화 (prepare_review_pipeline.sh)
+# diff review base 판정 (prepare_review_pipeline.sh, change spec §5.2)
 # 전제: setup_repo()가 이미 lifecycle/*.sh(_lifecycle_common.sh 포함)와 _state_common.sh를
 # fixture의 rd-workflow/scripts/ 아래에 복사해 두므로, prepare가 source할 의존성은 충족되어 있다.
 # 여기서는 prepare_review_pipeline.sh 한 파일만 추가 복사하면 된다.
+#
+# 이 fixture 는 archive 직후라 `fr-branch=null`·`base-commit` 미설정입니다. 종전 단언은
+# `git diff master...HEAD` **문자열**을 기대했으나, 새 설계에서 Review Target 은 고정 OID
+# 두 점이고 입력이 없으면 **세션을 만들지 않고 exit 1** 입니다 (AC 4 — 빈 diff 가 조용히
+# 통과하던 원 결함을 막는 의도된 동작). 두 상태를 모두 단언합니다.
 ( cd "$REPO" && mkdir -p rd-workflow/scripts \
   && cp "$PROJECT_ROOT/_ROOT_FILES/rd-workflow/scripts/prepare_review_pipeline.sh" rd-workflow/scripts/ \
-  && cp "$PROJECT_ROOT/_ROOT_FILES/rd-workflow/scripts/init_review_pipeline.sh" rd-workflow/scripts/ \
-  && bash rd-workflow/scripts/prepare_review_pipeline.sh diff >/dev/null 2>&1 ) || true
-DIFF_SES="$(ls -d "$REPO"/rd-workflow-workspace/handoffs/review_pipeline/*final-diff-review 2>/dev/null | head -1)"
-( [[ -n "$DIFF_SES" ]] && grep -q 'git diff master...HEAD' "$DIFF_SES/SESSION.md" ) \
-  && pass "master-diff: 기본 target master...HEAD" || fail "master-diff: target 오검출 (SESSION=$DIFF_SES)"
+  && cp "$PROJECT_ROOT/_ROOT_FILES/rd-workflow/scripts/init_review_pipeline.sh" rd-workflow/scripts/ )
+# 세션 디렉터리 개수 — 없으면 0. `ls` 실패가 set -e 로 스위트를 죽이지 않게 감쌉니다.
+_ses_count() {
+  local n=0
+  n="$(ls -d "$1"/rd-workflow-workspace/handoffs/review_pipeline/*final-diff-review 2>/dev/null | wc -l | tr -d ' ')" || n=0
+  printf '%s' "${n:-0}"
+}
+( cd "$REPO" && bash rd-workflow/scripts/prepare_review_pipeline.sh diff >/dev/null 2>&1 ) \
+  && fail "master-diff: base 입력 없는데 exit 0" || pass "master-diff: base 입력 없음 → exit 1"
+[[ "$(_ses_count "$REPO")" == "0" ]] \
+  && pass "master-diff: base 입력 없음 → 세션 미생성" || fail "master-diff: 세션이 만들어짐"
+
+# base-commit 을 설정하면 두 끝이 고정 OID 인 target 으로 세션이 만들어집니다.
+_base11="$(cd "$REPO" && git rev-parse HEAD~1)"
+( cd "$REPO" && bash rd-workflow/scripts/rd task set-base "$_base11" >/dev/null 2>&1 ) \
+  && pass "master-diff: set-base 성공" || fail "master-diff: set-base 실패"
+( cd "$REPO" && bash rd-workflow/scripts/prepare_review_pipeline.sh diff >/dev/null 2>&1 ) \
+  && pass "master-diff: base-commit → 세션 생성" || fail "master-diff: 세션 생성 실패"
+DIFF_SES="$(ls -d "$REPO"/rd-workflow-workspace/handoffs/review_pipeline/*final-diff-review 2>/dev/null | head -1)" || DIFF_SES=""
+_head11="$(cd "$REPO" && git rev-parse HEAD)"
+( [[ -n "$DIFF_SES" ]] && grep -qF "git diff ${_base11}..${_head11}" "$DIFF_SES/SESSION.md" ) \
+  && pass "master-diff: Review Target 이 OID 두 점" || fail "master-diff: target 오검출 (SESSION=$DIFF_SES)"
+( [[ -n "$DIFF_SES" ]] && grep -qF -e "- review-head-oid: ${_head11}" "$DIFF_SES/SESSION.md" ) \
+  && pass "master-diff: review-head-oid 기록" || fail "master-diff: review-head-oid 미기록"
 
 rm -rf "$REPO" "$BARE11"
 
@@ -919,17 +945,28 @@ REPO="$(setup_repo trunk)"
   && git add -A && git commit -q -m "config" )
 WT="${REPO}-side-wt"
 ( cd "$REPO" && git worktree add -q "$WT" -b side )
+_mm_assert() {  # _mm_assert <이름> <ERR> <RC>
+  [[ "$3" -eq 1 ]] && pass "$1 mismatch: exit 1" || fail "$1 mismatch: exit=$3"
+  printf '%s' "$2" | grep -q "기본 브랜치(trunk) worktree" \
+    && pass "$1 mismatch: resolved 브랜치명 안내" || fail "$1 mismatch: 브랜치명 문구 누락 — $2"
+  printf '%s' "$2" | grep -q "해당 worktree path:" \
+    && pass "$1 mismatch: path 안내" || fail "$1 mismatch: path 문구 누락 — $2"
+}
 for _mm in "promote:promote.sh --short-title test-mm --size small --no-worktree" \
-           "rollback:promote_rollback.sh" \
-           "archive:archive.sh"; do
+           "rollback:promote_rollback.sh"; do
   _name="${_mm%%:*}"; _cmd="${_mm#*:}"
   RC=0; ERR="$( (cd "$WT" && bash rd-workflow/scripts/lifecycle/${_cmd}) 2>&1 )" || RC=$?
-  [[ "$RC" -eq 1 ]] && pass "$_name mismatch: exit 1" || fail "$_name mismatch: exit=$RC"
-  printf '%s' "$ERR" | grep -q "기본 브랜치(trunk) worktree" \
-    && pass "$_name mismatch: resolved 브랜치명 안내" || fail "$_name mismatch: 브랜치명 문구 누락 — $ERR"
-  printf '%s' "$ERR" | grep -q "해당 worktree path:" \
-    && pass "$_name mismatch: path 안내" || fail "$_name mismatch: path 문구 누락 — $ERR"
+  _mm_assert "$_name" "$ERR" "$RC"
 done
+# archive 는 FR identity 확정이 Step 0 **앞**에 있으므로(change spec §5.1 구현 시점 정정),
+# fr-branch 가 없으면 worktree 안내에 닿기 전에 "active fr 없음" 으로 끝납니다. 이 시나리오가
+# 고정하려는 것은 worktree 안내 문구이므로 canonical fr-branch 를 먼저 심어 Step 0 에 도달시킵니다.
+# (no-fr 모드의 실행 브랜치 안내는 scenario 23 이 따로 봅니다.)
+( cd "$WT" && mkdir -p rd-workflow-workspace/.lifecycle \
+  && printf 'schema=1\nshort-title=mm\nstatus=구현 중\nfr-branch=fr/mm\nworktree-path=null\nsource-fr=-\n' \
+     > rd-workflow-workspace/.lifecycle/task-state )
+RC=0; ERR="$( (cd "$WT" && bash rd-workflow/scripts/lifecycle/archive.sh) 2>&1 )" || RC=$?
+_mm_assert "archive" "$ERR" "$RC"
 ( cd "$REPO" && git worktree remove --force "$WT" ) || true
 rm -rf "$REPO"
 
@@ -1695,7 +1732,7 @@ pr7_set "검증 중" "검증 중"
 #
 # 안내는 사용자가 복사 실행하는 문자열이다. 미러에서 읽은 값을 검증 없이 따옴표 안에
 # 넣으면, 값에 `'` 나 `;` 가 있을 때 따옴표가 닫히고 임의 명령이 실행된다.
-# canonical 8종은 고정 집합이라 안전하고, 그 밖의 값은 노출하지 않는다.
+# canonical 9종은 고정 집합이라 안전하고, 그 밖의 값은 노출하지 않는다.
 pr7_set "검증 중" "검증 중"
 PR7K_CANARY="${PR7}-canary"
 awk -v v="검증 중'; touch $PR7K_CANARY; #" \
@@ -2255,6 +2292,205 @@ _d="$(arc_setup test-spacepath)"
 _out="$(arc_archive "$_d")" && _rc=0 || _rc=$?
 [[ "$_rc" -ne 0 ]] && pass "회귀 10: 공백·따옴표 경로도 정확 판정" || fail "회귀 10: 판정 실패 — $_out"
 rm -rf "$_d"
+
+echo "== scenario 21: fr 브랜치 등록 → 기본 브랜치 직접 행 추가 → archive 종착 (AC 13) =="
+REPO="$(setup_repo)"
+_IDX="rd-workflow-workspace/backlog/FUTURE_REQUESTS.md"
+( cd "$REPO" && mkdir -p rd-workflow-workspace/backlog/items rd-workflow-workspace/raw-captures \
+  && printf '# FR\n\n## 인덱스\n\n| 날짜 | 제목 | 요약 | 종류 | 상태 | 우선순위 | 상세 |\n|---|---|---|---|---|---|---|\n' > "$_IDX" \
+  && : > rd-workflow-workspace/raw-captures/.gitkeep && git add -A && git commit -q -m "backlog 초기" )
+run_promote "$REPO" --short-title test-reg --no-worktree --size small >/dev/null
+# fr 브랜치에서 /fr add 쓰기 단계 모사 + helper
+( cd "$REPO" && printf '| 2026-02-02 | reg-a | s | tooling | idea | - | [상세](items/2026-02-02-reg-a.md) |\n' >> "$_IDX" \
+  && printf '# reg-a\n- status: idea\n' > rd-workflow-workspace/backlog/items/2026-02-02-reg-a.md \
+  && printf -- '---\nstage: fr\n---\n' > rd-workflow-workspace/raw-captures/2026-02-02-fr-reg-a.md )
+out="$(cd "$REPO" && bash rd-workflow/scripts/rd task fr-register --slug reg-a 2>&1)"
+[[ "$out" == "result=committed branch=main"* ]] && pass "s21: fr 브랜치에서 등록 → main 커밋" || fail "s21: fr-register — $out"
+# iteration commit (등록 파일이 fr 브랜치에도 실림 — 동일 내용)
+( cd "$REPO" && echo impl > impl.txt && git add -A && git commit -q -m "구현" )
+# 기본 브랜치에 다른 FR 행 직접 추가 (동시 등록 변형)
+( cd "$REPO" && git switch -q main && printf '| 2026-02-03 | other-x | s | tooling | idea | - | [상세](items/2026-02-03-other-x.md) |\n' >> "$_IDX" \
+  && printf '# other-x\n' > rd-workflow-workspace/backlog/items/2026-02-03-other-x.md && git add -A && git commit -q -m "docs: FR 등록 — other-x" && git switch -q fr/test-reg )
+# archive content commit
+( cd "$REPO" && echo "# archived" > REQUEST.md && git add REQUEST.md && git commit -q -m "archive content" )
+arc_out="$( cd "$REPO" && git switch -q main && bash rd-workflow/scripts/lifecycle/archive.sh --no-remote --force-skip-review-check "통합 테스트 fixture" 2>&1 )" \
+  && pass "s21: archive.sh 완료 (인덱스 충돌 자동 해결)" || fail "s21: archive 실패 — $arc_out"
+[[ "$arc_out" == *"행 집합 병합으로 해결"* ]] && pass "s21: 행 집합 병합 안내 출력" || fail "s21: 병합 안내 없음"
+( cd "$REPO" && [[ "$(grep -c '| reg-a |' "$_IDX")" == 1 && "$(grep -c '| other-x |' "$_IDX")" == 1 ]] ) && pass "s21: 인덱스 행 reg-a 1·other-x 1 (중복 없음)" || fail "s21: 행 수 — $(cd "$REPO" && cat "$_IDX")"
+( cd "$REPO" && [[ -f rd-workflow-workspace/backlog/items/2026-02-02-reg-a.md && -f rd-workflow-workspace/raw-captures/2026-02-02-fr-reg-a.md ]] ) && pass "s21: 상세 1·캡처 1 존재" || fail "s21: 상세/캡처 부재"
+( cd "$REPO" && [[ -z "$(git status --porcelain | grep -v review-skip-audit.log)" && "$(git worktree list | wc -l | tr -d ' ')" == 1 && ! "$(git for-each-ref --format='%(refname)')" == *"fr/test-reg"* ]] ) && pass "s21: clean + 임시 worktree·브랜치 없음" || fail "s21: 잔존 — $(cd "$REPO" && git status --porcelain; git for-each-ref)"
+rm -rf "$REPO"
+
+# === Scenario 22: 정상 경로 E2E (fr 모드) + 권위 tree (change spec §4.2·§3.3.1) ===
+#
+# **시간 예산 사유** (절대 규칙 ③): 이 케이스는 promote → 구현 커밋 → 리뷰 세션 생성 →
+# 종결 → seal → 상태 전이 → 게이트 → 기록 커밋 → archive 까지를 한 저장소에서 이어 돌리므로
+# 수 초를 넘습니다(실측 ~15초). 그 비용을 지불하는 이유는 **초안의 순환 의존**이 단위
+# 테스트로는 잡히지 않기 때문입니다 — 「보류 상태여야 기록 커밋 허용 + 기록 커밋 후 보류
+# 전이」는 각 단계를 따로 시험하면 전부 통과하고, 진입부터 발행까지 이어 붙였을 때만
+# "들어갈 수 없는 상태" 가 드러납니다. 각 단계를 쪼갠 단위 테스트로는 대체되지 않습니다.
+echo "== scenario 22: 정상 경로 E2E + 권위 tree =="
+
+# add_review_scripts <repo> — prepare/init_review_pipeline 은 setup_repo 가 복사하지 않습니다.
+add_review_scripts() {
+  cp "$PROJECT_ROOT/_ROOT_FILES/rd-workflow/scripts/prepare_review_pipeline.sh" "$1/rd-workflow/scripts/"
+  cp "$PROJECT_ROOT/_ROOT_FILES/rd-workflow/scripts/init_review_pipeline.sh" "$1/rd-workflow/scripts/"
+}
+# close_session <session-dir> — Status=closed + Open Issues=`- 없음` (정상 종결 형태)
+close_session() {
+  local t
+  t="$(mktemp)"
+  awk '/^## Status$/{print; getline; print "closed"; next} {print}' "$1/SESSION.md" > "$t" && mv "$t" "$1/SESSION.md"
+  t="$(mktemp)"
+  awk '/^## Open Issues$/{s=1; print; next} s && /^## /{s=0} s && $0=="-"{print "- 없음"; next} {print}' \
+    "$1/CHECKPOINT.md" > "$t" && mv "$t" "$1/CHECKPOINT.md"
+}
+# latest_diff_session <repo> — 최신 final-diff-review 세션 경로 (없으면 빈 문자열)
+latest_diff_session() {
+  local p=""
+  p="$(ls -d "$1"/rd-workflow-workspace/handoffs/review_pipeline/*final-diff-review 2>/dev/null | tail -1)" || p=""
+  printf '%s' "$p"
+}
+
+REPO="$(setup_repo)"
+add_review_scripts "$REPO"
+run_promote "$REPO" --short-title e2e --size small --no-worktree >/dev/null
+# fr 브랜치 위의 구현 커밋 — 이것이 리뷰 대상(보호 경로)입니다.
+( cd "$REPO" && printf 'code\n' > src.txt && git add -A && git commit -q -m "구현" )
+( cd "$REPO" && bash rd-workflow/scripts/prepare_review_pipeline.sh diff >/dev/null 2>&1 ) \
+  && pass "e2e: diff 세션 생성 (fr-branch → merge-base)" || fail "e2e: diff 세션 생성 실패"
+E2E_SES="$(latest_diff_session "$REPO")"
+[[ -n "$E2E_SES" ]] && pass "e2e: 세션 경로 확인" || fail "e2e: 세션 부재"
+( cd "$REPO" && grep -q "^review-session=$(basename "$E2E_SES")$" rd-workflow-workspace/.lifecycle/task-state ) \
+  && pass "e2e: task-state review-session 포인터 기록" || fail "e2e: 포인터 미기록"
+
+close_session "$E2E_SES"
+( cd "$REPO" && bash rd-workflow/scripts/rd review seal "$E2E_SES" >/dev/null 2>&1 ) \
+  && pass "e2e: seal 성공 (리뷰된 head == 현재 트리)" || fail "e2e: seal 실패"
+for _st in "검증 중" "diff review 대기" "아카이브 보류"; do
+  ( cd "$REPO" && bash rd-workflow/scripts/rd task set-status "$_st" >/dev/null 2>&1 ) \
+    || fail "e2e: set-status $_st 실패"
+done
+( cd "$REPO" && grep -q '^status=아카이브 보류$' rd-workflow-workspace/.lifecycle/task-state ) \
+  && pass "e2e: 아카이브 보류 진입 (seal 뒤·기록 커밋 앞)" || fail "e2e: 보류 전이 실패"
+
+# 권위 tree 음성 — 포인터·상태만 먼저 커밋해 **마커만 워킹트리에 남은** 상태를 만듭니다.
+( cd "$REPO" && git add rd-workflow-workspace/.lifecycle/task-state CURRENT_TASK.md \
+  && git commit -q -m "chore: 리뷰 포인터·상태" )
+_e2e_err="$( cd "$REPO" && git switch -q main \
+  && bash rd-workflow/scripts/lifecycle/archive.sh --no-remote --force-dirty 2>&1 || true )"
+[[ "$_e2e_err" == *"마커 없음"* ]] \
+  && pass "e2e: 워킹트리에만 있는 마커로는 통과 못 함 (§3.3.1)" || fail "e2e: 마커 없음 차단 아님 — $_e2e_err"
+
+# 기록 커밋 — FR 은 아직 idea 입니다. 이 시점에 게이트가 통과해야 §4.2 순서가 성립합니다
+# (게이트가 보류 상태를 인정하지 않으면 「기록 커밋 → 보류 전이」 순환으로 되돌아갑니다).
+( cd "$REPO" && git switch -q fr/e2e \
+  && mkdir -p rd-workflow-workspace/backlog/items rd-workflow-workspace/backlog/request-archive \
+  && printf '# e2e\n- status: idea\n' > rd-workflow-workspace/backlog/items/2026-09-06-e2e.md \
+  && printf '# Change Request\n\n## Source FR\nrd-workflow-workspace/backlog/items/2026-09-06-e2e.md\n' > REQUEST.md \
+  && git add -A && git commit -q -m "docs: FR 등록" )
+#
+# **게이트 판정 시점에 REQUEST.md 의 Source FR 이 살아 있어야 합니다.** 먼저 비우면 게이트가
+# "아카이브 불필요" 로 조기 통과해, 정작 보고 싶은 §4.3 예외 분기를 지나지 않습니다.
+( cd "$REPO" \
+  && cp REQUEST.md rd-workflow-workspace/backlog/request-archive/2026-09-06-0000-e2e.md \
+  && git add rd-workflow-workspace/backlog/request-archive rd-workflow-workspace/.lifecycle/review-seals )
+_gate_rc=0
+( cd "$REPO" && printf '{"tool_input":{"command":"git commit -m 기록"}}' \
+  | bash rd-workflow/scripts/hooks/pre_commit_archive_gate.sh >/dev/null 2>&1 ) || _gate_rc=$?
+[[ "$_gate_rc" -eq 0 ]] \
+  && pass "e2e: 보류 상태 + 기록 경로만 staged → 게이트 통과 (순환 없음)" \
+  || fail "e2e: 게이트가 기록 커밋을 차단 (exit=$_gate_rc)"
+( cd "$REPO" && printf '# Change Request\n\n## Source FR\n-\n' > REQUEST.md \
+  && sed 's/^- status: idea$/- status: done/' rd-workflow-workspace/backlog/items/2026-09-06-e2e.md > "$REPO/.fr.tmp" \
+  && mv "$REPO/.fr.tmp" rd-workflow-workspace/backlog/items/2026-09-06-e2e.md \
+  && git add -A && git commit -q -m "docs: REQUEST 아카이브" )
+
+# 발행 — `--force-skip-review-check` 없이 통과해야 합니다. 기본 브랜치 워킹트리에는 마커가
+# 없고 fr tip 에만 있으므로, 이것이 §3.3.1 권위 tree 의 양성 케이스입니다.
+_e2e_out="$( cd "$REPO" && git switch -q main \
+  && bash rd-workflow/scripts/lifecycle/archive.sh --no-remote 2>&1 )" && _e2e_rc=0 || _e2e_rc=$?
+[[ "$_e2e_rc" -eq 0 ]] \
+  && pass "e2e: archive 발행 완료 (fr tip 마커로 검증, force-skip 없음)" \
+  || fail "e2e: archive 실패 (exit=$_e2e_rc) — $_e2e_out"
+( cd "$REPO" && git tag --list "fr/*/e2e" | grep -q . ) && pass "e2e: tag 생성" || fail "e2e: tag 부재"
+( cd "$REPO" && ! git rev-parse --verify fr/e2e >/dev/null 2>&1 ) \
+  && pass "e2e: fr 브랜치 정리" || fail "e2e: fr 브랜치 잔존"
+( cd "$REPO" && grep -q '^status=대기 중$' rd-workflow-workspace/.lifecycle/task-state ) \
+  && pass "e2e: task-state baseline 복귀" || fail "e2e: task-state 미복귀"
+rm -rf "$REPO"
+
+# === Scenario 23: no-fr archive + 실행 브랜치 안전 + sentinel (change spec §5.1·§3.2.2) ===
+#
+# **시간 예산 사유** (절대 규칙 ③): 위와 같은 이유로 수 초를 넘습니다(실측 ~10초).
+# 목적은 **no-fr archive 완주**입니다 — 진입 조건만 단위로 시험하면 merge·branch 삭제·
+# worktree 정리를 건너뛴 경로가 tag·push 까지 실제로 도달하는지 알 수 없습니다.
+# fr 경로 무변화는 scenario 1·11·12·21 이 이미 매 실행마다 확인하므로 여기서 다시 만들지 않습니다.
+echo "== scenario 23: no-fr archive / 브랜치 안전 / sentinel =="
+REPO="$(setup_repo)"
+add_review_scripts "$REPO"
+BARE23="$(mk_bare 23)"
+( cd "$REPO" && git remote add origin "$BARE23" && git push -q origin main )
+( cd "$REPO" && bash rd-workflow/scripts/rd task set-title nofr >/dev/null 2>&1 \
+  && bash rd-workflow/scripts/rd task set-base HEAD >/dev/null 2>&1 \
+  && bash rd-workflow/scripts/rd task set-status "구현 중" >/dev/null 2>&1 ) \
+  && pass "no-fr: task-state 준비 (base-commit 설정)" || fail "no-fr: task-state 준비 실패"
+( cd "$REPO" && printf 'code\n' > src.txt && git add -A && git commit -q -m "구현" )
+( cd "$REPO" && bash rd-workflow/scripts/prepare_review_pipeline.sh diff >/dev/null 2>&1 ) \
+  && pass "no-fr: base-commit 으로 diff 세션 생성" || fail "no-fr: 세션 생성 실패"
+NOFR_SES="$(latest_diff_session "$REPO")"
+close_session "$NOFR_SES"
+( cd "$REPO" && bash rd-workflow/scripts/rd review seal "$NOFR_SES" >/dev/null 2>&1 ) \
+  && pass "no-fr: seal 성공 (branch-mode=no-fr)" || fail "no-fr: seal 실패"
+( grep -q '^branch-mode=no-fr$' "$REPO/rd-workflow-workspace/.lifecycle/review-seals/$(basename "$NOFR_SES").seal" \
+  && grep -q '^fr-branch=null$' "$REPO/rd-workflow-workspace/.lifecycle/review-seals/$(basename "$NOFR_SES").seal" ) \
+  && pass "no-fr: 마커에 no-fr 표기" || fail "no-fr: 마커 표기 오류"
+for _st in "검증 중" "diff review 대기" "아카이브 보류"; do
+  ( cd "$REPO" && bash rd-workflow/scripts/rd task set-status "$_st" >/dev/null 2>&1 ) || fail "no-fr: set-status $_st 실패"
+done
+( cd "$REPO" && git add -A && git commit -q -m "docs: 기록 커밋" )
+
+# 실행 브랜치 안전 — 두 검사 모두 Step 0(worktree 검출) **앞**에 있어야 사용자가 무엇을
+# 해야 하는지 알 수 있습니다. 뒤에 있으면 `기본 브랜치 worktree 검출 실패` 라는 무관한 안내만 나옵니다.
+_det_err="$( cd "$REPO" && git checkout -q --detach \
+  && bash rd-workflow/scripts/lifecycle/archive.sh --no-remote 2>&1 || true )"
+[[ "$_det_err" == *"detached HEAD 에서는 no-fr archive"* ]] \
+  && pass "no-fr: detached HEAD 차단" || fail "no-fr: detached 안내 부재 — $_det_err"
+_side_err="$( cd "$REPO" && git switch -q main && git switch -q -c side \
+  && bash rd-workflow/scripts/lifecycle/archive.sh --no-remote 2>&1 || true )"
+[[ "$_side_err" == *"기본 브랜치(main)에서만 호출 가능"* ]] \
+  && pass "no-fr: 기본 브랜치 아님 차단" || fail "no-fr: 브랜치 안내 부재 — $_side_err"
+( cd "$REPO" && git switch -q main && git branch -D side -q )
+
+# sentinel — canonical `null` 만 no-fr 이고 빈값·`main`·공백은 malformed 차단입니다 (§3.2.2).
+# "비어 있으면 no-fr" 로 다루면 파손된 task-state 가 조용히 발행으로 흘러갑니다.
+NOFR_TS="$REPO/rd-workflow-workspace/.lifecycle/task-state"
+cp "$NOFR_TS" "$NOFR_TS.bak"
+_sentinel_case() {  # _sentinel_case <값> <기대 문구> <설명>
+  local out
+  sed "s|^fr-branch=.*|fr-branch=$1|" "$NOFR_TS.bak" > "$NOFR_TS"
+  out="$( cd "$REPO" && bash rd-workflow/scripts/lifecycle/archive.sh --no-remote --force-dirty 2>&1 || true )"
+  [[ "$out" == *"$2"* ]] && pass "no-fr sentinel: $3" || fail "no-fr sentinel: $3 — $out"
+}
+_sentinel_case "" "빈 값은 파손으로 봅니다" "빈값 → 파손 차단"
+_sentinel_case "main" "canonical 이 아니라 진행할 수 없습니다" "'main' → malformed 차단"
+_sentinel_case " " "canonical 이 아니라 진행할 수 없습니다" "공백 → malformed 차단"
+cp "$NOFR_TS.bak" "$NOFR_TS"; rm -f "$NOFR_TS.bak"
+
+# 정상 발행 — `--no-remote` 이므로 push 하지 않고 tag 만 로컬에 남습니다 (AC 24).
+_nofr_out="$( cd "$REPO" && bash rd-workflow/scripts/lifecycle/archive.sh --no-remote 2>&1 )" && _nofr_rc=0 || _nofr_rc=$?
+[[ "$_nofr_rc" -eq 0 ]] && pass "no-fr: archive 완주 (merge 없이 발행)" || fail "no-fr: archive 실패 (exit=$_nofr_rc) — $_nofr_out"
+[[ "$_nofr_out" == *"merge 대상 브랜치가 없어 merge 를 건너뜁니다"* ]] \
+  && pass "no-fr: merge 건너뜀 안내" || fail "no-fr: merge 건너뜀 안내 부재"
+( cd "$REPO" && git tag --list "fr/*/nofr" | grep -q . ) && pass "no-fr: tag 로컬 생성" || fail "no-fr: tag 부재"
+( cd "$REPO" && [[ -z "$(git ls-remote origin 'refs/tags/*' 2>/dev/null)" ]] ) \
+  && pass "no-fr: --no-remote → tag 미push" || fail "no-fr: tag 가 push 됨"
+( cd "$REPO" && [[ "$(git ls-remote origin refs/heads/main | awk '{print $1}')" != "$(git rev-parse main)" ]] ) \
+  && pass "no-fr: --no-remote → main 미push" || fail "no-fr: main 이 push 됨"
+( cd "$REPO" && grep -q '^status=대기 중$' rd-workflow-workspace/.lifecycle/task-state \
+  && grep -q '^base-commit=null$' rd-workflow-workspace/.lifecycle/task-state ) \
+  && pass "no-fr: task-state baseline 복귀 (base-commit 포함)" || fail "no-fr: task-state 미복귀"
+rm -rf "$REPO" "$BARE23"
 
 echo "== 결과: PASS=$PASS FAIL=$FAIL =="
 [[ $FAIL -eq 0 ]]

@@ -69,10 +69,14 @@ assert_eq "$(printf '%s\n' "$_lmp" | sed -n 1p)" "rd-workflow-workspace/.lifecyc
 assert_eq "$(printf '%s\n' "$_lmp" | sed -n 2p)" "CURRENT_TASK.md" "허용 경로 2행 = CURRENT_TASK.md"
 assert_eq "$(printf '%s\n' "$_lmp" | sed -n 3p)" "rd-workflow-workspace/.lifecycle/active-fr" "허용 경로 3행 = legacy active-fr"
 
-# 소유 키 목록 — 공백 구분 한 줄, 6개
+# 소유 키 목록 — 공백 구분 한 줄, 8개
+#
+# `base-commit`·`review-session` 이 목록에 있어야 합니다 (change spec §5.3). metadata_clear 가
+# 두 값을 baseline 으로 되돌리는데 목록에서 빠지면 그 차이를 archive_publish_content_check 가
+# "리뷰되지 않은 내용" 으로 판정해 **정상 아카이브가 차단**됩니다.
 _lok="$(lifecycle_owned_state_keys)"
-assert_eq "$(printf '%s' "$_lok" | wc -w | tr -d ' ')" "6" "lifecycle_owned_state_keys 6개"
-for _k in fr-branch worktree-path source-fr short-title status created-at; do
+assert_eq "$(printf '%s' "$_lok" | wc -w | tr -d ' ')" "8" "lifecycle_owned_state_keys 8개"
+for _k in fr-branch worktree-path source-fr short-title status created-at base-commit review-session; do
   case " $_lok " in
     *" $_k "*) PASS=$((PASS+1)); echo "  PASS: 소유 키 $_k 포함" ;;
     *) FAIL=$((FAIL+1)); echo "  FAIL: 소유 키 $_k 누락" >&2 ;;
@@ -790,6 +794,13 @@ else FAIL=$((FAIL+1)); echo "  FAIL: tag OID 캡처 후 재확인이 없음" >&2
 if grep -q 'points-at "\$PUBLISH_OID"' "$_arch"; then
   PASS=$((PASS+1)); echo "  PASS: tag 재사용 판정이 PUBLISH_OID 기준"
 else FAIL=$((FAIL+1)); echo "  FAIL: tag 재사용 판정이 HEAD 기준" >&2; fi
+
+# 재결속(no-fr) 이 PUBLISH_OID 확정 뒤·tag 생성 앞에 있어야 의미가 있다 — tag 뒤로 밀리면
+# 이미 발행된 뒤에 알리는 꼴이라 차단이 아니다. 소스 위치로 고정한다.
+_l_rb="$(_ln 'archive_publish_rebind_check "')"
+if [[ -n "$_l_rb" && -n "$_l_pub" && -n "$_l_tag" && "$_l_pub" -lt "$_l_rb" && "$_l_rb" -lt "$_l_tag" ]]; then
+  PASS=$((PASS+1)); echo "  PASS: no-fr 재결속이 PUBLISH_OID 확정 뒤·tag 생성 앞"
+else FAIL=$((FAIL+1)); echo "  FAIL: no-fr 재결속 위치 이상 — rebind=$_l_rb pub=$_l_pub tag=$_l_tag" >&2; fi
 
 echo "== archive_block_notice 갈래(commit/unknown/content) =="
 _abn_has() {  # _abn_has <haystack> <needle> — 0 = 포함
@@ -1665,120 +1676,164 @@ assert_eq "$(awk -F' \\| ' 'END{print $2}' "$PRECHECK_AUDIT")" "lonelytask" "pre
 assert_eq "$(awk -F' \\| ' 'END{print $3}' "$PRECHECK_AUDIT")" "긴급 핫픽스" "precheck — audit 사유 기록"
 printf '# Current Task\n\n## Short Title\nmytask\n' > "$GUARD_ROOT/CURRENT_TASK.md"
 printf 'schema=1\nshort-title=mytask\nstatus=대기 중\nfr-branch=null\nworktree-path=null\nsource-fr=-\n' > "$TASK_STATE_PATH"
+# 종결 세션이 있어도 **마커가 없으면 차단**입니다 (change spec §3.3, AC 11).
+# 종전 계약은 `handoffs/` 의 최신 종결 세션을 찾아 통과시켰고, 여기가 그것을 단언하던
+# 자리입니다. consumer 가 마커 하나만 읽도록 전면 교체됐으므로 기대값을 뒤집습니다 —
+# 이 단언이 없으면 "세션만 종결하면 발행된다" 는 옛 경로가 되살아나도 아무도 모릅니다.
 mk_session "20260120_000000_final-diff-review" "closed" "- 없음" "mytask"   # 최신 종결 mytask 세션
 archive_review_precheck "0" "" "mytask" "$PRECHECK_AUDIT" 2>/dev/null && rc=0 || rc=1
-assert_eq "$rc" "0" "precheck — 종결 세션 존재 → 통과"
+assert_eq "$rc" "1" "precheck — 종결 세션만 있고 마커 없음 → 차단 (세션 종결성만으로 통과하지 않는다)"
 
-# === archive precheck fr-branch tip 가시성 (archive-precheck-premerge-session-visibility) ===
-echo "== archive precheck fr-branch tip 가시성 =="
-FT_REPO="$(mktemp -d)"
+# === archive precheck 권위 tree (change spec §3.3.1) ===
+#
+# 이 블록은 종전의 「fr tip 세션 가시성」·「fr-branch identity 매칭」 두 블록을 대체합니다.
+# 그 두 블록은 precheck 가 `handoffs/` 의 세션을 찾아 종결성을 판정하던 계약을 단언했는데,
+# consumer 가 **마커 한 파일**만 읽도록 전면 교체되어(AC 11) 그 판정 경로 자체가 없어졌습니다.
+# 남겨 두면 통과하더라도 없는 동작을 증명하게 되므로, 같은 실수(=main 워킹트리에 마커가
+# 없다고 표준 흐름이 막히는 것)를 새 계약 위에서 잡는 케이스로 다시 씁니다.
+echo "== archive precheck 권위 tree (fr tip 커밋 마커) =="
+FT_REPO="$(mktemp -d)"; FT_REPO="$(cd "$FT_REPO" && pwd -P)"
 git -C "$FT_REPO" init -q -b main
 git -C "$FT_REPO" config user.email t@t && git -C "$FT_REPO" config user.name t
-mkdir -p "$FT_REPO/rd-workflow-workspace/handoffs/review_pipeline" "$FT_REPO/rd-workflow-workspace/.lifecycle"
-# 실제 archive 시점 재현: main 의 CURRENT_TASK ## Short Title 은 baseline(-),
-# short-title 은 task-state metadata fallback 으로 해소된다(get_current_short_title).
+mkdir -p "$FT_REPO/rd-workflow-workspace/.lifecycle/review-seals"
 printf '# Current Task\n\n## Short Title\n-\n' > "$FT_REPO/CURRENT_TASK.md"
-# v2 2b: active-fr → task-state 전환 (schema=1, fr-branch=fr/fttask)
-printf 'schema=1\nshort-title=fttask\nstatus=구현 중\nfr-branch=fr/fttask\nworktree-path=null\nsource-fr=-\ncreated-at=2026-07-05-0000\n' > "$FT_REPO/rd-workflow-workspace/.lifecycle/task-state"
+printf 'schema=1\nshort-title=fttask\nstatus=구현 중\nfr-branch=fr/fttask\nworktree-path=null\nsource-fr=-\ncreated-at=2026-07-05-0000\n' \
+  > "$FT_REPO/rd-workflow-workspace/.lifecycle/task-state"
+printf 'code\n' > "$FT_REPO/src.txt"
 git -C "$FT_REPO" add -A && git -C "$FT_REPO" commit -q -m seed
-# fr branch 에 종결 diff-review 세션 commit
-git -C "$FT_REPO" branch fr/fttask
-git -C "$FT_REPO" switch -q fr/fttask
-FTS="$FT_REPO/rd-workflow-workspace/handoffs/review_pipeline/20260301_000000_final-diff-review"
-mkdir -p "$FTS"
-printf '## Status\nclosed\n\n## Branch Context\n- fr-branch: fr/fttask\n- short-title: fttask\n' > "$FTS/SESSION.md"
-printf '## Open Issues\n- 없음\n' > "$FTS/CHECKPOINT.md"
-git -C "$FT_REPO" add -A && git -C "$FT_REPO" commit -q -m "diff-review session on fr"
+
+FT_SID="20260906_000000_final-diff-review"
+FT_TS="$FT_REPO/rd-workflow-workspace/.lifecycle/task-state"
+FT_SEAL="$FT_REPO/rd-workflow-workspace/.lifecycle/review-seals/${FT_SID}.seal"
+# ft_write_seal <파일> <tree-hash> — 마커 10필드. rd-version 은 fixture 에 VERSION 이 없어
+# `_rd_version` 이 내는 값과 같은 `unknown` 을 씁니다 (다르면 경고만 나므로 판정과 무관).
+ft_write_seal() {
+  # `git switch` 는 추적 파일이 사라지면 빈 디렉터리를 함께 정리하므로 매번 만듭니다.
+  mkdir -p "$(dirname "$1")"
+  printf 'schema=1\nsession-id=%s\nreview-type=diff-review\ntree-hash=%s\nhead=%s\nbranch-mode=fr\nfr-branch=fr/fttask\nrd-version=unknown\nverified=yes\nsealed-at=2026-09-06-0000\n' \
+    "$FT_SID" "$2" "$(git -C "$FT_REPO" rev-parse HEAD)" > "$1"
+}
+ft_precheck() {  # ft_precheck <force_skip> <reason> <audit> [fr_ref] — rc 를 stdout 에 낸다
+  local _rc=0
+  ( project_root="$FT_REPO"; TASK_STATE_PATH="$FT_TS"; \
+    archive_review_precheck "$1" "$2" "fttask" "$3" "${4-}" ) >/dev/null 2>&1 || _rc=1
+  printf '%s' "$_rc"
+}
+
+# fr 브랜치: 작업 커밋 → 그 커밋의 보호 트리 해시로 마커 작성 → 포인터·마커 커밋.
+# 마커와 포인터는 둘 다 §2.1 의 기록 경로라 커밋해도 보호 트리 해시가 변하지 않습니다 —
+# 그래서 「seal → 상태 전이 → 기록 커밋」 순서가 자기 차단을 일으키지 않습니다 (§4.2).
+git -C "$FT_REPO" switch -q -c fr/fttask
+printf 'work\n' >> "$FT_REPO/src.txt"
+git -C "$FT_REPO" add -A && git -C "$FT_REPO" commit -q -m "구현"
+FT_HASH="$( ( project_root="$FT_REPO"; rd_protected_tree_hash "fr/fttask" ) )"
+ft_write_seal "$FT_SEAL" "$FT_HASH"
+printf 'review-session=%s\n' "$FT_SID" >> "$FT_TS"
+git -C "$FT_REPO" add -A && git -C "$FT_REPO" commit -q -m "기록 커밋 (포인터 + 마커)"
 git -C "$FT_REPO" switch -q main
-FT_AUDIT="$FT_REPO/rd-workflow-workspace/.lifecycle/review-skip-audit.log"
-# sanity 1: short-title 은 task-state fallback 으로 해소 (CURRENT_TASK Short Title=-)
-# v2 2b: TASK_STATE_PATH를 명시적으로 FT_REPO 기반으로 설정 (서브셸에서 재설정 필요)
-assert_eq "$( ( project_root="$FT_REPO"; TASK_STATE_PATH="$FT_REPO/rd-workflow-workspace/.lifecycle/task-state"; get_current_short_title ) )" "fttask" "fr-tip — metadata fallback 으로 short-title 해소(Short Title=-)"
-# sanity 2: 세션은 fr branch tip 에만 있고 main 워킹트리엔 없음
-assert_eq "$( ( project_root="$FT_REPO"; TASK_STATE_PATH="$FT_REPO/rd-workflow-workspace/.lifecycle/task-state"; get_latest_diff_review_dir ) )" "" "fr-tip — main 워킹트리에 세션 없음(sanity)"
-# Case A (핵심 회귀): main Short Title=- + metadata fallback + fr_ref 지정 → fr tip 종결 세션 인식 → 통과(0)
-( project_root="$FT_REPO"; TASK_STATE_PATH="$FT_REPO/rd-workflow-workspace/.lifecycle/task-state"; archive_review_precheck "0" "" "fttask" "$FT_AUDIT" "fr/fttask" ) 2>/dev/null && rc=0 || rc=1
-assert_eq "$rc" "0" "fr-tip — 종결 세션을 fr branch tip 에서 검증 → 통과 (metadata fallback 결합)"
-# Case B (안전 회귀): fr tip 세션을 미종결로 변경 → 차단(1)
+
+# Case A (핵심 회귀): 기본 브랜치 워킹트리에는 포인터도 마커도 없지만 fr tip 에 있으면 통과.
+# 「fr 브랜치에 커밋 → 기본 브랜치로 switch → archive.sh」 표준 흐름이 이 케이스입니다.
+[[ -e "$FT_SEAL" ]] && rc=0 || rc=1
+assert_eq "$rc" "1" "권위 tree — 기본 브랜치 워킹트리에 마커 없음(sanity)"
+assert_eq "$(ft_precheck 0 "" "$FT_REPO/rd-workflow-workspace/.lifecycle/review-skip-audit.log" "fr/fttask")" "0" \
+  "권위 tree — fr tip 의 포인터+마커로 통과 (main 워킹트리 비의존)"
+
+# Case B: 기본 브랜치 워킹트리에 **stale 마커**가 있어도 판정은 fr tip 을 봅니다 → 통과 유지.
+ft_write_seal "$FT_SEAL" "0000000000000000000000000000000000000000"
+assert_eq "$(ft_precheck 0 "" "$FT_REPO/rd-workflow-workspace/.lifecycle/review-skip-audit.log" "fr/fttask")" "0" \
+  "권위 tree — 워킹트리의 stale 마커가 fr tip 판정을 오염시키지 않음"
+
+# Case C (권위 tree 음성): 마커를 fr tip 에서 지우고 워킹트리에만 두면 통과하지 못합니다.
+# 「워킹트리에 seal 만 만들고 커밋하지 않은」 상태이며, 여기서 통과하면 마커는 증명이
+# 아니라 실행 시점의 로컬 파일이 됩니다.
+rm -f "$FT_SEAL"   # 워킹트리의 stale 마커를 치워야 fr 브랜치 체크아웃이 덮어쓰지 않습니다
 git -C "$FT_REPO" switch -q fr/fttask
-printf '## Status\nawaiting-reviewer\n\n## Branch Context\n- fr-branch: fr/fttask\n- short-title: fttask\n' > "$FTS/SESSION.md"
-git -C "$FT_REPO" add -A && git -C "$FT_REPO" commit -q -m "session unterminated"
+git -C "$FT_REPO" rm -q "rd-workflow-workspace/.lifecycle/review-seals/${FT_SID}.seal"
+git -C "$FT_REPO" commit -q -m "마커 제거 (음성 케이스)"
 git -C "$FT_REPO" switch -q main
-( project_root="$FT_REPO"; TASK_STATE_PATH="$FT_REPO/rd-workflow-workspace/.lifecycle/task-state"; archive_review_precheck "0" "" "fttask" "$FT_AUDIT" "fr/fttask" ) 2>/dev/null && rc=0 || rc=1
-assert_eq "$rc" "1" "fr-tip — 미종결(awaiting-reviewer) 세션 → 차단 (안전 속성 보존)"
-# Case C (audit 정규화): 미종결 fr 세션(위 Case B 상태) + force-skip + 사유 → 통과(0)
-#   + audit 의 세션참조 필드가 temp 절대경로가 아닌 repo-상대 경로여야 한다.
+ft_write_seal "$FT_SEAL" "$FT_HASH"   # 워킹트리에만 유효한 마커
+assert_eq "$(ft_precheck 0 "" "$FT_REPO/rd-workflow-workspace/.lifecycle/review-skip-audit.log" "fr/fttask")" "1" \
+  "권위 tree — 워킹트리에만 있는 마커로는 통과 못 함"
+
+# Case D: 지정된 fr 브랜치의 ref 가 없으면 판정 대상이 없으므로 차단 (§3.3.1).
+assert_eq "$(ft_precheck 0 "" "$FT_REPO/rd-workflow-workspace/.lifecycle/review-skip-audit.log" "fr/nonexistent")" "1" \
+  "권위 tree — fr ref 부재 → 판정 대상 없음으로 차단"
+
+# Case E (audit 정규화 회귀): 마커 무효 + force-skip + 사유 → 통과하되, audit 의 세션참조는
+# temp 절대경로가 아니라 repo-상대 **마커** 경로여야 합니다.
 FT_AUDIT2="$FT_REPO/rd-workflow-workspace/.lifecycle/audit2.log"
-( project_root="$FT_REPO"; TASK_STATE_PATH="$FT_REPO/rd-workflow-workspace/.lifecycle/task-state"; archive_review_precheck "1" "긴급 사유" "fttask" "$FT_AUDIT2" "fr/fttask" ) 2>/dev/null && rc=0 || rc=1
-assert_eq "$rc" "0" "fr-tip — force-skip + 사유 → 통과"
-assert_eq "$(awk -F' \\| ' 'END{print $4}' "$FT_AUDIT2")" "rd-workflow-workspace/handoffs/review_pipeline/20260301_000000_final-diff-review" "fr-tip — audit 세션참조 repo-상대 경로(temp 절대경로 금지)"
+assert_eq "$(ft_precheck 1 "긴급 사유" "$FT_AUDIT2" "fr/fttask")" "0" "권위 tree — force-skip + 사유 → 통과"
+assert_eq "$(awk -F' \\| ' 'END{print $4}' "$FT_AUDIT2")" \
+  "rd-workflow-workspace/.lifecycle/review-seals/${FT_SID}.seal" \
+  "권위 tree — audit 세션참조가 repo-상대 마커 경로"
 rm -rf "$FT_REPO"
 
-# === Case D~G (archive-precheck-fr-ref-short-title-fallback): fr-branch identity 매칭 ===
-# active metadata 없이 archive.sh --fr-branch 호출 시, fr tip SESSION.md 의 Branch Context
-# fr-branch == fr_ref 로 후보를 고정해 종결 세션을 인식한다(main 워킹트리 의존 제거).
-echo "== archive precheck fr_ref — fr-branch identity 매칭 =="
-FT2="$(mktemp -d)"
-git -C "$FT2" init -q -b main
-git -C "$FT2" config user.email t@t && git -C "$FT2" config user.name t
-mkdir -p "$FT2/rd-workflow-workspace/handoffs/review_pipeline" "$FT2/rd-workflow-workspace/.lifecycle"
-# main: baseline Short Title=- + task-state 부재 → get_current_short_title "-" 반환(fr-scope 미해소)
-# v2 2b: active-fr 폐지 → task-state도 없는 상태로 테스트 (legacy fallback: CURRENT_TASK.md Short Title=-)
-printf '# Current Task\n\n## Short Title\n-\n' > "$FT2/CURRENT_TASK.md"
-git -C "$FT2" add -A && git -C "$FT2" commit -q -m seed
-FT2_AUDIT="$FT2/rd-workflow-workspace/.lifecycle/review-skip-audit.log"
-# task-state 없음 → legacy CURRENT_TASK.md Short Title=- 반환 (TASK_STATE_PATH 격리)
-assert_eq "$( ( project_root="$FT2"; TASK_STATE_PATH="$FT2/rd-workflow-workspace/.lifecycle/task-state"; get_current_short_title ) )" "-" "metadata 부재 — short-title 빈 값(회귀 전제)"
+# === 발행 직전 재결속 (no-fr) — precheck 승인 해시 ↔ PUBLISH_OID (Finding 1) ===
+#
+# no-fr 은 fr 의 기준선(= fr tip 을 들여온 merge) 에 대응물이 없어
+# `archive_extra_commits_check`·`archive_publish_content_check` 를 건너뜁니다. 그래서
+# precheck 통과 뒤 metadata cleanup commit 이 붙는 사이에 보호 경로를 바꾼 커밋이 HEAD 를
+# 전진시키면, tag/push 가 잘 결속된 `PUBLISH_OID` 그 자체가 미검토 코드를 담습니다.
+# 이 블록은 그 창이 닫혀 있는지를 봅니다. fixture 는 git 로컬 연산 몇 번이라 1초 미만입니다.
+echo "== 발행 직전 재결속 (no-fr) =="
+RB_REPO="$(mktemp -d)"; RB_REPO="$(cd "$RB_REPO" && pwd -P)"
+git -C "$RB_REPO" init -q -b main
+git -C "$RB_REPO" config user.email t@t && git -C "$RB_REPO" config user.name t
+mkdir -p "$RB_REPO/rd-workflow-workspace/.lifecycle/review-seals" "$RB_REPO/rd-workflow-workspace/backlog"
+printf '# Current Task\n\n## Short Title\n-\n' > "$RB_REPO/CURRENT_TASK.md"
+printf 'code\n' > "$RB_REPO/src.txt"
+git -C "$RB_REPO" add -A && git -C "$RB_REPO" commit -q -m seed
 
-# Case D (AC1 — metadata 부재 핵심 회귀): fr/d1 tip 종결 세션(fr-branch=fr/d1) → 통과(0)
-git -C "$FT2" branch fr/d1
-git -C "$FT2" switch -q fr/d1
-D1S="$FT2/rd-workflow-workspace/handoffs/review_pipeline/20260401_000000_final-diff-review"
-mkdir -p "$D1S"
-printf '## Status\nclosed\n\n## Branch Context\n- fr-branch: fr/d1\n- short-title: d1\n' > "$D1S/SESSION.md"
-printf '## Open Issues\n- 없음\n' > "$D1S/CHECKPOINT.md"
-git -C "$FT2" add -A && git -C "$FT2" commit -q -m "diff-review on fr/d1"
-git -C "$FT2" switch -q main
-( project_root="$FT2"; archive_review_precheck "0" "" "d1" "$FT2_AUDIT" "fr/d1" ) 2>/dev/null && rc=0 || rc=1
-assert_eq "$rc" "0" "AC1 — metadata 부재 + fr tip 종결 세션 → 통과 (fr-branch identity)"
+RB_SID="20260906_010000_final-diff-review"
+RB_TS="$RB_REPO/rd-workflow-workspace/.lifecycle/task-state"
+RB_SEAL="$RB_REPO/rd-workflow-workspace/.lifecycle/review-seals/${RB_SID}.seal"
+# 구현 커밋 → 그 트리로 마커 작성 → 포인터+마커 기록 커밋 (기록 경로라 보호 해시 불변).
+printf 'work\n' >> "$RB_REPO/src.txt"
+git -C "$RB_REPO" add -A && git -C "$RB_REPO" commit -q -m "구현"
+RB_HASH="$( ( project_root="$RB_REPO"; rd_protected_tree_hash "HEAD" ) )"
+printf 'schema=1\nsession-id=%s\nreview-type=diff-review\ntree-hash=%s\nhead=%s\nbranch-mode=no-fr\nfr-branch=null\nrd-version=unknown\nverified=yes\nsealed-at=2026-09-06-0100\n' \
+  "$RB_SID" "$RB_HASH" "$(git -C "$RB_REPO" rev-parse HEAD)" > "$RB_SEAL"
+printf 'schema=1\nshort-title=rbtask\nstatus=구현 중\nfr-branch=null\nworktree-path=null\nsource-fr=-\ncreated-at=2026-09-06-0000\nreview-session=%s\n' \
+  "$RB_SID" > "$RB_TS"
+git -C "$RB_REPO" add -A && git -C "$RB_REPO" commit -q -m "기록 커밋 (포인터 + 마커)"
 
-# Case E (AC2 — suffix slug): fr/e1-2 tip, 세션 fr-branch=fr/e1-2, slug 인자=e1-2 → 통과(0)
-git -C "$FT2" branch fr/e1-2
-git -C "$FT2" switch -q fr/e1-2
-E1S="$FT2/rd-workflow-workspace/handoffs/review_pipeline/20260402_000000_final-diff-review"
-mkdir -p "$E1S"
-printf '## Status\nclosed\n\n## Branch Context\n- fr-branch: fr/e1-2\n- short-title: e1\n' > "$E1S/SESSION.md"
-printf '## Open Issues\n- 없음\n' > "$E1S/CHECKPOINT.md"
-git -C "$FT2" add -A && git -C "$FT2" commit -q -m "diff-review on fr/e1-2"
-git -C "$FT2" switch -q main
-( project_root="$FT2"; archive_review_precheck "0" "" "e1-2" "$FT2_AUDIT" "fr/e1-2" ) 2>/dev/null && rc=0 || rc=1
-assert_eq "$rc" "0" "AC2 — suffix branch fr/e1-2 (fr-branch identity) → 통과 (slug≠short-title)"
+# precheck 를 **현재 셸에서** 돌립니다 — 승인 해시가 전역으로 나오는지가 검사 대상이라
+# 서브셸로 감싸면 그 전달 자체를 확인할 수 없습니다.
+_rb_saved_root="${project_root:-}"; _rb_saved_ts="${TASK_STATE_PATH:-}"
+project_root="$RB_REPO"; TASK_STATE_PATH="$RB_TS"
+_rb_rc=0
+archive_review_precheck 0 "" "rbtask" "$RB_REPO/rd-workflow-workspace/.lifecycle/review-skip-audit.log" "null" \
+  >/dev/null 2>&1 || _rb_rc=1
+assert_eq "$_rb_rc" "0" "재결속 — no-fr precheck 통과 (sanity)"
+assert_eq "$RD_ARCHIVE_REVIEWED_TREE_HASH" "$RB_HASH" "재결속 — precheck 가 승인한 보호 트리 해시를 밖으로 노출"
+RB_APPROVED="$RD_ARCHIVE_REVIEWED_TREE_HASH"
 
-# Case F (fail-closed — legacy): fr/f1 tip 세션에 Branch Context 부재 → 매칭 실패 → 차단(1)
-git -C "$FT2" branch fr/f1
-git -C "$FT2" switch -q fr/f1
-F1S="$FT2/rd-workflow-workspace/handoffs/review_pipeline/20260403_000000_final-diff-review"
-mkdir -p "$F1S"
-printf '## Status\nclosed\n' > "$F1S/SESSION.md"
-printf '## Open Issues\n- 없음\n' > "$F1S/CHECKPOINT.md"
-git -C "$FT2" add -A && git -C "$FT2" commit -q -m "legacy diff-review on fr/f1"
-git -C "$FT2" switch -q main
-( project_root="$FT2"; archive_review_precheck "0" "" "f1" "$FT2_AUDIT" "fr/f1" ) 2>/dev/null && rc=0 || rc=1
-assert_eq "$rc" "1" "fail-closed — fr tip 세션 Branch Context 부재 → 차단"
+# 정상 경로: cleanup commit 처럼 **기록 경로만** 바뀐 채 HEAD 가 전진하면 그대로 통과.
+# 이 케이스가 없으면 아래 차단 케이스가 "무엇이든 다 막는다" 로도 통과합니다.
+printf 'schema=1\nshort-title=-\nstatus=대기 중\nfr-branch=null\nworktree-path=null\nsource-fr=-\ncreated-at=2026-09-06-0000\n' > "$RB_TS"
+git -C "$RB_REPO" add -A && git -C "$RB_REPO" commit -q -m "chore(lifecycle): metadata 정리"
+_rb_rc=0
+archive_publish_rebind_check "$RB_APPROVED" "$(git -C "$RB_REPO" rev-parse HEAD)" >/dev/null 2>&1 || _rb_rc=$?
+assert_eq "$_rb_rc" "0" "재결속 — 기록 경로만 바뀐 cleanup commit 은 통과"
 
-# Case G (AC8 — stale/unrelated false-positive 차단): fr/g1 tip 최신 세션이 fr-branch=fr/other(종결)
-#   이고 fr/g1 매칭 세션 없음 → 차단(1). short-title 역산 설계였다면 통과했을 false-positive 를 차단.
-git -C "$FT2" branch fr/g1
-git -C "$FT2" switch -q fr/g1
-G1S="$FT2/rd-workflow-workspace/handoffs/review_pipeline/20260404_000000_final-diff-review"
-mkdir -p "$G1S"
-printf '## Status\nclosed\n\n## Branch Context\n- fr-branch: fr/other\n- short-title: other\n' > "$G1S/SESSION.md"
-printf '## Open Issues\n- 없음\n' > "$G1S/CHECKPOINT.md"
-git -C "$FT2" add -A && git -C "$FT2" commit -q -m "unrelated closed session on fr/g1"
-git -C "$FT2" switch -q main
-( project_root="$FT2"; archive_review_precheck "0" "" "g1" "$FT2_AUDIT" "fr/g1" ) 2>/dev/null && rc=0 || rc=1
-assert_eq "$rc" "1" "AC8 — stale/unrelated(fr/other) closed 세션만 최신 → 차단 (false-positive 방지)"
-rm -rf "$FT2"
+# 회귀 케이스: precheck 이후 보호 경로를 바꾼 커밋이 HEAD 를 전진시키면 tag/push 전에 차단.
+printf 'sneaky\n' >> "$RB_REPO/src.txt"
+git -C "$RB_REPO" add -A && git -C "$RB_REPO" commit -q -m "다른 프로세스의 보호 경로 커밋"
+_rb_rc=0
+archive_publish_rebind_check "$RB_APPROVED" "$(git -C "$RB_REPO" rev-parse HEAD)" >/dev/null 2>&1 || _rb_rc=$?
+assert_eq "$_rb_rc" "1" "재결속 — precheck 이후 보호 경로 커밋이 얹히면 차단"
+
+# fail-closed: 판정에 필요한 값이 없거나 해시를 못 구하면 통과가 아니라 판정 불가(rc 2).
+_rb_rc=0
+archive_publish_rebind_check "" "$(git -C "$RB_REPO" rev-parse HEAD)" >/dev/null 2>&1 || _rb_rc=$?
+assert_eq "$_rb_rc" "2" "재결속 — 승인 해시 부재는 통과가 아니라 판정 불가"
+_rb_rc=0
+archive_publish_rebind_check "$RB_APPROVED" "refs/heads/does-not-exist" >/dev/null 2>&1 || _rb_rc=$?
+assert_eq "$_rb_rc" "2" "재결속 — 발행 대상 해시 계산 실패는 판정 불가"
+
+project_root="$_rb_saved_root"; TASK_STATE_PATH="$_rb_saved_ts"
+rm -rf "$RB_REPO"
 
 # commit_has_archive_signal (review-gate-iteration-commit)
 echo "== commit_has_archive_signal =="
@@ -1871,6 +1926,69 @@ if [[ -n "$_ord_mirror" && -n "$_ord_clear" && "$_ord_mirror" -lt "$_ord_clear" 
 else
   FAIL=$((FAIL+1)); echo "  FAIL: archive.sh 순서 불변식 위반 — mirror=$_ord_mirror clear=$_ord_clear" >&2
 fi
+
+echo "== archive.sh force-skip audit 기록 실패 → tag/push 전 정지 =="
+#
+# 우회 경로(`--force-skip-review-check`)의 audit 기록은 그 발행의 **유일한 흔적**입니다.
+# 기록이 불가능한데도 발행이 이어지면, 리뷰 검증을 명시적으로 건너뛴 tag/push 가 사유
+# 한 줄 없이 남습니다 (final diff review turn 004 Finding 1). 여기서는 헬퍼를 직접 부르지
+# 않고 **실제 archive.sh 호출 경로**에서 그 정지를 봅니다 — 배선이 빠지면 헬퍼만 고쳐도
+# 발행은 계속되기 때문입니다.
+#
+# 실패는 권한이 아니라 경로 형태(audit 파일 자리에 디렉터리)로 만듭니다 — root 실행에서도
+# 결과가 같아야 합니다.
+#
+# 비용: fixture 2개가 실제 archive 를 끝까지 돌리므로 이 블록만 수 초입니다. 헬퍼 단위
+# 테스트(test_guard_state.sh fixture 10)로는 "차단이 tag/push 앞에 있는가" 를 증명할 수
+# 없어 그 비용을 집니다 — 통제군이 tag·push 까지 실제로 도달하는 것이 판정의 근거입니다.
+AUD_TMP="$(mktemp -d)"; AUD_TMP="$(cd "$AUD_TMP" && pwd -P)"; _ast_cleanup+=("$AUD_TMP")
+AUD_REL="rd-workflow-workspace/.lifecycle/review-skip-audit.log"
+
+mk_aud_repo() { # mk_aud_repo <경로> — fr 브랜치 + 로컬 bare remote 를 갖춘 archive 대상
+  local r="$1"
+  mkdir -p "$r/rd-workflow-workspace/.lifecycle"
+  git -C "$r" init -q -b main
+  git -C "$r" config user.email t@t; git -C "$r" config user.name t
+  printf 'code\n' > "$r/src.txt"
+  printf '# Current Task\n\n## Short Title\naudittask\n' > "$r/CURRENT_TASK.md"
+  printf 'schema=1\nshort-title=audittask\nstatus=아카이브 보류\nfr-branch=fr/audittask\nworktree-path=null\nsource-fr=-\nbase-commit=null\nreview-session=null\n' \
+    > "$r/$(dirname "$AUD_REL")/task-state"
+  git -C "$r" add -A; git -C "$r" commit -q -m seed
+  git -C "$r" switch -q -c fr/audittask
+  printf 'work\n' >> "$r/src.txt"
+  printf '# Change Request\n' > "$r/REQUEST.md"
+  git -C "$r" add -A; git -C "$r" commit -q -m "구현"
+  git -C "$r" switch -q main
+  git init -q --bare "$r.git"
+  git -C "$r" remote add origin "$r.git"
+  git -C "$r" push -q origin main
+}
+# archive.sh 는 cwd 의 저장소를 대상으로 삼으므로 fixture 안에 사본을 두지 않고 그대로 부릅니다.
+# 스위트가 앞서 세운 project_root·TASK_STATE_PATH 가 export 되어 있으면 대상이 뒤바뀌므로 지웁니다.
+run_aud_archive() { # run_aud_archive <경로> — rc 를 stdout 에 낸다
+  local r="$1" rc=0
+  ( cd "$r" && env -u project_root -u TASK_STATE_PATH -u STATE_MIGRATION_BACKUP_DIR \
+      bash "$ARCHIVE_SH" --force-skip-review-check "긴급 발행" \
+  ) >/dev/null 2>&1 || rc=$?
+  printf '%s' "$rc"
+}
+
+# 통제군 — audit 을 남길 수 있으면 우회 경로를 통과해 발행이 tag·push 까지 끝난다.
+# (이 단언들이 없으면 아래 차단 케이스가 "fixture 가 그냥 망가져서" 통과한다.)
+AUD_OK="$AUD_TMP/ok"; mk_aud_repo "$AUD_OK"
+assert_eq "$(run_aud_archive "$AUD_OK")" "0" "archive.sh — audit 가능하면 발행이 끝까지 진행 (통제군)"
+assert_eq "$(awk -F' \\| ' 'END{print $3}' "$AUD_OK/$AUD_REL" 2>/dev/null)" \
+  "긴급 발행" "archive.sh — 우회 사유가 audit 에 기록 (통제군)"
+assert_eq "$(git -C "$AUD_OK.git" tag -l | wc -l | tr -d ' ')" "1" "archive.sh — 통제군은 tag 를 push 한다"
+
+# 차단군 — audit 파일 자리에 디렉터리를 두어 append 를 불가능하게 만든다.
+AUD_NG="$AUD_TMP/ng"; mk_aud_repo "$AUD_NG"
+mkdir -p "$AUD_NG/$AUD_REL"
+AUD_SEED="$(git -C "$AUD_NG.git" rev-parse main)"
+assert_eq "$(run_aud_archive "$AUD_NG")" "1" "archive.sh — audit 기록 불가 → nonzero 종료"
+assert_eq "$(git -C "$AUD_NG" tag -l | wc -l | tr -d ' ')" "0" "archive.sh — audit 기록 불가 → 로컬 tag 미생성"
+assert_eq "$(git -C "$AUD_NG.git" tag -l | wc -l | tr -d ' ')" "0" "archive.sh — audit 기록 불가 → remote tag push 없음"
+assert_eq "$(git -C "$AUD_NG.git" rev-parse main)" "$AUD_SEED" "archive.sh — audit 기록 불가 → remote 기본 브랜치 push 없음"
 
 rm -rf "$GUARD_ROOT"
 
@@ -2009,6 +2127,75 @@ R="$GDB_TMP/c7"; make_gdb_repo "$R" master
 assert_eq "$( cd "$R" && get_main_worktree_path )" "$( cd "$R" && pwd -P )" "get_main_worktree_path master 일반화"
 
 rm -rf "$GDB_TMP"
+
+echo "== registration_commit_shape / classify_ahead_commits =="
+RCS_TMP="$(mktemp -d)"; RCS_TMP="$(cd "$RCS_TMP" && pwd -P)"; _ast_cleanup+=("$RCS_TMP")
+_rcs_idx="rd-workflow-workspace/backlog/FUTURE_REQUESTS.md"
+make_rcs_repo() { # make_rcs_repo <dir>
+  mkdir -p "$1" && ( cd "$1" && git init -q && git checkout -q -b main 2>/dev/null; \
+    git config user.email t@e.com; git config user.name t; \
+    mkdir -p rd-workflow-workspace/backlog/items rd-workflow-workspace/raw-captures; \
+    printf '# FR\n\n## 인덱스\n\n| 날짜 | 제목 | 요약 | 종류 | 상태 | 우선순위 | 상세 |\n|---|---|---|---|---|---|---|\n| 2026-01-01 | base-a | a | tooling | idea | - | [상세](items/2026-01-01-base-a.md) |\n' > "$_rcs_idx"; \
+    printf '# base-a\n- status: idea\n' > rd-workflow-workspace/backlog/items/2026-01-01-base-a.md; \
+    git add -A && git commit -q -m init )
+}
+rcs_reg_commit() { # rcs_reg_commit <dir> <slug> [with-capture=1] [요약=s] — 등록 커밋 형태의 커밋 1개
+  ( cd "$1" && printf '| 2026-02-02 | %s | %s | tooling | idea | - | [상세](items/2026-02-02-%s.md) |\n' "$2" "${4:-s}" "$2" >> "$_rcs_idx" \
+    && printf '# %s\n- status: idea\n' "$2" > "rd-workflow-workspace/backlog/items/2026-02-02-$2.md" \
+    && { [[ "${3:-1}" == 1 ]] && mkdir -p rd-workflow-workspace/raw-captures && printf -- '---\nstage: fr\n---\n' > "rd-workflow-workspace/raw-captures/2026-02-02-fr-$2.md" || true; } \
+    && git add -A && git commit -q -m "docs: FR 등록 — $2" )
+}
+R="$RCS_TMP/r1"; make_rcs_repo "$R"
+rcs_reg_commit "$R" foo
+assert_eq "$( cd "$R" && registration_commit_shape HEAD )" "foo" "shape: 행1+상세1+캡처1 → slug"
+rcs_reg_commit "$R" bar 0
+assert_eq "$( cd "$R" && registration_commit_shape HEAD )" "bar" "shape: 캡처 없음도 통과"
+# 요약에 이스케이프된 파이프가 든 등록 행 — `/fr add` 규약이 요구하는 형태다. 컬럼 수를 raw `|` 로
+# 세면 헤더보다 많다고 오판해 정상 등록 커밋이 비등록으로 떨어지고 시작 계약의 자동 채택이 막힌다.
+# (merge_fr_index.sh 의 xsplit() 와 같은 계약 — 한쪽만 고치면 갈린다)
+rcs_reg_commit "$R" esc 0 '`x \| y` 를 셈'
+assert_eq "$( cd "$R" && registration_commit_shape HEAD )" "esc" "shape: 요약의 이스케이프된 \| 는 구분자가 아니다"
+# 음성 대조: 이스케이프되지 않은 생 | 가 든 행은 GFM 에서도 칸이 쪼개지므로 계속 거부한다
+rcs_reg_commit "$R" raw 0 '`x | y` 를 셈'
+if ( cd "$R" && registration_commit_shape HEAD >/dev/null ); then FAIL=$((FAIL+1)); echo "  FAIL: shape: 요약의 생 | 를 통과시킴" >&2; else PASS=$((PASS+1)); echo "  PASS: shape: 요약의 생 | → 거부"; fi
+# 음성: 등록 경로 외 파일 동반
+( cd "$R" && printf '| 2026-02-03 | baz | s | tooling | idea | - | [상세](items/2026-02-03-baz.md) |\n' >> "$_rcs_idx" \
+  && printf '# baz\n' > rd-workflow-workspace/backlog/items/2026-02-03-baz.md && echo x > other.txt && git add -A && git commit -q -m mixed )
+if ( cd "$R" && registration_commit_shape HEAD >/dev/null ); then FAIL=$((FAIL+1)); echo "  FAIL: shape: 등록 경로 외 파일 섞임을 통과시킴" >&2; else PASS=$((PASS+1)); echo "  PASS: shape: 등록 경로 외 파일 섞임 → 거부"; fi
+# 음성: 기존 행 수정(상태 변경)
+( cd "$R" && sed 's/| base-a | a | tooling | idea |/| base-a | a | tooling | validated |/' "$_rcs_idx" > "$_rcs_idx.n" && mv "$_rcs_idx.n" "$_rcs_idx" && git add -A && git commit -q -m status )
+if ( cd "$R" && registration_commit_shape HEAD >/dev/null ); then FAIL=$((FAIL+1)); echo "  FAIL: shape: 기존 행 수정을 통과시킴" >&2; else PASS=$((PASS+1)); echo "  PASS: shape: 기존 행 수정 → 거부"; fi
+# 음성: merge 커밋 (등록 파일만 보여도 부모 2개)
+( cd "$R" && git checkout -q -b side && printf '| 2026-02-04 | qux | s | tooling | idea | - | [상세](items/2026-02-04-qux.md) |\n' >> "$_rcs_idx" \
+  && printf '# qux\n' > rd-workflow-workspace/backlog/items/2026-02-04-qux.md && git add -A && git commit -q -m qux \
+  && git checkout -q main && git merge -q --no-ff side -m merge )
+if ( cd "$R" && registration_commit_shape HEAD >/dev/null ); then FAIL=$((FAIL+1)); echo "  FAIL: shape: merge 커밋을 통과시킴" >&2; else PASS=$((PASS+1)); echo "  PASS: shape: merge 커밋 → 거부"; fi
+# 음성: helper 산출물보다 넓은 형태 4종 — 중첩 상세 경로 / symlink 상세 / 링크 불일치 / 표 아닌 줄
+rcs_neg() { # rcs_neg <desc> <setup-cmds...>: 커밋 후 shape 거부를 단언
+  local desc="$1"; shift
+  ( cd "$R" && eval "$*" && git add -A && git commit -q -m neg ) >/dev/null 2>&1
+  if ( cd "$R" && registration_commit_shape HEAD >/dev/null ); then FAIL=$((FAIL+1)); echo "  FAIL: shape: $desc 를 통과시킴" >&2; else PASS=$((PASS+1)); echo "  PASS: shape: $desc → 거부"; fi
+}
+rcs_neg "중첩 상세 경로" 'printf "| 2026-02-07 | n1 | s | tooling | idea | - | [상세](items/2026-02-07-n1.md) |\n" >> "$_rcs_idx" && mkdir -p rd-workflow-workspace/backlog/items/nested && printf "# n1\n" > rd-workflow-workspace/backlog/items/nested/2026-02-07-n1.md'
+rcs_neg "symlink 상세(mode 120000)" 'printf "| 2026-02-08 | n2 | s | tooling | idea | - | [상세](items/2026-02-08-n2.md) |\n" >> "$_rcs_idx" && ln -s ../../../README.md rd-workflow-workspace/backlog/items/2026-02-08-n2.md'
+rcs_neg "행의 상세 링크가 추가 상세와 불일치" 'printf "| 2026-02-09 | n3 | s | tooling | idea | - | [상세](items/2026-02-09-other.md) |\n" >> "$_rcs_idx" && printf "# n3\n" > rd-workflow-workspace/backlog/items/2026-02-09-n3.md'
+rcs_neg "표 아닌 한 줄 추가" 'printf "<!-- n4 -->\n" >> "$_rcs_idx" && printf "# n4\n" > rd-workflow-workspace/backlog/items/2026-02-10-n4.md'
+
+# classify_ahead_commits — bare upstream 으로 ahead/behind 상태 구성
+R2="$RCS_TMP/r2"; make_rcs_repo "$R2"; B2="$RCS_TMP/r2.git"; git init -q --bare "$B2"
+( cd "$R2" && git remote add origin "$B2" && git push -q -u origin main )
+assert_eq "$( cd "$R2" && classify_ahead_commits refs/heads/main refs/remotes/origin/main )" "ahead=0 behind=0 registration=0 decision=synchronized" "classify: synchronized"
+rcs_reg_commit "$R2" a1; rcs_reg_commit "$R2" a2 0 '`x \| y` 요약'
+assert_eq "$( cd "$R2" && classify_ahead_commits refs/heads/main refs/remotes/origin/main )" "ahead=2 behind=0 registration=2 decision=auto-adopt" "classify: 등록 커밋 2개(하나는 이스케이프된 \| 요약) → auto-adopt (AC 14a)"
+( cd "$R2" && sed 's/| a1 | s | tooling | idea |/| a1 | s | tooling | validated |/' "$_rcs_idx" > "$_rcs_idx.n" && mv "$_rcs_idx.n" "$_rcs_idx" && git add -A && git commit -q -m status )
+assert_eq "$( cd "$R2" && classify_ahead_commits refs/heads/main refs/remotes/origin/main )" "ahead=3 behind=0 registration=2 decision=handover-ahead" "classify: 상태 변경 커밋 섞임 → handover (AC 14b)"
+( cd "$R2" && git reset -q --hard HEAD~1 && printf '| 2026-02-05 | a3 | s | tooling | idea | - | [상세](items/2026-02-05-a3.md) |\n' >> "$_rcs_idx" && printf '# a3\n' > rd-workflow-workspace/backlog/items/2026-02-05-a3.md && echo y > other.txt && git add -A && git commit -q -m mixed )
+assert_eq "$( cd "$R2" && classify_ahead_commits refs/heads/main refs/remotes/origin/main )" "ahead=3 behind=0 registration=2 decision=handover-ahead" "classify: 등록 경로 외 파일 섞인 커밋 → handover (AC 14c)"
+( cd "$R2" && git reset -q --hard HEAD~1 && git checkout -q -b side2 && printf '| 2026-02-06 | a4 | s | tooling | idea | - | [상세](items/2026-02-06-a4.md) |\n' >> "$_rcs_idx" && printf '# a4\n' > rd-workflow-workspace/backlog/items/2026-02-06-a4.md && git add -A && git commit -q -m a4 && git checkout -q main && git merge -q --no-ff side2 -m merge )
+assert_eq "$( cd "$R2" && classify_ahead_commits refs/heads/main refs/remotes/origin/main | sed 's/.*decision=//' )" "handover-ahead" "classify: merge 커밋 포함 → handover (AC 14d)"
+( cd "$R2" && git reset -q --hard origin/main && git checkout -q -b tmp && rcs_reg_commit "$R2" b1 && git push -q origin tmp:main && git checkout -q main && git fetch -q )
+assert_eq "$( cd "$R2" && classify_ahead_commits refs/heads/main refs/remotes/origin/main )" "ahead=0 behind=1 registration=0 decision=handover-behind" "classify: behind → handover"
+assert_eq "$( cd "$R2" && classify_ahead_commits refs/heads/main "" )" "ahead=0 behind=0 registration=0 decision=no-upstream" "classify: upstream 부재"
 
 # 조용한 중단 센티넬이 **끝까지 살아 있었는지**를 실행 시점에 확인합니다. bash 는 EXIT trap
 # 을 하나만 갖고, 나중에 건 것이 앞의 것을 말없이 지웁니다 — 실제로 그 사고가 있었고

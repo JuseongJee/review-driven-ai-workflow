@@ -38,7 +38,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # --- 시작 상태 결정 (change spec D1·D2) ---
-# 사람이 canonical 8종 문자열을 직접 고르는 구조가 실수의 원인이므로 경로 2택으로 좁힌다.
+# 사람이 canonical 9종 문자열을 직접 고르는 구조가 실수의 원인이므로 경로 2택으로 좁힌다.
 # --status 는 복구·마이그레이션 전용으로 남기되 canonical 검사를 붙인다 — 종전에는
 # state_write_fields 직접 호출로 전이표와 이름 검사를 모두 우회했다.
 # 이 블록은 metadata_write 보다 훨씬 앞이라 어떤 상태도 바뀌지 않는다.
@@ -57,7 +57,7 @@ if [[ -n "$SIZE_VAL" ]]; then
 elif [[ -n "$STATUS_VAL" ]]; then
   # canonical 판정은 이미 로드된 _state_common.sh 것을 쓴다 (제3 복제 금지)
   if ! _state_status_canonical "$STATUS_VAL"; then
-    echo "promote: --status 값이 canonical 8종이 아닙니다: '$STATUS_VAL'" >&2
+    echo "promote: --status 값이 canonical 9종이 아닙니다: '$STATUS_VAL'" >&2
     echo "  허용: ${STATE_CANONICAL_STATUSES//|/, }" >&2
     exit 1
   fi
@@ -191,6 +191,12 @@ if [[ -z "$TARGET_BRANCH" ]]; then
   fi
   if [[ "$DRY_RUN" -eq 1 ]]; then echo "would create branch $TARGET_BRANCH"; exit 0; fi
   metadata_write "$TARGET_BRANCH" "$SLUG" "${WORKTREE_PATH:-null}" "$SOURCE_FR_VAL"
+  # base-commit: 승격 직전 HEAD 를 OID 로 기록합니다 (change spec §5.3).
+  # 이 시점은 `git branch "$TARGET_BRANCH"` (아래) 보다 앞이므로 HEAD 는 아직 기본 브랜치 tip 이고,
+  # 곧 만들 fr 브랜치와의 merge-base 와 같습니다. diff review 의 base 판정 3순위가 이 값을 씁니다.
+  state_write_base_commit "HEAD" || {
+    echo "promote: base-commit 을 기록하지 못했습니다 — diff review 의 base 자동 판정이 fr-branch 에만 의존합니다." >&2
+  }
   # 권위 status를 뷰(Step D CURRENT_TASK.md)와 동일 값으로 기록 — 권위-뷰 이원화 방지
   state_write_fields "status=$STATUS_VAL"
   # loop-guard: 신규 FR 시작 → stale within-attempt 키 정리 (rollback:: 는 보존)
@@ -270,7 +276,7 @@ if [[ "$IS_RERUN" -eq 1 ]]; then
       # ③ **실행 가능한 명령에 파일 내용을 끼워 넣지 않는다.** 미러 값이나 worktree 경로를
       #    따옴표 안에 그대로 넣으면, 값에 `'` 나 `;` 가 있을 때 출력된 명령의 따옴표가
       #    닫히고 사용자가 그것을 복사 실행한다. 그래서 경로는 `printf %q` 로 인코딩하고,
-      #    미러 status 는 **canonical 8종을 통과할 때만** 값으로 보여준다(고정 집합이라
+      #    미러 status 는 **canonical 9종을 통과할 때만** 값으로 보여준다(고정 집합이라
       #    안전하다). 통과하지 못하면 값을 노출하지 않고 사람이 확인하게 한다.
       _rc_wt_q="$(printf '%q' "$RERUN_WT_NOW")"
       _rc_rel_q="$(printf '%q' "$RERUN_STATE_REL")"
@@ -312,7 +318,7 @@ if [[ "$IS_RERUN" -eq 1 ]]; then
       echo "         (cd $_rc_wt_q && bash rd-workflow/scripts/rd task set-title $(printf '%q' "$SLUG") --force)" >&2
       # source-fr 도 미러가 담게 됐으므로(change spec D12) 값을 제시할 수 있다.
       # `source_fr_validate` 를 통과할 때만 쓴다 — 통과 조건이 고정 문법이라 실행
-      # 문자열에 넣어도 안전하고, canonical status 8종에 적용한 규칙과 같다.
+      # 문자열에 넣어도 안전하고, canonical status 9종에 적용한 규칙과 같다.
       # rerun 의 `--source-fr` 인자는 여전히 쓰지 않는다: stored 와 같아야 통과하므로
       # 정확히 stale 값이고, 그것을 복구 목표로 제시하면 안내가 회귀를 지시하게 된다.
       _rc_sfr=""
@@ -380,7 +386,7 @@ if [[ "$IS_RERUN" -eq 1 ]]; then
     exit 1
   fi
   if ! _state_status_canonical "$RERUN_STATUS"; then
-    echo "promote: 대상 권위($RERUN_SRC_DESC)의 status 가 canonical 8종이 아닙니다: '$RERUN_STATUS' (상태 변경 없음)." >&2
+    echo "promote: 대상 권위($RERUN_SRC_DESC)의 status 가 canonical 9종이 아닙니다: '$RERUN_STATUS' (상태 변경 없음)." >&2
     echo "  허용: ${STATE_CANONICAL_STATUSES//|/, }" >&2
     echo "  복구: bash rd-workflow/scripts/rd task set-status '<canonical>' 후 재시도." >&2
     exit 1
@@ -445,7 +451,7 @@ if [[ "$IS_RERUN" -eq 1 ]]; then
           echo "  이 작업은 worktree 없이 시작했으므로(worktree-path=null) 다음 재시도도" >&2
           echo "  대상 브랜치의 커밋된 내용을 읽습니다. 임시 트리에서 정정·커밋하고" >&2
           echo "  **그 트리를 제거한 뒤** 재시도하세요 — 남겨 두면 재시도가 checkout 충돌로 실패합니다:" >&2
-          echo "    TMP_WT=\"\$(mktemp -d)/fix\"" >&2
+          echo "    TMP_WT=\"\$(mktemp -d)/fix\"" >&2   # mktemp-scan: literal
           echo "    git worktree add \"\$TMP_WT\" $_rc_br_q" >&2
           echo "    (cd \"\$TMP_WT\" && bash rd-workflow/scripts/rd task set-source-fr '<path|->')" >&2
           echo "    (cd \"\$TMP_WT\" && git add CURRENT_TASK.md rd-workflow-workspace/.lifecycle/task-state \\" >&2

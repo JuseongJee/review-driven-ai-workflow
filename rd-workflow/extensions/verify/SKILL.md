@@ -25,7 +25,7 @@ Read these first (Always Read files are already loaded):
 
 `CURRENT_TASK.md`의 Spec 경로에 해당하는 spec에 `## Verification Criteria` 섹션이 없으면:
 - verification.json의 criteria만으로 검증을 진행한다 (VC 없이도 실행 가능)
-- small-task나 VC 미기입 작업도 verification.json이 있으면 런타임 검증 대상
+- `standard` 등급이나 VC 미기입 작업도 verification.json이 있으면 런타임 검증 대상
 
 ## 실행 순서
 

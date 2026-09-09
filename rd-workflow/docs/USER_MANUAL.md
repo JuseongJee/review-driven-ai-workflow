@@ -71,9 +71,16 @@ AI가 `rd-workflow/docs/guides/setup_with_claude.md` 절차를 따릅니다:
 설치 후 `rd-workflow/config/` 아래 example 파일을 복사하여 설정합니다:
 
 ```bash
-cp rd-workflow/config/workflow.json.example rd-workflow/config/workflow.json
+# workflow.json 은 배포본에 이미 포함되어 있습니다 — 없을 때만 만듭니다
+[ -e rd-workflow/config/workflow.json ] || [ -L rd-workflow/config/workflow.json ] ||
+  cp rd-workflow/config/workflow.json.example rd-workflow/config/workflow.json
+
 cp rd-workflow/config/review-tools.json.example rd-workflow/config/review-tools.json
 ```
+
+`workflow.json` 을 무조건 복사하면 배포본이 담고 있는 기본값(기본 실행 모드 `semi-auto`)과 이미 적어 둔 설정이
+example 값으로 덮여 사라집니다. 그래서 **경로가 없을 때만** 복사합니다 — 끊어진 symlink 도 「사용자가 설정을 두려 한 흔적」이므로
+`-L` 까지 함께 확인해 덮지 않습니다. `review-tools.json` 은 배포본에 실체 파일이 없으므로 종전대로 복사합니다.
 
 상세 설정은 [7. 설정 파일](#7-설정-파일) 참조.
 
@@ -106,10 +113,11 @@ cp rd-workflow/config/review-tools.json.example rd-workflow/config/review-tools.
 
 | 분류 | 기준 | 절차 |
 |------|------|------|
-| **작은 작업 (small-task)** | 사용자가 명시적으로 지정 | FR 자동 등록 → REQUEST 정리 → 구현 → 검증 → diff review → 아카이브 |
-| **큰 작업** | 새 기능, 기존 코드 중간 이상 변경 | FR 자동 등록 → REQUEST → review → spec/plan → review → 구현 → 검증 → diff review → 아카이브 |
+| **`light` 경량** | 동작 변경 없음 — 문구·주석·포맷·기록물 (파일 ≤ 2) | 구현 → 검증 → 커밋 전 재분류 → 기본 브랜치 커밋 1회 (+ `reports/tier-log.md` 행) |
+| **`standard` 표준** | 국소 동작 변경, 인터페이스 불변, 파일 ≤ 3 | promote → 축약 REQUEST → 구현 → 검증 → 재분류 → final diff review → 아카이브 |
+| **`full` 전면** | 새 기능, 인터페이스·데이터 모델 변경, 워크플로 인프라 동작 변경, 되돌리기 어려운 효과 | FR 등록 → REQUEST → review → spec/plan → review → 구현 → 검증 → final diff review → 아카이브 |
 
-> 사용자가 작업을 요청하면 먼저 FR에 자동 등록됩니다. AI가 자체적으로 크기를 판단하지 않습니다. 사용자가 `small-task`라고 명시해야 합니다.
+> 작업을 요청하면 AI 가 `WORKFLOW.md` 위험 등급 절의 신호표로 등급을 판정해 시작 보고를 낸 뒤 `light`·`standard` 는 바로 진행하고, `full` 만 FR 에 등록하고 지시를 기다립니다. 등급 하향은 사용자만 할 수 있습니다.
 
 ### 3.2 핵심 문서 4종
 
@@ -173,18 +181,27 @@ AI가 자동으로:
 사용자: "diff review 해줘"
 ```
 
-### 4.2 버그 수정 / 간단한 변경 (작은 작업)
+### 4.2 버그 수정 / 간단한 변경 (`standard`)
 
 ```
-사용자: "small-task로 이 버그 수정해줘: 로그인 버튼이 모바일에서 잘림"
+사용자: "이 버그 수정해줘: 로그인 버튼이 모바일에서 잘림"
 ```
 
 AI가:
+0. 등급 판정 → 시작 보고 (`standard`)
 1. REQUEST.md 간략 작성
 2. 바로 구현
 3. 검증
 4. Final diff review
 5. 아카이브
+
+### 4.2.1 문구·주석 수정 (`light`)
+
+```
+사용자: "README 의 설치 절 오탈자 고쳐줘"
+```
+
+AI가: 등급 판정(`light`) → 수정 → 검증 → 커밋 전 재분류 → 기본 브랜치 커밋 1회 + `reports/tier-log.md` 행 → 종료 보고. REQUEST·리뷰·아카이브 없음.
 
 ### 4.3 아이디어 기록
 
@@ -234,9 +251,9 @@ Notion/Confluence 등에 기획서가 있을 때:
 |------|----------|------|
 | **workflow-router** | 내부 자동 호출 | 현재 상태에 맞는 다음 스킬 추천 |
 | **request-to-reviewed-plan** | `"request-to-reviewed-plan으로 진행"` | REQUEST → spec → plan → 리뷰 (큰 작업 전체 흐름) |
-| **small-task-implement** | `"small-task로 구현해줘"` | 작은 작업 직접 구현 |
+| **small-task-implement** | `"standard 로 구현해줘"` | `standard` 등급 구현 |
 | **implement-reviewed-plan** | `"구현 시작해줘"` | 리뷰된 plan 기반 구현 |
-| **final-diff-review** | `"diff review 해줘"` | 최종 코드 리뷰 (모든 작업의 마지막 단계) |
+| **final-diff-review** | `"diff review 해줘"` | 최종 코드 리뷰 (`standard`·`full` 의 마지막 단계) |
 | **planning-design-intake** | `"기획서 붙여넣을게"` | 기획서 텍스트 → REQUEST 변환 |
 | **gap-check** | `"갭 체크 해줘"` | 기획-디자인-구현 간 불일치 점검 |
 
@@ -318,7 +335,7 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 
 ## 7. 설정 파일
 
-모든 설정은 `rd-workflow/config/`에 위치합니다. `.example` 파일을 복사하여 사용합니다.
+모든 설정은 `rd-workflow/config/`에 위치합니다. **실체 파일이 배포되는 `workflow.json` 은 그 파일을 직접 편집합니다** — `.example` 를 덮어쓰면 배포 기본값과 이미 적어 둔 `defect_report_upstream`·`default_branch`·명시적 `manual` 이 사라집니다. **실체가 없는 설정만** `.example` 에서 **최초 1회** 복사해 만듭니다([2.2 필수 설정 파일](#22-필수-설정-파일) 참조).
 
 > **설치 직후에는 설정 없이 동작합니다.** 리뷰 도구는 설치된 것을 자동 감지하여 fallback합니다 (Codex → Claude self-review 순). 외부 리뷰 도구가 없으면 Claude self-review로 진행됩니다. 필요할 때 아래 설정 스킬로 변경하세요.
 
@@ -330,7 +347,8 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
   "intake_source": "text",
   "design_reference_format": "url+screenshot",
   "fr_github": false,
-  "default_branch": ""
+  "default_branch": "",
+  "default_execution_mode": "semi-auto"
 }
 ```
 
@@ -342,6 +360,7 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 | `fr_github` | FR-GitHub Issues 연동 | `true` / `false` |
 | `defect_report_upstream` | rd-workflow 인프라 결함 보고서를 보낼 대상 저장소. `owner/repo`(github.com) 또는 `host/owner/repo`. 업그레이드 시 배포 URL에서 자동으로 채워지며, **이미 값이 있으면 덮어쓰지 않습니다**. 정본 저장소로 직접 보내려면 여기에 미리 적어 두면 업그레이드 후에도 유지됩니다 | `""` (미설정 — 전달 보류) |
 | `default_branch` | lifecycle·diff review 기준 기본 브랜치. 빈 값이면 자동 검출 (origin/HEAD → main/master 유일 매치). 검출 실패·모호 시 이 키 설정을 안내하는 에러 출력 | `""` / `"main"` / `"trunk"` |
+| `default_execution_mode` | 기본 실행 모드. **기본값은 `"semi-auto"`** — 배포본의 `workflow.json` 이 이 값을 담고 있고, 파일이나 키가 없어도 `semi-auto` 로 판정합니다. **단계마다 확인받는 종전 동작으로 되돌리려면 이 키에 `"manual"` 을 적습니다.** 값을 판정할 수 없으면(파싱 실패·허용되지 않는 값 등) `manual` 로 떨어지며 경고가 표시됩니다. 세션 지시("이번엔 수동으로")가 이 값보다 우선합니다. 상세 판정 규칙은 `rd-workflow/docs/flows/AUTONOMY.md` | `"semi-auto"`(기본) / `"manual"` |
 
 ### 7.2 review-tools.json
 
@@ -582,7 +601,7 @@ AI가 절차를 놓칠 때 수동으로 보정할 수 있습니다:
 
 ```
 "이 기능 구현해줘: [요구사항]"          # 큰 작업 시작
-"small-task로 이거 고쳐줘: [설명]"      # 작은 작업
+"이거 고쳐줘: [설명]"      # AI 가 등급 판정
 "/fr add [아이디어]"                    # FR 등록
 "/fr list"                             # FR 목록
 "autopilot으로 돌려"                    # 자동 실행
@@ -592,6 +611,6 @@ AI가 절차를 놓칠 때 수동으로 보정할 수 있습니다:
 
 ### 절대 규칙 (AI가 반드시 지키는 것)
 
-1. 구현 완료 후 반드시 final diff review
+1. `standard`·`full` 은 구현 완료 후 반드시 final diff review (`light` 는 커밋 전 재분류)
 2. 큰 작업에서 Superpowers 반드시 사용
 3. 구현 후 검증 스크립트 실행 (`test.sh`, `lint.sh`, `typecheck.sh`, `build.sh`)

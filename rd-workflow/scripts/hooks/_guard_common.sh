@@ -109,54 +109,329 @@ is_review_session_resolved() {
   return 0
 }
 
-# archive review precheck (3c) — 종결이거나 force-skip이면 진행, 아니면 차단. force-skip 시 audit append.
-# fr_branch_ref 가 주어지면 그 ref tip 의 세션을 검증 (merge 전, main 워킹트리 비의존).
-# 사용: archive_review_precheck <force_skip 0|1> <reason> <slug> <audit_log> [fr_branch_ref]. return 0=진행, 1=차단.
+# ---------------------------------------------------------------------------
+# 종결 마커 strict 검증 (change-spec §3.1·§3.3) — canonical 단일 출처
+# ---------------------------------------------------------------------------
+# 검증 규칙을 여기 한 곳에만 둡니다. `rd` 는 `_task_common.sh` 를 통해 이 파일을 source 해
+# 같은 함수를 부르고, 자체 구현을 두지 않습니다 — 규칙이 두 곳에 있으면 「`rd task status`
+# 는 발행 가능이라는데 `archive.sh` 가 막는」 어긋난 상태가 생깁니다 (spec §4.4).
+#
+# 판정 헬퍼는 `_state_common.sh` 의 T1 함수(`rd_repo_root`·`rd_resolve_commit_oid`·
+# `rd_protected_tree_hash`·`rd_branch_mode`·`state_read_review_session`) 를 재사용하며
+# 같은 판정을 다시 구현하지 않습니다.
+
+RD_SEAL_SCHEMA="1"
+# 마커 필수 필드 (§3.1). 공백 구분 — bash 3.2 라 연관배열을 쓰지 않습니다.
+RD_SEAL_REQUIRED_FIELDS="schema session-id review-type tree-hash head branch-mode fr-branch rd-version verified sealed-at"
+RD_SEAL_REL_DIR="rd-workflow-workspace/.lifecycle/review-seals"
+RD_SEAL_REL_STATE="rd-workflow-workspace/.lifecycle/task-state"
+RD_SEAL_AUDIT_REL="rd-workflow-workspace/.lifecycle/review-skip-audit.log"
+
+_rd_seal_dir() { printf '%s\n' "${project_root}/${RD_SEAL_REL_DIR}"; }
+
+# _rd_kv_get <file> <key> — key=value 파일에서 첫 값 출력 (부재 시 빈 출력)
+_rd_kv_get() {
+  [[ -f "$1" ]] || return 0
+  awk -F'=' -v k="$2" '$1==k{sub(/^[^=]+=/,""); print; exit}' "$1"
+}
+
+# _rd_version — rd-workflow VERSION (§8 self-modification 경고용). 부재 시 unknown.
+_rd_version() {
+  local f="${project_root}/rd-workflow/VERSION" v=""
+  [[ -f "$f" ]] && v="$(head -n 1 "$f" | tr -d '[:space:]')"
+  printf '%s\n' "${v:-unknown}"
+}
+
+# 검증 결과 전역 (§4.4 의 복구 안내가 사유마다 다르므로 kind 를 합치지 않습니다)
+#   RD_SEAL_FAIL_KIND — missing | hash-mismatch | pointer-missing | malformed | hash-error
+#   RD_SEAL_FAIL_MSG  — §3.3 표의 문구 그대로
+#   RD_SEAL_VERIFIED  — 성공 시 yes | legacy-unverified
+#   RD_SEAL_SESSION_ID — 포인터가 해석된 경우의 session-id (audit 기록용)
+RD_SEAL_FAIL_KIND=""
+RD_SEAL_FAIL_MSG=""
+RD_SEAL_VERIFIED=""
+RD_SEAL_SESSION_ID=""
+# 검증이 통과한 **보호 트리 해시**입니다. 발행 직전 재결속(archive.sh Step 4.6) 이 이 값을
+# 소비하므로, 성공했을 때만 채우고 실패·미실행 시에는 빈 값으로 남깁니다.
+RD_SEAL_TREE_HASH=""
+
+_rd_seal_fail() {
+  RD_SEAL_FAIL_KIND="$1"
+  RD_SEAL_FAIL_MSG="$2"
+  return 1
+}
+
+# _rd_seal_pointer_check <값> — review-session 값 계약 (경로 이탈 거부, §3.3)
+#   0 = 유효 / 1 = 미설정 / 2 = 경로 이탈
+_rd_seal_pointer_check() {
+  local v="${1-}"
+  case "$v" in
+    ""|null|-) return 1 ;;
+    */*|*\\*|.|..) return 2 ;;
+  esac
+  return 0
+}
+
+# rd_seal_verify <worktree|commit> [판정 대상 commit] [fr-branch 값]
+#
+#   return 0 — 유효. `RD_SEAL_VERIFIED` 에 verified 값(yes|legacy-unverified) 을,
+#              `RD_SEAL_TREE_HASH` 에 검증이 통과한 보호 트리 해시를 담습니다.
+#   return 1 — 무효. `RD_SEAL_FAIL_KIND`·`RD_SEAL_FAIL_MSG` 를 채웁니다.
+#
+# **source 인자 분리가 계약입니다 (§4.4).** 게이트(`archive_review_precheck`)는 언제나
+# `commit` 으로 §3.3.1 의 판정 대상 commit 을 읽고, `rd task status` 만 워킹트리를 추가로
+# 봅니다. 워킹트리를 게이트 판정에 넣으면 「fr 브랜치에 커밋 → 기본 브랜치로 switch →
+# archive.sh」 표준 흐름이 깨집니다.
+#
+# fr-branch 값은 **판정 입력이 아니라 판정 대상을 찾는 값**이므로(§3.3.1 의 유일한 예외)
+# 호출자가 넘깁니다. 생략하면 워킹트리 task-state 에서 읽습니다.
+rd_seal_verify() {
+  local src="${1-}" target="${2-}" fr_in="${3-}"
+  RD_SEAL_FAIL_KIND=""; RD_SEAL_FAIL_MSG=""; RD_SEAL_VERIFIED=""; RD_SEAL_SESSION_ID=""
+  RD_SEAL_TREE_HASH=""
+  local root sid tmp rc content_ok=0
+  root="$(rd_repo_root)" || { _rd_seal_fail "hash-error" "repo root 를 찾을 수 없습니다 — 판정 불가"; return 1; }
+
+  # --- 1) review-session 포인터 (§3.3 — 디렉터리 탐색 금지, 이 값 하나만 씁니다) ---
+  if [[ "$src" == "commit" ]]; then
+    tmp="$(mktemp "${TMPDIR:-/tmp}/rd-seal-state.XXXXXX")" \
+      || { _rd_seal_fail "hash-error" "mktemp 실패 — 판정 불가"; return 1; }
+    if ! git -C "$root" show "${target}:${RD_SEAL_REL_STATE}" > "$tmp" 2>/dev/null; then
+      rm -f "$tmp"
+      { _rd_seal_fail "pointer-missing" \
+        "final diff review 세션이 지정되지 않았습니다 — prepare_review_pipeline.sh diff 로 세션을 만드십시오"; return 1; }
+    fi
+    sid="$(_rd_kv_get "$tmp" "review-session")"
+    rm -f "$tmp"
+    _rd_seal_pointer_check "$sid"; rc=$?
+  else
+    sid="$(state_read_review_session 2>/dev/null)"; rc=$?
+  fi
+  if [[ "$rc" == "2" ]]; then
+    { _rd_seal_fail "malformed" "review-session 값에 경로 구분자나 '..' 가 있습니다: '${sid}'"; return 1; }
+  fi
+  if [[ "$rc" != "0" || -z "$sid" ]]; then
+    { _rd_seal_fail "pointer-missing" \
+      "final diff review 세션이 지정되지 않았습니다 — prepare_review_pipeline.sh diff 로 세션을 만드십시오"; return 1; }
+  fi
+  RD_SEAL_SESSION_ID="$sid"
+
+  # --- 2) 마커 파일 존재 (handoffs/ 를 보지 않습니다 — 마커 하나만 읽습니다) ---
+  tmp="$(mktemp "${TMPDIR:-/tmp}/rd-seal-marker.XXXXXX")" \
+    || { _rd_seal_fail "hash-error" "mktemp 실패 — 판정 불가"; return 1; }
+  if [[ "$src" == "commit" ]]; then
+    git -C "$root" show "${target}:${RD_SEAL_REL_DIR}/${sid}.seal" > "$tmp" 2>/dev/null && content_ok=1
+  else
+    [[ -f "$(_rd_seal_dir)/${sid}.seal" ]] && cat "$(_rd_seal_dir)/${sid}.seal" > "$tmp" 2>/dev/null && content_ok=1
+  fi
+  if [[ "$content_ok" != "1" ]]; then
+    rm -f "$tmp"
+    { _rd_seal_fail "missing" "마커 없음 — rd review seal <세션> 을 먼저 실행하세요"; return 1; }
+  fi
+
+  # --- 3) schema / 필수 필드 / session-id / review-type / branch / verified ---
+  local schema missing="" f v m_sid m_type m_mode m_fr m_hash m_verified m_version
+  schema="$(_rd_kv_get "$tmp" "schema")"
+  if [[ "$schema" != "$RD_SEAL_SCHEMA" ]]; then
+    rm -f "$tmp"
+    { _rd_seal_fail "malformed" "마커 schema 미지원 (파일=${schema:-<없음>}, 지원=${RD_SEAL_SCHEMA})"; return 1; }
+  fi
+  for f in $RD_SEAL_REQUIRED_FIELDS; do
+    v="$(_rd_kv_get "$tmp" "$f")"
+    [[ -z "$v" ]] && missing="${missing:+${missing}, }${f}"
+  done
+  if [[ -n "$missing" ]]; then
+    rm -f "$tmp"
+    { _rd_seal_fail "malformed" "마커 형식 오류 — 누락 필드: ${missing}"; return 1; }
+  fi
+  m_sid="$(_rd_kv_get "$tmp" "session-id")"
+  m_type="$(_rd_kv_get "$tmp" "review-type")"
+  m_mode="$(_rd_kv_get "$tmp" "branch-mode")"
+  m_fr="$(_rd_kv_get "$tmp" "fr-branch")"
+  m_hash="$(_rd_kv_get "$tmp" "tree-hash")"
+  m_verified="$(_rd_kv_get "$tmp" "verified")"
+  m_version="$(_rd_kv_get "$tmp" "rd-version")"
+  rm -f "$tmp"
+
+  # 파일명(<session-id>.seal) 과 내부 session-id 일치 — 복사·개명 탐지.
+  if [[ "$m_sid" != "$sid" ]]; then
+    { _rd_seal_fail "malformed" "마커 세션 불일치 — 복사되었거나 이름이 잘못되었습니다"; return 1; }
+  fi
+  # 내부 session-id 와 task-state `review-session` 포인터 일치 (§3.3 의 별도 항목).
+  # 마커 경로를 포인터로 조립하므로 위 검사가 통과하면 이 검사도 통과합니다 — 두 사유가
+  # 실제로는 겹칩니다. 포인터를 쓰지 않는 경로가 생겼을 때 조용히 통과하지 않도록
+  # 검사와 문구를 그대로 남겨 둡니다 (§3.3 표의 10종 중 한 줄).
+  if [[ "$m_sid" != "$RD_SEAL_SESSION_ID" ]]; then
+    { _rd_seal_fail "malformed" "마커가 현재 작업의 세션이 아닙니다"; return 1; }
+  fi
+  if [[ "$m_type" != "diff-review" ]]; then
+    { _rd_seal_fail "malformed" "마커가 final diff review 의 것이 아닙니다 (review-type=${m_type})"; return 1; }
+  fi
+  # branch-mode·fr-branch 는 현재 task 와 일치해야 합니다 (§3.2.2 표기).
+  local cur_fr cur_mode cur_fr_field
+  cur_fr="$fr_in"
+  [[ -z "$cur_fr" ]] && cur_fr="$(state_read_field "fr-branch")"
+  cur_mode="$(rd_branch_mode "$cur_fr" 2>/dev/null)" \
+    || { _rd_seal_fail "malformed" "task-state fr-branch 값이 canonical 이 아닙니다: '${cur_fr}'"; return 1; }
+  if [[ "$cur_mode" == "no-fr" ]]; then cur_fr_field="null"; else cur_fr_field="$cur_fr"; fi
+  if [[ "$m_mode" != "$cur_mode" || "$m_fr" != "$cur_fr_field" ]]; then
+    { _rd_seal_fail "malformed" "마커 branch 모드 불일치"; return 1; }
+  fi
+  # verified 는 2값만 허용합니다 (§3.3).
+  case "$m_verified" in
+    yes|legacy-unverified) ;;
+    *) { _rd_seal_fail "malformed" "마커 verified 값이 올바르지 않습니다: ${m_verified}"; return 1; } ;;
+  esac
+
+  # --- 4) 보호 트리 해시 일치 (§2.2 fail-closed — 계산 실패는 통과가 아닙니다) ---
+  local cur_hash ref
+  if [[ "$src" == "commit" ]]; then ref="$target"; else ref="HEAD"; fi
+  cur_hash="$(rd_protected_tree_hash "$ref" 2>/dev/null)" \
+    || { _rd_seal_fail "hash-error" "보호 트리 해시를 계산할 수 없습니다 — 판정 불가로 차단합니다"; return 1; }
+  if [[ "$m_hash" != "$cur_hash" ]]; then
+    { _rd_seal_fail "hash-mismatch" \
+      "리뷰 대상 불일치 — 종결 후 코드가 변경되었습니다. 재리뷰 후 seal 을 다시 실행하세요"; return 1; }
+  fi
+
+  # rd-version 불일치는 경고만 합니다 (§8) — 버전이 오른 것 자체는 정상이며, 차단하면
+  # 업그레이드가 곧 발행 불가가 됩니다.
+  if [[ "$m_version" != "$(_rd_version)" ]]; then
+    echo "경고: 마커의 rd-version(${m_version}) 이 현재 VERSION($(_rd_version)) 과 다릅니다." >&2
+  fi
+  RD_SEAL_VERIFIED="$m_verified"
+  # 통과한 해시를 남깁니다 — 이 시점에 `m_hash` 와 `cur_hash` 는 같습니다. 발행 직전
+  # 재결속은 "마커가 승인한 트리" 를 기준으로 해야 하므로 마커 값을 그대로 씁니다.
+  RD_SEAL_TREE_HASH="$m_hash"
+  return 0
+}
+
+# _rd_seal_legacy_warning — legacy 마커 지속 고지 (§3.3 Finding 5).
+# 통과할 때마다 냅니다 — 생성 시점 1회 고지로는 나중에 실행하는 사람이 알 수 없습니다.
+_rd_seal_legacy_warning() {
+  echo "경고: 이 마커는 검증되지 않은 legacy 전환입니다 (verified=legacy-unverified)." >&2
+  echo "      리뷰 당시 트리를 증명하지 않습니다. 사유: ${RD_SEAL_AUDIT_REL}" >&2
+}
+
+# archive review precheck — 발행 직전 종결 마커 strict 검증 (change-spec §3.3·§3.3.1).
+#
+# **`handoffs/` 를 읽지 않습니다.** 종전에는 fr tip 의 `review_pipeline` 서브트리를 통째로
+# 추출해 세션 종결성을 다시 판정했으나, 이제는 §3.1 의 마커 한 파일만 읽습니다 (AC 11).
+# 세션 본문을 커밋하지 않는 프로젝트도 마커만 커밋하면 통과합니다.
+#
+# 판정 입력은 전부 **하나의 판정 대상 commit** 에서 읽습니다 (§3.3.1).
+#   fr    — `<fr-branch>^{commit}` (fr tip). 기존 main-worktree 비의존 계약을 보존합니다.
+#   no-fr — 현재 `HEAD^{commit}` (Step 0 clean 검사 통과 후).
+# 워킹트리 파일을 읽으면 「fr 브랜치에 커밋 → 기본 브랜치로 switch → archive.sh」 표준
+# 흐름에서 마커를 못 보거나 기본 브랜치의 stale 한 상태를 읽습니다.
+#
+# fr 브랜치 **이름만** 예외입니다 — 판정 입력이 아니라 판정 대상을 찾는 값이므로 인자
+# (`archive.sh` 의 `FR_BRANCH`) 또는 워킹트리 task-state 에서 옵니다. 모드 판정은
+# `rd_branch_mode` 한 곳에서만 합니다.
+#
+# **승인한 보호 트리 해시를 밖으로 남깁니다 (`RD_ARCHIVE_REVIEWED_TREE_HASH`).** 이 검증은
+# 발행 대상이 확정되기 **전**의 commit 을 보므로, 그 뒤 HEAD 가 전진하면 검증한 트리와
+# 발행하는 트리가 갈라질 수 있습니다. 그 창을 닫으려면 호출자가 발행 직전에 같은 해시로
+# 다시 대조해야 하고, cleanup 이 `review-session` 을 baseline 으로 되돌리므로 그 시점에
+# `rd_seal_verify` 를 다시 부르는 방식은 성립하지 않습니다 — 그래서 해시를 값으로 넘깁니다.
+# 우회(`--force-skip-review-check`) 로 통과한 경우에는 승인한 해시가 없으므로 빈 값입니다.
+#
+# 사용: archive_review_precheck <force_skip 0|1> <reason> <slug> <audit_log> [fr_branch]
+#       return 0=진행, 1=차단. 인자 형태는 종전과 같습니다.
+RD_ARCHIVE_REVIEWED_TREE_HASH=""
 archive_review_precheck() {
   local force_skip="$1" reason="$2" slug="$3" audit_log="$4" fr_ref="${5:-}"
-  local review_dir="" audit_ref="" resolved=1
-  if [[ -n "$fr_ref" ]]; then
-    local tmp; tmp="$(mktemp -d)"
-    # fr tip 의 review_pipeline 서브트리만 temp 로 추출. 추출 실패(경로 부재/corrupt ref/tar 실패)는
-    # 전부 "세션 없음"으로 귀결 → fail-closed 차단. 진단보다 안전(미검증 archive 차단)을 우선한다.
-    git -C "$project_root" archive "$fr_ref" -- rd-workflow-workspace/handoffs/review_pipeline 2>/dev/null \
-      | tar -x -C "$tmp" 2>/dev/null || true
-    local fr_base="$tmp/rd-workflow-workspace/handoffs/review_pipeline" _d
-    # fr_ref identity 로 후보 고정: SESSION.md Branch Context fr-branch == fr_ref 인 최신 final-diff-review.
-    # main 워킹트리(get_current_short_title) 비의존 + stale/unrelated closed 세션 false-positive 방지
-    # + suffix(fr/foo-2) 정확 매칭. Branch Context fr-branch 부재(legacy/malformed)는 매칭 실패 → fail-closed.
-    for _d in "$fr_base/"*_final-diff-review; do
-      [[ -d "$_d" ]] || continue
-      [[ "$(_session_fr_branch "$_d")" == "$fr_ref" ]] || continue
-      review_dir="$_d"
-    done
-    if [[ -n "$review_dir" ]] && is_review_session_resolved "$review_dir"; then
-      resolved=0
-    fi
-    # temp 경로는 정리 후 무의미 → audit 은 repo-상대 경로로 정규화.
-    [[ -n "$review_dir" ]] && audit_ref="rd-workflow-workspace/handoffs/review_pipeline/$(basename "$review_dir")"
-    rm -rf "$tmp"
-  else
-    review_dir="$(get_latest_diff_review_dir)"
-    if [[ -n "$review_dir" ]] && is_review_session_resolved "$review_dir"; then
-      resolved=0
-    fi
-    audit_ref="$review_dir"
+  local mode="" target="" audit_ref="" ok=1 fail_msg=""
+  RD_ARCHIVE_REVIEWED_TREE_HASH=""
+
+  if [[ -z "$fr_ref" ]]; then
+    fr_ref="$(state_read_field "fr-branch")"
   fi
-  if [[ "$resolved" -eq 0 ]]; then
+  if ! mode="$(rd_branch_mode "$fr_ref" 2>/dev/null)"; then
+    fail_msg="fr-branch 값이 canonical 이 아닙니다 ('${fr_ref}') — 'fr/<slug>' 또는 'null' 이어야 합니다"
+  elif [[ "$mode" == "fr" ]]; then
+    if ! target="$(rd_resolve_commit_oid "$fr_ref" 2>/dev/null)"; then
+      target=""
+      fail_msg="fr 브랜치 '${fr_ref}' 의 commit 을 찾을 수 없습니다 — 판정 대상이 없습니다"
+    fi
+  else
+    if ! target="$(rd_resolve_commit_oid "HEAD" 2>/dev/null)"; then
+      target=""
+      fail_msg="HEAD 를 commit 으로 해석할 수 없습니다 — 판정 불가"
+    fi
+  fi
+
+  if [[ -z "$fail_msg" ]]; then
+    if rd_seal_verify "commit" "$target" "$fr_ref"; then
+      ok=0
+    else
+      fail_msg="$RD_SEAL_FAIL_MSG"
+    fi
+  fi
+  # audit 은 temp 경로가 아니라 repo-상대 마커 경로로 남깁니다.
+  [[ -n "$RD_SEAL_SESSION_ID" ]] && audit_ref="${RD_SEAL_REL_DIR}/${RD_SEAL_SESSION_ID}.seal"
+
+  if [[ "$ok" -eq 0 ]]; then
+    RD_ARCHIVE_REVIEWED_TREE_HASH="$RD_SEAL_TREE_HASH"
+    [[ "$RD_SEAL_VERIFIED" == "legacy-unverified" ]] && _rd_seal_legacy_warning
     return 0
   fi
+
+  printf 'archive: 종결 마커 검증 실패 — %s\n' "$fail_msg" >&2
   if [[ "$force_skip" != "1" ]]; then
-    printf 'archive: review 미종결 (세션 없음 또는 미종결). --force-skip-review-check "<사유>"로만 우회 가능.\n' >&2
+    printf 'archive: review 미종결 (마커 없음 또는 무효). --force-skip-review-check "<사유>"로만 우회 가능.\n' >&2
     return 1
   fi
   if [[ -z "$reason" ]]; then
     printf 'archive: --force-skip-review-check 사유 필수\n' >&2
     return 1
   fi
-  mkdir -p "$(dirname "$audit_log")"
-  printf '%s | %s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "$slug" "$reason" "${audit_ref:-<세션없음>}" >> "$audit_log"
+  # audit 기록은 이 우회 경로의 **유일한 흔적**입니다. `mkdir -p` 와 append 의 종료 상태를
+  # 확인하지 않으면 기록이 통째로 사라진 채 "audit log 기록" 이라고 잘못 알리고 발행이
+  # 계속됩니다 (final diff review turn 004 Finding 1). 실패는 차단으로 전파합니다 —
+  # 리뷰 검증을 명시적으로 우회하면서 사유조차 남지 않는 발행은 허용하지 않습니다.
+  local audit_dir
+  audit_dir="$(dirname "$audit_log")"
+  if ! mkdir -p "$audit_dir" 2>/dev/null; then
+    printf 'archive: audit 디렉터리를 만들 수 없습니다 (%s) — 우회 사유를 남길 수 없어 차단합니다.\n' "$audit_dir" >&2
+    return 1
+  fi
+  if ! printf '%s | %s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M')" "$slug" "$reason" "${audit_ref:-<세션없음>}" >> "$audit_log" 2>/dev/null; then
+    printf 'archive: audit log 기록에 실패했습니다 (%s) — 우회 사유를 남길 수 없어 차단합니다.\n' "$audit_log" >&2
+    return 1
+  fi
   printf 'archive: WARNING — review 검증 우회 (사유: %s). audit log 기록.\n' "$reason" >&2
+  return 0
+}
+
+# archive_publish_rebind_check <승인된 보호 트리 해시> <발행 대상 commit>
+#
+# precheck 가 승인한 트리와 **실제로 발행할 commit** 의 트리를 다시 결속합니다 (§2.2·§3.3.1).
+#
+# precheck 는 metadata cleanup commit 이전의 commit 을 봅니다. 그 뒤 cleanup commit 이 붙고
+# 발행 대상 OID 가 확정되는데, 그 사이에 보호 경로를 바꾼 커밋이 HEAD 를 전진시키면 검증한
+# 트리와 발행하는 트리가 갈라집니다. cleanup 이 `review-session` 포인터를 baseline 으로
+# 되돌리므로 이 시점에 `rd_seal_verify` 를 다시 부를 수는 없습니다 — 그래서 승인 시점의
+# 해시를 값으로 받아 대조합니다.
+#
+#   return 0 — 일치. 발행해도 됩니다.
+#   return 1 — 불일치. 미검토 코드가 섞였습니다.
+#   return 2 — 판정 불가 (인자 누락 또는 해시 계산 실패). fail-closed 라 통과가 아닙니다.
+archive_publish_rebind_check() {
+  local reviewed="${1-}" publish_oid="${2-}" cur=""
+  if [[ -z "$reviewed" || -z "$publish_oid" ]]; then
+    echo "archive: 발행 재대조에 필요한 값이 없습니다 (승인 해시 또는 발행 대상) — 판정 불가로 차단합니다." >&2
+    return 2
+  fi
+  cur="$(rd_protected_tree_hash "$publish_oid" 2>/dev/null)" || {
+    echo "archive: 발행 대상의 보호 트리 해시를 계산할 수 없습니다 — 판정 불가로 차단합니다." >&2
+    return 2
+  }
+  if [[ "$cur" != "$reviewed" ]]; then
+    echo "archive: 발행 대상이 리뷰된 트리와 다릅니다 — 종결 마커 검증 이후 보호 경로가 바뀌었습니다." >&2
+    echo "archive:   리뷰된 해시=${reviewed}" >&2
+    echo "archive:   발행 대상(${publish_oid}) 해시=${cur}" >&2
+    return 1
+  fi
   return 0
 }
 

@@ -21,6 +21,64 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# 사전 검증 순서 (구현 시점 결정, 2026-09-05)
+#
+# FR identity 확정과 no-fr 실행 브랜치 검사를 Step 0 의 worktree 검사 **앞**에 둡니다.
+# 뒤에 두면 `get_main_worktree_path` 가 항상 먼저 실패해, no-fr 사용자가 detached HEAD 에서
+# `기본 브랜치 worktree 검출 실패` 라는 무관한 안내만 받고 무엇을 해야 하는지 알 수 없습니다
+# (change spec §5.1 이 정한 두 메시지가 도달 불가였습니다 — T4 구현 보고에서 드러났습니다).
+# 여기 있는 것은 전부 **읽기 전용 사전 검증**이라 발행 순서(one-shot 계약)와 무관합니다.
+
+# FR identity source-of-truth
+#
+# 여기서 실행 모드를 확정합니다 (change spec §5.1·§3.2.2).
+#   fr    — `fr/<slug>` 브랜치를 merge 해 발행하는 기존 경로
+#   no-fr — fr 브랜치 없이 기본 브랜치에서 직접 작업한 경우의 발행 경로
+#
+# 판정은 `rd_branch_mode`(_state_common.sh) **한 곳**에서만 합니다. "비어 있으면 no-fr" 로
+# 다루지 않는 것이 핵심입니다 — 필드가 유실된 파손 상태와 사용자가 명시한 no-fr 을
+# 구분하지 못하면 파손된 task-state 가 조용히 no-fr 발행으로 흘러갑니다. canonical no-fr
+# 표기는 `null` 하나뿐이고 빈 문자열·공백·`main` 등은 전부 malformed 로 막습니다.
+FR_BRANCH="$FR_BRANCH_OVERRIDE"
+if [[ -z "$FR_BRANCH" ]]; then
+  FR_BRANCH="$(metadata_read_field fr-branch)"
+fi
+if [[ -z "$FR_BRANCH" ]]; then
+  # 빈 값은 no-fr 이 아니라 "metadata 를 해석하지 못했다" 입니다 (파손·경로 오해석 포함).
+  printf 'archive: active fr 없음. promote.sh 호출 후 archive 가능합니다.\n' >&2
+  printf 'archive:   no-fr 모드는 task-state 의 fr-branch 가 canonical `null` 일 때만 진입합니다 — 빈 값은 파손으로 봅니다.\n' >&2
+  exit 1
+fi
+BRANCH_MODE=""
+BRANCH_MODE="$(rd_branch_mode "$FR_BRANCH")" || {
+  # rd_branch_mode 가 허용 표기를 stderr 로 이미 안내했습니다.
+  printf 'archive: fr-branch 값이 canonical 이 아니라 진행할 수 없습니다 — 중단합니다.\n' >&2
+  exit 1
+}
+
+# no-fr 실행 브랜치 안전 조건 (change spec §5.1)
+#
+# no-fr 모드는 merge 대상 브랜치가 없어 metadata cleanup commit·tag·push 를 **현재 checkout**
+# 에 그대로 수행합니다. 그래서 "어디에서 실행했는가" 가 곧 "무엇이 발행되는가" 입니다.
+# fr 모드는 위 Step 0 의 `get_main_worktree_path` 검사가 이 역할을 이미 하므로 그대로 둡니다.
+if [[ "$BRANCH_MODE" == "no-fr" ]]; then
+  NOFR_DEFAULT_BRANCH="$(get_default_branch)" || {
+    printf 'archive: 기본 브랜치 결정 실패 — no-fr 모드는 진행할 수 없습니다\n' >&2; exit 1
+  }
+  # detached HEAD 는 symbolic-ref 가 nonzero 이므로 여기서 갈립니다. 조용히 통과시키면
+  # 발행 대상 브랜치가 없는 채로 tag·push 가 나갑니다.
+  NOFR_CURRENT_BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null)" || NOFR_CURRENT_BRANCH=""
+  if [[ -z "$NOFR_CURRENT_BRANCH" ]]; then
+    printf 'archive: detached HEAD 에서는 no-fr archive 를 할 수 없습니다 — 기본 브랜치로 전환 후 재실행하세요.\n' >&2
+    exit 1
+  fi
+  if [[ "$NOFR_CURRENT_BRANCH" != "$NOFR_DEFAULT_BRANCH" ]]; then
+    printf 'archive: no-fr 모드는 기본 브랜치(%s)에서만 호출 가능합니다 — 현재: %s. git switch %s 후 재실행하세요.\n' \
+      "$NOFR_DEFAULT_BRANCH" "$NOFR_CURRENT_BRANCH" "$NOFR_DEFAULT_BRANCH" >&2
+    exit 1
+  fi
+fi
+
 # Step 0 — 기본 브랜치 worktree 검증
 MAIN_WT="$(get_main_worktree_path)" || { printf 'archive: 기본 브랜치 worktree 검출 실패\n' >&2; exit 1; }
 CURRENT_WT="$(git rev-parse --show-toplevel)" || {
@@ -38,16 +96,6 @@ elif ! ensure_worktree_clean; then
   printf 'archive: WARNING — dirty state 로 진행 (--force-dirty 는 이 clean 검사만 넘깁니다)\n' >&2
 fi
 
-# FR identity source-of-truth
-FR_BRANCH="$FR_BRANCH_OVERRIDE"
-if [[ -z "$FR_BRANCH" ]]; then
-  FR_BRANCH="$(metadata_read_field fr-branch)"
-fi
-if [[ -z "$FR_BRANCH" ]]; then
-  printf 'archive: active fr 없음. promote.sh 호출 후 archive 가능합니다.\n' >&2; exit 1
-fi
-[[ "$FR_BRANCH" == fr/* ]] || { printf 'archive: 잘못된 fr ref: %s\n' "$FR_BRANCH" >&2; exit 1; }
-
 # Override mismatch guard — override 가 active metadata 와 다르면 unrelated FR 정리/metadata 손상을 막기 위해 중단.
 if [[ -n "$FR_BRANCH_OVERRIDE" ]] && metadata_exists; then
   ACTIVE_FR="$(metadata_read_field fr-branch)"
@@ -59,7 +107,20 @@ if [[ -n "$FR_BRANCH_OVERRIDE" ]] && metadata_exists; then
   fi
 fi
 
-SLUG="${FR_BRANCH#fr/}"
+# SLUG — tag 이름(`fr/<날짜>/<slug>`)의 재료. tag 형식은 두 모드가 같습니다 (§5.1).
+#   fr    : 브랜치 이름이 곧 slug 입니다.
+#   no-fr : 브랜치가 없으므로 task-state `short-title` 을 정규화해 씁니다. baseline(`-`)이나
+#           비어 있는 short-title 은 normalize_slug 가 거부하므로 fail-closed 입니다 —
+#           이름을 임의로 지어내면 tag 가 어떤 작업의 것인지 추적할 수 없어집니다.
+if [[ "$BRANCH_MODE" == "no-fr" ]]; then
+  SLUG="$(normalize_slug "$(metadata_read_field short-title)")" || {
+    printf 'archive: no-fr 모드의 tag slug 를 task-state short-title 에서 만들 수 없습니다 — 중단합니다.\n' >&2
+    printf 'archive:   먼저 실행: bash rd-workflow/scripts/rd task set-title <제목>\n' >&2
+    exit 1
+  }
+else
+  SLUG="${FR_BRANCH#fr/}"
+fi
 REMOTE_MODE="$(detect_remote_mode)"
 [[ "$NO_REMOTE" -eq 1 ]] && REMOTE_MODE="local-only"
 
@@ -72,16 +133,27 @@ if [[ "$REMOTE_MODE" == "remote" ]]; then
 fi
 
 # Rerun 안전망 — fr branch 부재 + 동일 slug tag 존재 = 이미 archive 완료
-if ! git rev-parse --verify "$FR_BRANCH" >/dev/null 2>&1; then
-  EXISTING_TAG="$(git tag --list "fr/*/$SLUG" 2>/dev/null | head -1)"
-  if [[ -n "$EXISTING_TAG" ]]; then
-    printf 'archive: 이미 archive 완료 — nothing to do (tag=%s)\n' "$EXISTING_TAG"
-    exit 0
+#
+# 이 판정의 축은 "fr 브랜치가 사라졌는가" 이므로 fr 모드 전용입니다. no-fr 모드에는 브랜치가
+# 애초에 없어 조건이 항상 참이 되고, 같은 slug 로 두 번째 작업을 하면 첫 tag 만 보고
+# "이미 완료" 로 조기 종료합니다. no-fr 의 재실행 멱등성은 Step 5 의 `--points-at $PUBLISH_OID`
+# tag 재사용이 담당합니다 (같은 커밋이면 tag 를 새로 만들지 않습니다).
+if [[ "$BRANCH_MODE" == "fr" ]]; then
+  if ! git rev-parse --verify "$FR_BRANCH" >/dev/null 2>&1; then
+    EXISTING_TAG="$(git tag --list "fr/*/$SLUG" 2>/dev/null | head -1)"
+    if [[ -n "$EXISTING_TAG" ]]; then
+      printf 'archive: 이미 archive 완료 — nothing to do (tag=%s)\n' "$EXISTING_TAG"
+      exit 0
+    fi
+    printf 'archive: branch %s 미존재\n' "$FR_BRANCH" >&2; exit 1
   fi
-  printf 'archive: branch %s 미존재\n' "$FR_BRANCH" >&2; exit 1
 fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
+  if [[ "$BRANCH_MODE" == "no-fr" ]]; then
+    printf 'would archive: no-fr 모드, 브랜치=%s slug=%s (tag는 cleanup commit 부착 후 결정)\n' \
+      "$NOFR_CURRENT_BRANCH" "$SLUG"; exit 0
+  fi
   printf 'would archive: branch=%s (tag는 cleanup commit 부착 후 결정)\n' "$FR_BRANCH"; exit 0
 fi
 
@@ -93,18 +165,51 @@ AUDIT_LOG="$CURRENT_WT/rd-workflow-workspace/.lifecycle/review-skip-audit.log"
 archive_review_precheck "$FORCE_SKIP_REVIEW" "$SKIP_REASON" "$SLUG" "$AUDIT_LOG" "$FR_BRANCH" || exit 1
 
 # Step 2 — archive content 휴리스틱 (warning만)
-LAST_COMMIT_FILES="$(git log -1 "$FR_BRANCH" --name-only --pretty=format: 2>/dev/null || true)"
+# no-fr 모드에는 fr tip 이 없으므로 같은 휴리스틱을 현재 HEAD 의 마지막 커밋에 적용합니다.
+# 경고일 뿐이라 판정을 바꾸지 않지만, "아카이브 내용을 커밋하지 않았다" 는 흔한 실수는
+# 두 모드에서 똑같이 일어나므로 no-fr 이라고 알림을 없애지 않습니다.
+if [[ "$BRANCH_MODE" == "no-fr" ]]; then
+  LAST_COMMIT_REF="HEAD"
+else
+  LAST_COMMIT_REF="$FR_BRANCH"
+fi
+LAST_COMMIT_FILES="$(git log -1 "$LAST_COMMIT_REF" --name-only --pretty=format: 2>/dev/null || true)"
 if ! grep -qE '(^|/)(REQUEST\.md|CURRENT_TASK\.md|FUTURE_REQUESTS\.md|request-archive/.*\.md)' <<<"$LAST_COMMIT_FILES"; then
-  printf 'archive: WARNING — fr branch 마지막 commit 에 archive content 미감지\n' >&2
+  printf 'archive: WARNING — %s 마지막 commit 에 archive content 미감지\n' "$LAST_COMMIT_REF" >&2
 fi
 
 # Step 3 — merge (idempotent)
-if git merge-base --is-ancestor "$FR_BRANCH" HEAD 2>/dev/null; then
+# no-fr 모드는 합칠 브랜치가 없습니다 — 작업 커밋이 이미 기본 브랜치 위에 있습니다 (§5.1).
+if [[ "$BRANCH_MODE" == "no-fr" ]]; then
+  printf 'archive: no-fr 모드 — merge 대상 브랜치가 없어 merge 를 건너뜁니다\n'
+elif git merge-base --is-ancestor "$FR_BRANCH" HEAD 2>/dev/null; then
   printf 'archive: %s 이미 merge 됨 — skip\n' "$FR_BRANCH"
 else
-  git merge --no-ff "$FR_BRANCH" -m "merge: $SLUG (autopilot 완료)" || {
-    printf 'archive: merge 실패 — conflict resolve 후 재실행\n' >&2; exit 1
-  }
+  if ! git merge --no-ff "$FR_BRANCH" -m "merge: $SLUG (autopilot 완료)"; then
+    # FUTURE_REQUESTS.md 단독 충돌은 행 집합 3-way 병합으로 해결한다 (spec D7).
+    #   등록 커밋이 기본 브랜치에 먼저 쌓이는 구조에서 fr 브랜치와 기본 브랜치가 표 끝에 서로 다른 행을
+    #   append 하면 git 줄 병합은 반드시 충돌한다. 인덱스는 제목을 키로 하는 행 집합이므로 집합 병합이 맞다.
+    #   다른 경로가 함께 충돌하거나 집합 병합도 실패하면 종전대로 사람이 해결한다 (충돌 상태 유지).
+    _IDX="rd-workflow-workspace/backlog/FUTURE_REQUESTS.md"
+    _conf="$(git diff --name-only --diff-filter=U 2>/dev/null)"
+    if [[ "$_conf" == "$_IDX" ]]; then
+      _mb="$(mktemp)" _mo="$(mktemp)" _mt="$(mktemp)" _mr="$(mktemp)"
+      if git show ":1:$_IDX" > "$_mb" 2>/dev/null && git show ":2:$_IDX" > "$_mo" 2>/dev/null && git show ":3:$_IDX" > "$_mt" 2>/dev/null \
+         && bash "$SCRIPT_DIR/merge_fr_index.sh" "$_mb" "$_mo" "$_mt" > "$_mr"; then
+        cp "$_mr" "$_IDX" && git add "$_IDX" || { rm -f "$_mb" "$_mo" "$_mt" "$_mr"; printf 'archive: 인덱스 병합 결과 반영 실패 — git status 로 확인 후 수동 resolve 하고 git commit --no-edit, 또는 git merge --abort\n' >&2; exit 1; }
+        _nv=""; if lifecycle_needs_hook_bypass; then _nv="--no-verify"; fi
+        RD_LIFECYCLE_BYPASS_REASON=lifecycle git commit ${_nv:+"$_nv"} --no-edit -m "merge: $SLUG (autopilot 완료)" >/dev/null || { rm -f "$_mb" "$_mo" "$_mt" "$_mr"; printf 'archive: 인덱스 충돌은 해결했으나 merge 커밋이 실패했습니다. git status 로 확인한 뒤 git commit --no-edit 으로 merge 를 마치고 archive.sh 를 재실행하거나, git merge --abort 로 되돌리십시오\n' >&2; exit 1; }
+        [[ -n "$_nv" ]] && lifecycle_notify_hook_bypass archive
+        printf 'archive: FUTURE_REQUESTS.md 충돌을 행 집합 병합으로 해결했습니다 (merge_fr_index.sh)\n'
+        rm -f "$_mb" "$_mo" "$_mt" "$_mr"
+      else
+        rm -f "$_mb" "$_mo" "$_mt" "$_mr"
+        printf 'archive: merge 실패 — FUTURE_REQUESTS.md 행 집합 병합도 실패했습니다. conflict resolve 후 재실행\n' >&2; exit 1
+      fi
+    else
+      printf 'archive: merge 실패 — conflict resolve 후 재실행\n' >&2; exit 1
+    fi
+  fi
 fi
 
 # 순서 불변식: 판정 base 는 반드시 merge 완료 "이후" 에 캡처한다.
@@ -124,9 +229,20 @@ MERGE_BASE_COMMIT="$(git rev-parse HEAD)" || {
 #
 # **이 판정은 근사다.** 커밋의 출처를 구분하지 못하므로 최종 판단은 Step 4.5 의 내용
 # 검증이 내린다. 여기 두는 이유는 빠른 실패다.
+#
+# **이 검사군(3.6·4.5)은 fr 모드 전용입니다.** 기준선의 정의가 "fr tip 을 들여온 merge"
+# 이므로 no-fr 에는 대응물이 없습니다. base-commit 을 기준선으로 대신 쓸 수도 없습니다 —
+# no-fr 에서 base-commit..HEAD 사이 커밋은 정리 대상이 아니라 **작업 그 자체**여서,
+# 허용 경로 밖 변경으로 판정되어 정상 아카이브를 통째로 막습니다.
+# no-fr 에서 "리뷰된 대상이 그대로 발행되는가" 는 seal 의 보호 트리 해시 비교가
+# 담당합니다 (§2·§3.3.1 — archive_review_precheck 가 이미 위에서 돌았습니다).
 BASELINE_OID=""
 _bl_rc=0
-BASELINE_OID="$(archive_baseline_commit "$CURRENT_WT" "$FR_BRANCH" "$MERGE_BASE_COMMIT")" || _bl_rc=$?
+if [[ "$BRANCH_MODE" == "fr" ]]; then
+  BASELINE_OID="$(archive_baseline_commit "$CURRENT_WT" "$FR_BRANCH" "$MERGE_BASE_COMMIT")" || _bl_rc=$?
+else
+  printf 'archive: no-fr 모드 — 기준선 기반 얹힌 커밋 검사를 건너뜁니다 (리뷰 대상 동일성은 seal 이 보증합니다)\n'
+fi
 if [[ "$_bl_rc" -eq 2 ]]; then
   printf 'archive: 기준선 판정에 필요한 git 명령이 실패했습니다 — 무엇이 얹혔는지 알 수 없어 중단합니다\n' >&2
   archive_block_notice "$FR_BRANCH" "$CURRENT_WT" unknown
@@ -139,7 +255,9 @@ elif [[ "$_bl_rc" -ne 0 ]]; then
 fi
 
 _ec_rc=0
-archive_extra_commits_check "$CURRENT_WT" "$BASELINE_OID" "$MERGE_BASE_COMMIT" || _ec_rc=$?
+if [[ "$BRANCH_MODE" == "fr" ]]; then
+  archive_extra_commits_check "$CURRENT_WT" "$BASELINE_OID" "$MERGE_BASE_COMMIT" || _ec_rc=$?
+fi
 if [[ "$_ec_rc" -eq 2 ]]; then
   printf 'archive: 얹힌 커밋 판정에 필요한 git 명령이 실패했습니다 — 중단합니다\n' >&2
   archive_block_notice "$FR_BRANCH" "$CURRENT_WT" unknown
@@ -154,7 +272,13 @@ fi
 # 그 결과를 확인한다. 아카이브가 같은 검증을 다시 돌려 얻는 것은 없었고 매번 15~20분을 썼다.
 
 # Step 4 — metadata cleanup commit on main (publish 전)
-if metadata_exists; then
+#
+# no-fr 모드에서는 `metadata_exists` 가 거짓입니다 (fr-branch 가 canonical `null` 이므로).
+# 그런데 이 블록은 fr 필드 정리만 하는 것이 아니라 **작업 상태 전체를 baseline 으로
+# 되돌리는 자리**입니다 (status·short-title·base-commit·review-session·CURRENT_TASK.md).
+# 조건을 그대로 두면 no-fr 작업이 끝난 뒤에도 완료된 작업이 진행 중으로 남아, 다음 세션이
+# 끝난 일을 남은 일로 안내받습니다. 그래서 no-fr 을 명시적으로 함께 태웁니다 (§5.1 "유지").
+if metadata_exists || [[ "$BRANCH_MODE" == "no-fr" ]]; then
   # LC-14 대칭: archive 완료 시 미러(CURRENT_TASK.md)와 권위(task-state)를 함께 baseline 으로
   # 되돌린다 (promote_rollback.sh:82,98 과 동일 패턴). 권위만 되돌리면 완료된 작업 내용이
   # 진입점 문서에 남아 다음 세션이 끝난 일을 남은 일로 안내받는다.
@@ -255,7 +379,11 @@ fi
 # 이어야 검사와 발행 사이의 경쟁 창이 닫힌다 (REQUEST review Turn 004 Finding 2).
 PUBLISH_OID="$(git rev-parse HEAD)" || {
   printf 'archive: 발행 후보 commit 결정 실패 — 중단\n' >&2
-  archive_block_notice "$FR_BRANCH" "$CURRENT_WT" unknown
+  # archive_block_notice 의 복구 절차는 "fr 브랜치에서 다시 만들라" 를 전제하므로
+  # no-fr 에서는 성립하지 않습니다. 사유는 위 한 줄로 이미 나갔습니다.
+  if [[ "$BRANCH_MODE" == "fr" ]]; then
+    archive_block_notice "$FR_BRANCH" "$CURRENT_WT" unknown
+  fi
   exit 1
 }
 
@@ -263,7 +391,9 @@ PUBLISH_OID="$(git rev-parse HEAD)" || {
 # 전진했을 수 있고, Step 4 의 metadata 커밋도 이 시점에는 얹힌 커밋에 포함된다
 # (허용 경로만 담으므로 자연히 통과한다).
 _ec2_rc=0
-archive_extra_commits_check "$CURRENT_WT" "$BASELINE_OID" "$PUBLISH_OID" || _ec2_rc=$?
+if [[ "$BRANCH_MODE" == "fr" ]]; then
+  archive_extra_commits_check "$CURRENT_WT" "$BASELINE_OID" "$PUBLISH_OID" || _ec2_rc=$?
+fi
 if [[ "$_ec2_rc" -eq 2 ]]; then
   printf 'archive: 발행 전 얹힌 커밋 판정에 필요한 git 명령이 실패했습니다 — 중단합니다\n' >&2
   archive_block_notice "$FR_BRANCH" "$CURRENT_WT" unknown
@@ -276,7 +406,9 @@ fi
 # 최종 판단 — 허용 경로 파일의 **내용**이 실제로 baseline 인가.
 # 경로 판정만으로는 사람이 만든 metadata-only 커밋의 내용이 남는 것을 막지 못한다.
 _pc_rc=0
-archive_publish_content_check "$CURRENT_WT" "$BASELINE_OID" "$PUBLISH_OID" || _pc_rc=$?
+if [[ "$BRANCH_MODE" == "fr" ]]; then
+  archive_publish_content_check "$CURRENT_WT" "$BASELINE_OID" "$PUBLISH_OID" || _pc_rc=$?
+fi
 if [[ "$_pc_rc" -eq 2 ]]; then
   # rc 2 는 git 실행 오류와 **허용 경로 목록 생성 실패**를 함께 담는다 — 둘 다 "검사
   # 자체가 불가능" 이며, 파일 내용을 되돌려서 해결되는 상태가 아니다. 그래서 사유를
@@ -287,6 +419,39 @@ if [[ "$_pc_rc" -eq 2 ]]; then
 elif [[ "$_pc_rc" -ne 0 ]]; then
   archive_block_notice "$FR_BRANCH" "$CURRENT_WT" content
   exit 1
+fi
+
+# Step 4.6 — 발행 직전 재결속 (no-fr 전용)
+#
+# precheck(`archive_review_precheck`) 는 **cleanup commit 이전의 commit** 을 봅니다. 그 뒤
+# metadata cleanup commit 이 붙고 `PUBLISH_OID` 가 확정되는데, 그 사이에 다른 프로세스나
+# hook 이 보호 경로 변경 커밋으로 HEAD 를 전진시키면 cleanup commit 이 그 커밋을 부모로
+# 삼거나 `PUBLISH_OID` 가 그 커밋을 가리킵니다. tag/push 는 OID 에 잘 결속되어 있지만
+# **그 OID 자체가 리뷰되지 않은 코드를 담게 됩니다.** 그래서 precheck 가 승인한 보호 트리
+# 해시를 실제 발행 대상의 해시와 여기서 한 번 더 대조합니다.
+#
+# **fr 모드는 대상이 아닙니다.** fr 의 발행 트리는 fr tip 의 트리와 원래 같지 않습니다
+# (기본 브랜치에 정당하게 먼저 들어온 다른 작업이 merge 로 합쳐집니다). 같은 대조를 걸면
+# 정상 아카이브가 통째로 막힙니다. fr 에서 이 창을 닫는 것은 위 Step 4.5 의
+# `archive_extra_commits_check`·`archive_publish_content_check` 이며, 둘 다
+# `BASELINE_OID..PUBLISH_OID`(= merge 이후 전진분 전체) 를 보므로 precheck 이후에 얹힌
+# 커밋을 이미 잡습니다. 여기 중복해서 넣지 않습니다.
+#
+# 우회(`--force-skip-review-check`) 로 통과한 경우에는 승인된 해시 자체가 없습니다. 대조할
+# 기준이 없어 건너뛰되 무엇을 확인하지 못했는지 알립니다 — 우회 사실 자체는 precheck 가
+# 이미 audit log 와 경고로 남겼습니다.
+if [[ "$BRANCH_MODE" == "no-fr" ]]; then
+  if [[ -z "${RD_ARCHIVE_REVIEWED_TREE_HASH:-}" ]]; then
+    printf 'archive: WARNING — 승인된 보호 트리 해시가 없어 발행 대상 재대조를 건너뜁니다 (review 검증 우회)\n' >&2
+  else
+    _rb_rc=0
+    archive_publish_rebind_check "$RD_ARCHIVE_REVIEWED_TREE_HASH" "$PUBLISH_OID" || _rb_rc=$?
+    if [[ "$_rb_rc" -ne 0 ]]; then
+      printf 'archive:   미검토 코드를 발행하지 않기 위해 tag/push 전에 중단합니다.\n' >&2
+      printf 'archive:   git log 로 늘어난 커밋을 확인해 되돌리거나, 재리뷰(prepare_review_pipeline.sh diff → rd review seal) 후 다시 실행하십시오.\n' >&2
+      exit 1
+    fi
+  fi
 fi
 
 # Step 5 — Tag (HEAD = cleanup commit, rerun reuse)
@@ -514,7 +679,9 @@ wt_owns_fr_branch() {  # wt_owns_fr_branch <path> — 0 = 대상 브랜치의 wo
 }
 
 WT_COUNT_BEFORE=""
-if ! WT_COUNT_BEFORE="$(wt_match_count)"; then
+if [[ "$BRANCH_MODE" == "no-fr" ]]; then
+  : # no-fr — 정리할 fr worktree 가 없습니다 (WORKTREE_PENDING 은 0 을 유지합니다)
+elif ! WT_COUNT_BEFORE="$(wt_match_count)"; then
   WORKTREE_PENDING=1
   safety_violation "worktree" "$FR_BRANCH" \
     "worktree 등록 조회 실패 — 로컬 ref 삭제의 선행 조건을 판정할 수 없어 삭제하지 않았습니다" \
@@ -573,7 +740,9 @@ fi
 # git branch -d 는 upstream 이 설정된 브랜치를 "HEAD 기준" 이 아니라 "upstream 기준" 으로 판정한다.
 # 이 워크플로는 fr 을 매 커밋마다 push 하지 않으므로 local fr tip > origin/fr tip 이 정상 상태이고,
 # 그 정상 상태가 오판정되어 실패했다. 판정을 MERGE_BASE_COMMIT 기준 ancestor 검사로 바꾼다.
-if [[ "$WORKTREE_PENDING" -eq 1 ]]; then
+if [[ "$BRANCH_MODE" == "no-fr" ]]; then
+  : # no-fr — 삭제할 fr 로컬 브랜치가 없습니다
+elif [[ "$WORKTREE_PENDING" -eq 1 ]]; then
   # update-ref -d 는 branch -d 와 달리 "다른 worktree 가 체크아웃 중인 브랜치" 보호가 없다.
   # worktree 가 남았거나 목록 판정이 불가능한 상태에서 ref 를 지우면 그 worktree 가
   # broken HEAD 가 되므로 시도하지 않는다.
@@ -641,7 +810,8 @@ else
 fi
 
 # Step 9 — Remote branch delete (검증 → lease 삭제)
-if [[ "$REMOTE_MODE" == "remote" ]]; then
+# no-fr 모드에는 삭제할 원격 fr 브랜치가 없습니다 (기본 브랜치 push 는 Step 6 에서 끝났습니다).
+if [[ "$BRANCH_MODE" == "fr" && "$REMOTE_MODE" == "remote" ]]; then
   FRQ="$(printf '%q' "$FR_BRANCH")"
   if [[ "$SAFETY_VIOLATION" -eq 1 ]]; then
     # 안전 불변식 위반이 이미 감지되면 뒤따르는 ref 삭제를 건너뛴다.

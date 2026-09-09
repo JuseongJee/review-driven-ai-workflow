@@ -14,7 +14,7 @@
 |-------------|---------------------|
 | 프로젝트 초기 설정 | "프로젝트 분석해서 PROJECT_CONTEXT.md 채워줘" |
 | 큰 작업 시작 | "이 요구사항으로 진행해줘: ..." |
-| 작은 작업 바로 구현 | "small-task로 바로 구현해줘: ..." |
+| 작은 작업 바로 구현 | "이거 고쳐줘: ..." (AI 가 등급 판정 — `light` 는 커밋 1회, `standard` 는 diff review 까지) |
 | 아이디어 기록 | "future request에 기록해줘" |
 | 기록된 아이디어 조회 | "future request 목록 보여줘" |
 | 아이디어를 작업으로 승격 | "이거 REQUEST로 올려서 진행해줘" |
@@ -51,7 +51,7 @@
 | 요청 예시 | 동작 |
 |----------|------|
 | "이 요구사항으로 진행해줘" | REQUEST → review → spec/plan → 구현 |
-| "small-task로 구현해줘" | 바로 구현 (review 최소화) |
+| "standard 로 구현해줘" | 축약 REQUEST → 구현 → final diff review |
 | "autopilot으로 돌려줘" | FUTURE_REQUESTS에서 작업 꺼내 자동 실행 |
 | "이 기획문서로 REQUEST 만들어줘" | 외부 문서 → REQUEST 변환 |
 

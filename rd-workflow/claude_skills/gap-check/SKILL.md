@@ -1,10 +1,11 @@
 ---
 name: gap-check
 description: Check spec for gaps between planning docs, design, and implementation — missing error cases, missing UI states, planning-design mismatches. Run after spec is written, before spec/plan review.
-disable-model-invocation: true
 ---
 
 # Gap Check
+
+`manual` 모드에서는 사용자의 단계 진입 지시 없이 이 skill 을 스스로 시작하지 않는다. 판정 기준은 `rd-workflow/docs/flows/AUTONOMY.md` 의 「실행 모드와 skill 호출 권한」 절이다.
 
 spec의 기획-디자인-구현 간 갭을 점검하고 질문 목록을 생성한다.
 

@@ -4,7 +4,6 @@ description: >
   Configure review tools (priority, model, binary path).
   Use when the user says "/review-config", "리뷰 도구 설정", "review tool 설정", or wants to change review pipeline tool configuration.
 user-invocable: true
-disable-model-invocation: true
 ---
 
 # review-config — 리뷰 도구 설정
@@ -153,11 +152,11 @@ codex가 선택된 경우에만 AskUserQuestion으로 추론 깊이를 물어본
 허용값 집합은 **모델에 따라 다르다**(예: `gpt-5.5`는 `max`·`ultra` 미지원). 사용자가 "Other"로
 직접 입력하면 그 값을 그대로 쓰되, "이 값을 지원하지 않는 모델로 되돌리면 codex가 설정을 거부한다"고 알린다.
 
-이어서 small-task 리뷰용 값을 물어본다:
-- `medium` (Recommended) — small-task 리뷰의 추론 깊이를 낮춰 지연을 줄임
-- `기본값 (키를 쓰지 않음)` — small-task에서도 위 설정을 그대로 따름
+이어서 `standard` 등급(REQUEST `## Risk Tier` 최종 등급 standard — 세션 `execution-path: small-task`) 리뷰용 값을 물어본다:
+- `medium` (Recommended) — `standard` 등급 리뷰의 추론 깊이를 낮춰 지연을 줄임
+- `기본값 (키를 쓰지 않음)` — `standard` 에서도 위 설정을 그대로 따름
 
-**`low`·`minimal`은 선택지로 제시하지 않는다.** small-task는 REQUEST review·spec/plan review를 생략해
+**`low`·`minimal`은 선택지로 제시하지 않는다.** `standard` 는 REQUEST review·spec/plan review를 생략해
 final diff review가 유일한 게이트이므로 `medium`이 허용 하한이다. 사용자가 "Other"로 `low` 이하를 입력하면
 "파이프라인이 경고 후 값을 전달하지 않는다(보정하지 않음)"고 알리고 그대로 기록하지 않는다.
 

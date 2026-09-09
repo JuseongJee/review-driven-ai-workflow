@@ -3,6 +3,11 @@ rd-workflow-workspace/.lifecycle/loop-state
 rd-workflow-workspace/.lifecycle/.loop-state.*
 # task-state 마이그레이션 백업 (로컬 전용 — 커밋 불필요)
 rd-workflow-workspace/.lifecycle/migration-backup/
+# 주의 — `rd-workflow-workspace/.lifecycle/review-seals/` 는 **추적 대상**입니다.
+# final diff review 종결 마커(`<session-id>.seal`)가 들어가는 디렉터리이고, 발행 게이트는
+# 워킹트리가 아니라 **판정 대상 commit** 에서 마커를 읽습니다 (change-spec §3.3.1).
+# 즉 마커는 커밋되어야 효력이 생기므로, 이 디렉터리나 `.lifecycle/` 을 통째로 제외하면
+# 정상 작업이 발행 시점에 `마커 없음` 으로 차단됩니다. 제외 규칙을 추가하지 마십시오.
 # 제거된 커밋 게이트(pre_commit_verify)가 남긴 staged hash 캐시.
 # 새로 생기지는 않지만, 기존 저장소에 남은 파일이 untracked 로 잡혀 아카이브 게이트를
 # 막지 않도록 항목은 유지합니다 (직접 지워도 무방합니다).
@@ -26,3 +31,16 @@ Thumbs.db
 rd-workflow-workspace/.batch-manifest.json
 rd-workflow-workspace/.batch-outcome-*
 rd-workflow-workspace/.autopilot-outcome
+# 리뷰 세션 런타임 산출물 (어댑터 대기 상태·codex 출력 로그·타임아웃 마커).
+# **로컬 보존과 사용자 가시성은 그대로 유지하고 추적만 제외합니다** — 사후 진단이 목적이며
+# 파일은 세션 디렉터리에 그대로 남습니다. 소스 관리에 넣지 않는 이유는 내용 때문입니다:
+# 리뷰어 입력 전문, CLI 메타데이터·세션 ID, 사용자 홈의 절대 경로, 실행 명령과 도구 출력이
+# 담기므로 자격 증명·개인정보가 섞이는 순간 원격 이력에 영구 보존됩니다(원시 로그의 공백
+# 때문에 `git diff --check` 도 깨집니다).
+rd-workflow-workspace/handoffs/review_pipeline/*/.codex_output.log
+rd-workflow-workspace/handoffs/review_pipeline/*/.codex_output.*
+rd-workflow-workspace/handoffs/review_pipeline/*/.review_wait_status
+rd-workflow-workspace/handoffs/review_pipeline/*/.review_wait_status.*
+rd-workflow-workspace/handoffs/review_pipeline/*/.wait_timeout
+rd-workflow-workspace/handoffs/review_pipeline/*/.wait_timeout.*
+rd-workflow-workspace/handoffs/review_pipeline/*/.last_message.*

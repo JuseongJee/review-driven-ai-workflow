@@ -32,7 +32,7 @@ $2
 -
 EOF
   # v2 2b: task-state도 함께 갱신 (task-state가 권위 소스 — 결정 1/3)
-  # canonical 8종이 아닌 값(손상 테스트용)은 task-state를 생성하지 않음
+  # canonical 9종이 아닌 값(손상 테스트용)은 task-state를 생성하지 않음
   local _ts_dir="$1/rd-workflow-workspace/.lifecycle"
   mkdir -p "$_ts_dir"
   # canonical 여부 판정: 기존 STATE_CANONICAL_STATUSES 파이프 문자열 사용 가능하지만
@@ -65,7 +65,7 @@ mk_task_file "$TMP" "구현 중" "my-task"
 
 t "status 읽기" 0 "구현 중" bash "$RD" task status
 t "title 읽기" 0 "my-task" bash "$RD" task title
-t "mode manual" 0 "manual" env -u RD_AUTOPILOT bash "$RD" task mode
+t "mode non-autopilot" 0 "non-autopilot" env -u RD_AUTOPILOT bash "$RD" task mode
 out="$(RD_AUTOPILOT=1 bash "$RD" task mode)"; [[ "$out" == "autopilot" ]] && echo "ok: mode autopilot" || { echo "FAIL: mode autopilot"; FAIL=1; }
 
 # v2 2b: CURRENT_TASK.md 없음 + task-state 없음 → bootstrap(대기 중 exit 0)
@@ -1077,6 +1077,171 @@ bash "$AP" >/dev/null 2>&1; ap_rc=$?
 [[ "$ap_rc" == "2" ]] && echo "ok: ap: 인자 없음은 exit 2" \
   || { echo "FAIL: ap: 인자 없음에서 exit $ap_rc (2 여야 한다)"; FAIL=1; }
 rm -rf "$AP_DIR"
+
+# --- `아카이브 보류` 안내 우선순위 (change-spec §4.4, §6 의 12번) ---
+#
+# 이 절이 없으면 새는 실수: **정상 순서 중 사용자가 반대 안내를 받는 것**입니다. seal 은
+# §4.2 의 2번에서 워킹트리에 생기고 4번 커밋에서야 판정 대상 commit 에 들어가므로, 그 사이에
+# 판정 대상 commit 만 보고 안내하면 방금 seal 을 만든 사용자에게 "seal 을 먼저 실행하세요" 라고
+# 되돌려 보냅니다. reseal 전이(②)는 그보다 한 겹 더 깊습니다 — 커밋된 stale seal 이 있는데
+# 워킹트리에는 유효한 seal 이 있는 상태이며, 초안의 우선순위(해시 불일치를 워킹트리보다 앞에
+# 둠)는 여기서 "재리뷰 필요" 라는 반대 안내를 냅니다.
+#
+# 안내는 **stderr** 로 나갑니다 — `rd task status` 의 stdout 은 Status 값 한 줄이라는 기계
+# 계약이고, 이 파일이 그 계약을 정확히 비교합니다.
+G="$(mktemp -d)"; G="$(cd "$G" && pwd -P)"
+# CLI 출력 캡처 파일은 **저장소 밖**에 둡니다 — 안에 두면 `git add -A` 가 그 파일까지
+# 커밋해 보호 트리 해시가 바뀌고, 검증이 테스트 자신의 부산물 때문에 실패합니다.
+GT="$(mktemp -d)"
+GUARD="${SCRIPT_DIR}/hooks/_guard_common.sh"
+(
+  export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+  git init -q -b main "$G" 2>/dev/null || { git init -q "$G"; git -C "$G" checkout -q -b main; }
+  git -C "$G" config user.email test@example.com
+  git -C "$G" config user.name test
+) >/dev/null 2>&1
+mkdir -p "$G/rd-workflow-workspace/.lifecycle/review-seals" \
+         "$G/rd-workflow-workspace/handoffs/review_pipeline"
+printf '# Current Task\n\n## Short Title\ndemo\n\n## Status\n아카이브 보류\n' > "$G/CURRENT_TASK.md"
+printf '# Change Request\n\n## Source FR\n-\n' > "$G/REQUEST.md"
+printf 'seed\n' > "$G/code.txt"
+cat > "$G/rd-workflow-workspace/.lifecycle/task-state" <<'GSTATE'
+schema=1
+short-title=demo
+status=아카이브 보류
+fr-branch=null
+worktree-path=null
+source-fr=-
+GSTATE
+git -C "$G" add -A >/dev/null 2>&1
+git -C "$G" commit -q -m base >/dev/null 2>&1
+
+g_state_set() { # g_state_set <key> <value>
+  local f="$G/rd-workflow-workspace/.lifecycle/task-state"
+  awk -F'=' -v k="$1" -v v="$2" '
+    $1 == k { print k "=" v; d = 1; next } { print }
+    END { if (!d) print k "=" v }' "$f" > "${f}.tmp"
+  cat "${f}.tmp" > "$f"; rm -f "${f}.tmp"
+}
+
+# g_session <session-id> <review-head-oid|""> — 종결된 diff-review 세션을 만듭니다.
+# review-head-oid 가 빈 값이면 §3.4 의 legacy 세션(일반 seal 로는 봉인 불가)입니다.
+g_session() {
+  local sd="$G/rd-workflow-workspace/handoffs/review_pipeline/$1"
+  mkdir -p "$sd/turns"
+  cat > "$sd/SESSION.md" <<GSESS
+# Review Session
+
+## Session ID
+$1
+
+## Review Type
+diff-review
+
+## Review Target
+git diff base..head
+
+## Status
+closed
+
+## Current Owner
+Author
+
+## Branch Context
+- fr-branch: null
+- worktree-path: $G
+- short-title: demo
+- lifecycle-stage: validating
+- remote-mode: local-only
+GSESS
+  if [[ -n "${2:-}" ]]; then
+    printf -- '- review-base-oid: %s\n- review-head-oid: %s\n' "$(git -C "$G" rev-parse HEAD)" "$2" \
+      >> "$sd/SESSION.md"
+  fi
+  printf '# Review Checkpoint\n\n## Open Issues\n- 없음\n' > "$sd/CHECKPOINT.md"
+  printf '%s\n' "$sd"
+}
+
+g_seal() { # g_seal <session-path> [옵션...] — rd review seal
+  local sp="$1"; shift
+  ( cd "$G" && project_root="$G" bash "$RD" review seal "$@" "${sp#$G/}" ) >/dev/null 2>&1
+}
+
+# 한 번의 호출로 stdout·stderr·exit code 를 모두 잡습니다 — 같은 상태를 확인하려고 CLI 를
+# 두 번 부르면 이 절만으로 실행 시간이 배로 늡니다.
+g_status() { # 결과: G_OUT / G_ERR
+  ( cd "$G" && project_root="$G" bash "$RD" task status ) >"${GT}/out" 2>"${GT}/err"
+  G_OUT="$(cat "${GT}/out")"; G_ERR="$(cat "${GT}/err")"
+}
+g_precheck() { # archive.sh 가 발행 직전에 부르는 그 함수. 결과: G_ERR / G_RC
+  ( cd "$G" && bash -c '
+      project_root="$1"; export project_root
+      source "$2"
+      archive_review_precheck 0 "" demo "${1}/audit.log"
+    ' _ "$G" "$GUARD" ) >/dev/null 2>"${GT}/err"
+  G_RC=$?
+  G_ERR="$(cat "${GT}/err")"
+}
+g_has() { case "$2" in *"$1"*) echo "ok: $3" ;; *) echo "FAIL: $3 (문구 없음: ${1})"; FAIL=1 ;; esac; }
+g_nothas() { case "$2" in *"$1"*) echo "FAIL: $3 (있으면 안 되는 문구: ${1})"; FAIL=1 ;; *) echo "ok: $3" ;; esac; }
+
+GS1="$(g_session "20260906_100000_final-diff-review" "$(git -C "$G" rev-parse HEAD)")"
+g_state_set "review-session" "20260906_100000_final-diff-review"
+# 포인터는 커밋해 두고 마커만 없는 상태를 만듭니다 — 포인터까지 없으면 '세션 미지정' 이라는
+# 다른 사유가 되어 "마커 없음" 안내를 시험할 수 없습니다 (§4.4 는 사유를 합치지 않습니다).
+git -C "$G" add -A >/dev/null 2>&1; git -C "$G" commit -q -m "review-session 포인터" >/dev/null 2>&1
+
+# 상태 3 — 마커 없음
+g_status
+[[ "$G_OUT" == "아카이브 보류" ]] && echo "ok: status stdout 은 Status 한 줄 (기계 계약)" \
+  || { echo "FAIL: status stdout 기계 계약 (실제 '${G_OUT}')"; FAIL=1; }
+g_has "rd review seal" "$G_ERR" "안내(마커 없음): seal 을 먼저 실행"
+
+# 전이 ① — seal 직후(워킹트리에만 있음) → 커밋 안내
+g_seal "$GS1"
+g_status
+g_has "seal 과 archive 기록을 커밋하세요" "$G_ERR" "안내(워킹트리 seal): 커밋하세요"
+
+# 전이 ① — 기록 커밋 직후 → 발행 안내
+git -C "$G" add -A >/dev/null 2>&1; git -C "$G" commit -q -m "seal + 기록" >/dev/null 2>&1
+g_status
+g_has "archive.sh" "$G_ERR" "안내(커밋된 seal): 발행"
+# 안내와 실제 게이트가 어긋나면 사용자는 "발행하세요" 를 보고 실행해 곧바로 막힙니다.
+g_precheck
+[[ "$G_RC" == 0 ]] && echo "ok: 안내가 '발행' 일 때 실제 precheck 도 통과 (안내와 게이트 일치)" \
+  || { echo "FAIL: 안내는 발행인데 precheck 가 막았다"; FAIL=1; }
+
+# 상태 4 — 해시 불일치 (종결 후 보호 경로 변경)
+printf 'changed\n' >> "$G/code.txt"; git -C "$G" commit -q -am "code 변경" >/dev/null 2>&1
+g_status
+g_has "재리뷰 필요" "$G_ERR" "안내(해시 불일치): 재리뷰 필요"
+
+# 전이 ② — reseal: 커밋된 stale seal + 유효한 워킹트리 seal 상태에서도 다음 행동은 '커밋' 입니다.
+#           ①만으로는 이 상태 자체가 만들어지지 않아 초안의 우선순위 오류가 재발합니다.
+sed -i.bak "s|^- review-head-oid: .*|- review-head-oid: $(git -C "$G" rev-parse HEAD)|" \
+  "$GS1/SESSION.md" && rm -f "$GS1/SESSION.md.bak"
+g_seal "$GS1"
+g_status
+g_has "seal 과 archive 기록을 커밋하세요" "$G_ERR" "안내(reseal 직후): 커밋하세요"
+g_nothas "재리뷰 필요" "$G_ERR" "안내(reseal 직후): '재리뷰 필요' 가 아님"
+
+# 전이 ② — reseal 커밋 직후 → 발행
+git -C "$G" add -A >/dev/null 2>&1; git -C "$G" commit -q -m "reseal 기록" >/dev/null 2>&1
+g_status
+g_has "archive.sh" "$G_ERR" "안내(reseal 커밋): 발행"
+
+# legacy 마커의 지속 고지 — 생성 시점 1회로는 나중에 실행하는 사람이 차이를 알 수 없으므로
+# `rd task status` 와 `archive.sh`(archive_review_precheck) 양쪽이 매번 냅니다 (§3.3).
+GS2="$(g_session "20260906_110000_final-diff-review" "")"
+g_state_set "review-session" "20260906_110000_final-diff-review"
+g_seal "$GS2" --legacy-unverified "OID 없는 legacy 세션"
+git -C "$G" add -A >/dev/null 2>&1; git -C "$G" commit -q -m "legacy seal 기록" >/dev/null 2>&1
+g_status
+g_has "legacy 전환입니다" "$G_ERR" "legacy 고지: rd task status 쪽"
+g_precheck
+g_has "legacy 전환입니다" "$G_ERR" "legacy 고지: archive.sh(precheck) 쪽"
+
+rm -rf "$G" "$GT"
 
 [[ "$FAIL" == 0 ]] && echo "test_task_cli: ALL PASS" || echo "test_task_cli: FAIL"
 exit "$FAIL"

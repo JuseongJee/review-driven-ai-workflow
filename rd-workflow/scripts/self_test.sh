@@ -136,6 +136,242 @@ syntax_check() {
   return $rc
 }
 
+SCAN_AWK="${SCRIPT_DIR}/_mktemp_scan.awk"
+MKTEMP_SCAN_EXPECT_SHELL=8
+MKTEMP_SCAN_EXPECT_SNIPPET=2
+
+# `set -u` 하에서 참조가 중단되지 않도록 파일 스코프에서 먼저 정의합니다.
+_SCAN_SITES=""
+_SCAN_VIOLATIONS=""
+_SCAN_DETAIL=""
+
+# 표식 한 줄. 성공·실패·skip 모든 경로에서 반환 직전에 호출합니다.
+# $1=step $2=result $3=reason $4=files $5=sites $6=violations $7=ex_files $8=ex_sites
+_mktemp_scan_marker() {
+  printf 'mktemp-guard-scan: step=%s result=%s reason=%s files=%s sites=%s violations=%s excluded_test_files=%s excluded_test_sites=%s\n' \
+    "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8"
+}
+
+# 스캐너를 돌려 결과를 **전역 3개**에 담습니다. rc 0 = 성공, 1 = scanner-error.
+#
+# **명령 치환으로 호출하지 않습니다.** 명령 치환은 서브셸이라 전역 변경이 부모에 남지
+# 않습니다 (실측: `s="$(raw)"` 뒤 부모 값이 그대로였음 — Turn 004 Finding 1).
+# 호출부는 이 함수를 직접 부르고 `_SCAN_SITES`·`_SCAN_VIOLATIONS`·`_SCAN_DETAIL` 을 읽습니다.
+_mktemp_scan_raw() {
+  local out summary
+  _SCAN_SITES=""; _SCAN_VIOLATIONS=""; _SCAN_DETAIL=""
+  # 인자가 없으면 awk 가 stdin 을 읽으므로 실행 전에 막습니다 (Turn 004 Finding 2-D).
+  (( $# > 0 )) || return 1
+  out="$(awk -f "$SCAN_AWK" "$@" 2>&1)" || return 1
+  # SUMMARY 는 정확히 한 줄이고 필드가 3개이며 두 값이 십진 숫자여야 합니다.
+  # (Turn 004 Finding 2-C: 이전 case 검사는 `1`·`1 `·`1 2 3` 을 모두 통과시켰습니다.)
+  summary="$(printf '%s\n' "$out" | awk -F'\t' '
+    $1=="SUMMARY" { c++; if (NF==3 && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/) { s=$2; v=$3; ok=1 } else ok=0 }
+    END { if (c==1 && ok==1) print s"\t"v }')"
+  [[ -n "$summary" ]] || return 1
+  _SCAN_SITES="${summary%%$'\t'*}"
+  _SCAN_VIOLATIONS="${summary##*$'\t'}"
+  _SCAN_DETAIL="$(printf '%s\n' "$out" | awk -F'\t' '$1=="VIOLATION"{printf "  위반 %s:%s (%s) %s\n", $2, $3, $4, $5}')"
+  return 0
+}
+
+# 공통 판정. $1=step $2=기대 후보 수 $3=ex_files $4=ex_sites, 나머지는 검사할 파일들.
+_mktemp_scan_run() {
+  local step="$1" expect="$2" exf="$3" exs="$4"; shift 4
+  local nfiles=$#
+  if ! _mktemp_scan_raw "$@"; then
+    _mktemp_scan_marker "$step" fail scanner-error "$nfiles" 0 0 "$exf" "$exs"
+    echo "  스캐너 실행 실패 또는 출력이 계약에 맞지 않습니다" >&2
+    return 1
+  fi
+
+  # reason 우선순위: scanner-error > missing-dir > missing-file > template-violation > count-mismatch
+  # (앞의 셋은 호출부가 먼저 처리합니다)
+  if [[ "$_SCAN_VIOLATIONS" -gt 0 ]]; then
+    [[ -n "$_SCAN_DETAIL" ]] && printf '%s\n' "$_SCAN_DETAIL" >&2
+    printf '  기대 후보 수 %s / 실제 %s\n' "$expect" "$_SCAN_SITES" >&2
+    _mktemp_scan_marker "$step" fail template-violation "$nfiles" "$_SCAN_SITES" "$_SCAN_VIOLATIONS" "$exf" "$exs"
+    return 1
+  fi
+  if [[ "$_SCAN_SITES" != "$expect" ]]; then
+    printf '  기대 후보 수 %s / 실제 %s — 의도적 변경이면 기대값을 갱신하십시오\n' "$expect" "$_SCAN_SITES" >&2
+    _mktemp_scan_marker "$step" fail count-mismatch "$nfiles" "$_SCAN_SITES" "$_SCAN_VIOLATIONS" "$exf" "$exs"
+    return 1
+  fi
+  _mktemp_scan_marker "$step" pass none "$nfiles" "$_SCAN_SITES" "$_SCAN_VIOLATIONS" "$exf" "$exs"
+  return 0
+}
+
+# 스텝 1 — 배포 셸 스크립트. basename 이 test_ 로 시작하는 파일과 스캐너 자신을 제외합니다.
+mktemp_guard_scan_shell() {
+  local f exf=0 exs=0 raw
+  local -a keep=() skip=()
+  # 열거 실패를 성공으로 보지 않습니다. 프로세스 치환(`done < <(find ...)`)의 rc 는 부모에
+  # 전달되지 않으므로(pipefail 도 전달하지 않습니다), find 가 하위 디렉터리 권한 오류로 일부만
+  # 출력한 뒤 실패해도 그 부분 목록만 검사하고 후보 총계가 우연히 맞으면 pass 가 납니다 —
+  # 검사 범위가 불완전한데 검증 완료로 안내하는 것이 이 스텝이 막으려는 결함과 같은 부류입니다.
+  # 선언과 대입을 분리합니다: `local raw="$(...)"` 의 rc 는 선언 builtin 의 것이라 항상 0 입니다.
+  raw="$(find "${SCRIPT_DIR}" -type f -name "*.sh")" || {
+    _mktemp_scan_marker shell fail scanner-error 0 0 0 0 0
+    echo "  검사 대상 파일 열거 실패 (find rc≠0) — 부분 목록으로 판정하지 않습니다" >&2
+    return 1
+  }
+  # 정렬 대입의 rc 도 같은 방식으로 확인합니다. 명령 치환 대입의 실패는 `if "$@"` 호출 문맥에서
+  # errexit 가 유예되어 함수를 멈추지 않으므로, sort 가 부분 출력 후 실패하면 줄어든 목록을
+  # 그대로 검사하고 후보 없는 파일만 빠진 경우 sites 가 유지되어 pass 가 납니다.
+  # `pipefail` 에 의존하지 않고 단계마다 명시적으로 판정합니다 (옵션이 바뀌어도 조용히 깨지지 않게).
+  raw="$(printf '%s\n' "$raw" | LC_ALL=C sort)" || {
+    _mktemp_scan_marker shell fail scanner-error 0 0 0 0 0
+    echo "  검사 대상 목록 정렬 실패 (sort rc≠0) — 부분 목록으로 판정하지 않습니다" >&2
+    return 1
+  }
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    [[ "$f" == "$SCAN_AWK" ]] && continue
+    case "$(basename "$f")" in
+      test_*) skip+=("$f") ;;
+      *)      keep+=("$f") ;;
+    esac
+  done <<< "$raw"
+
+  exf=${#skip[@]}
+  if (( exf > 0 )); then
+    # 제외 파일의 sites 도 후보 규칙을 적용해 셉니다 (raw grep -c 는 주석·이스케이프까지 셉니다).
+    # 여기서 스캐너가 실패하면 **0 으로 넘기지 않고 scanner-error 로 승격**합니다
+    # (Turn 004 Finding 2-A: 0 으로 바꾸면 스캐너 고장에도 스텝이 통과합니다).
+    if ! _mktemp_scan_raw "${skip[@]}"; then
+      # files 는 **이 스텝의 검사 대상 수**(배포 셸 = keep)를 뜻합니다 — 실패가 제외 계수
+      # 도중에 났더라도 skip 집합 크기로 바꾸지 않습니다. 그러면 같은 step 의 pass 경로와
+      # fail 경로에서 files 의 의미가 갈라집니다. 실패 원인은 reason=scanner-error 가 말합니다.
+      _mktemp_scan_marker shell fail scanner-error "${#keep[@]}" 0 0 "$exf" 0
+      echo "  제외 파일 계수 중 스캐너 실행 실패" >&2
+      return 1
+    fi
+    exs="$_SCAN_SITES"
+  fi
+  _mktemp_scan_run shell "$MKTEMP_SCAN_EXPECT_SHELL" "$exf" "$exs" "${keep[@]}"
+}
+
+# snippet 공통 — 부재 파일이 있어도 존재하는 파일은 실제로 스캔합니다.
+# $1=step $2=디렉터리 $3=디렉터리 부재 시 result(skip|fail)
+_mktemp_scan_snippet() {
+  local step="$1" dir="$2" on_missing_dir="$3" f
+  local -a present=() absent=()
+  if [[ ! -d "$dir" ]]; then
+    _mktemp_scan_marker "$step" "$on_missing_dir" missing-dir 0 0 0 0 0
+    if [[ "$on_missing_dir" == "skip" ]]; then
+      echo "  미배포 트리 — 건너뜁니다 (${dir} 부재)"; return 0
+    fi
+    echo "  snippet 디렉터리가 없습니다: $dir" >&2; return 1
+  fi
+  for f in status.md diff.md; do
+    if [[ -f "${dir}/${f}" ]]; then present+=("${dir}/${f}"); else absent+=("$f"); fi
+  done
+
+  if (( ${#absent[@]} > 0 )); then
+    local sites=0 violations=0
+    if (( ${#present[@]} > 0 )); then
+      # 존재 파일 스캔이 실패하면 scanner-error 가 missing-file 보다 우선입니다
+      # (Turn 004 Finding 2-B: 이전 안은 오류를 버리고 missing-file 을 냈습니다).
+      if ! _mktemp_scan_raw "${present[@]}"; then
+        _mktemp_scan_marker "$step" fail scanner-error "${#present[@]}" 0 0 0 0
+        printf '  없는 파일: %s\n' "${absent[*]}" >&2
+        echo "  존재 파일 스캔 중 스캐너 실행 실패" >&2
+        return 1
+      fi
+      sites="$_SCAN_SITES"; violations="$_SCAN_VIOLATIONS"
+      [[ -n "$_SCAN_DETAIL" ]] && printf '%s\n' "$_SCAN_DETAIL" >&2
+    fi
+    _mktemp_scan_marker "$step" fail missing-file "${#present[@]}" "$sites" "$violations" 0 0
+    printf '  없는 파일: %s\n' "${absent[*]}" >&2
+    return 1
+  fi
+  _mktemp_scan_run "$step" "$MKTEMP_SCAN_EXPECT_SNIPPET" 0 0 "${present[@]}"
+}
+
+mktemp_guard_scan_installed_snippet() {
+  _mktemp_scan_snippet installed-snippet "${SCRIPT_DIR}/../claude_skills/tpl" skip
+}
+
+mktemp_guard_scan_canon_snippet() {
+  local root
+  root="$(_hook_repo_root)" || {
+    _mktemp_scan_marker canon-snippet fail missing-dir 0 0 0 0 0
+    echo "  정본 저장소 루트를 찾지 못했습니다" >&2; return 1
+  }
+  _mktemp_scan_snippet canon-snippet "${root}/_ROOT_FILES/rd-workflow/claude_skills/tpl" fail
+}
+
+# 스캐너 판정 표본 — SUMMARY 계약 + 블록별 대조 + reason 우선순위.
+#
+# `_mktemp_scan_run` 에 넘기는 step 이름 `sample-priority` 는 REQUEST 의 세 step 값 밖이지만,
+# 그 표식은 명령 치환 안에 캡처되어 외부 스텝 표식으로 노출되지 않습니다 (Turn 004 확인).
+mktemp_scan_sample_check() {
+  local fx="${SCRIPT_DIR}/fixtures/mktemp_scan_samples.txt" rc=0
+  local exp got noviol both combined
+  [[ -f "$fx" ]] || { echo "  표본 파일이 없습니다: $fx" >&2; return 1; }
+
+  # (a) SUMMARY 계약 + 총계. 단일성·3필드·숫자 검증은 `_mktemp_scan_raw` 가 단일 권위로
+  #     수행하므로 여기서 다시 세지 않습니다 (Turn 006 Finding 3). 대신 SUMMARY 가
+  #     **마지막 줄**이라는 계약을 함께 확인합니다.
+  if ! _mktemp_scan_raw "$fx"; then
+    echo "  표본 스캔이 SUMMARY 계약(단일 · 3필드 · 숫자)에 맞지 않습니다" >&2; return 1
+  fi
+  if [[ "$(awk -f "$SCAN_AWK" "$fx" | tail -1 | cut -f1)" != "SUMMARY" ]]; then
+    echo "  SUMMARY 가 마지막 줄이 아닙니다" >&2; rc=1
+  fi
+  if [[ "$_SCAN_SITES" != "12" || "$_SCAN_VIOLATIONS" != "11" ]]; then
+    echo "  표본 총계 불일치 — 기대 sites=12 violations=11, 실제 sites=${_SCAN_SITES} violations=${_SCAN_VIOLATIONS}" >&2
+    rc=1
+  fi
+
+  # (b) 기대 위반 줄번호 집합 = `#EXPECT: violation` 마커 바로 다음 줄
+  # `comm` 은 **같은 로케일의 사전순** 입력을 요구합니다. `sort -n` 을 넘기면 두 자리 줄번호가
+  # 한 자리 뒤에 와 전제가 깨지고, 공통 줄까지 차집합으로 보고하거나 교집합을 놓칩니다
+  # (실측: `LC_ALL=C comm -23 <(printf '5\n8\n11\n14\n') <(printf '11\n14\n')` → `5 8 11 14`).
+  # 집합 연산은 `LC_ALL=C sort` 로 통일하고, 사람이 읽는 진단만 마지막에 숫자순으로 되돌립니다.
+  exp="$(awk '/^#EXPECT: violation/{print NR+1}' "$fx" | LC_ALL=C sort)"
+  got="$(awk -f "$SCAN_AWK" "$fx" | awk -F'\t' '$1=="VIOLATION"{print $3}' | LC_ALL=C sort)"
+  if [[ "$exp" != "$got" ]]; then
+    echo "  블록별 판정 불일치 — 기대에만 있음:" >&2
+    LC_ALL=C comm -23 <(printf '%s\n' "$exp") <(printf '%s\n' "$got") | sort -n >&2
+    echo "  실제에만 있음:" >&2
+    LC_ALL=C comm -13 <(printf '%s\n' "$exp") <(printf '%s\n' "$got") | sort -n >&2
+    rc=1
+  fi
+
+  # (c) ok·non-candidate 블록의 줄번호는 위반 집합에 없어야 합니다
+  noviol="$(awk '/^#EXPECT: (ok|non-candidate)/{print NR+1}' "$fx" | LC_ALL=C sort)"
+  both="$(LC_ALL=C comm -12 <(printf '%s\n' "$noviol") <(printf '%s\n' "$got") | sort -n)"
+  if [[ -n "$both" ]]; then
+    echo "  위반이 아니어야 하는 줄이 위반으로 보고됐습니다:" >&2
+    printf '%s\n' "$both" >&2
+    rc=1
+  fi
+
+  # (d) reason 우선순위 — 일부러 틀린 기대 건수를 주면 count-mismatch 가 아니라
+  #     template-violation 이 나와야 하고 두 상세가 모두 나와야 합니다.
+  #     stdout·stderr 를 **변수 하나로 결합 캡처**합니다 — 고정 /tmp 파일을 쓰지 않아
+  #     동시 실행 덮어쓰기·symlink truncate 위험이 없고, 새 mktemp 후보도 늘지 않습니다
+  #     (Turn 004 Finding 5-B).
+  combined="$(_mktemp_scan_run sample-priority 999 0 0 "$fx" 2>&1)"
+  case "$combined" in
+    *"reason=template-violation"*) ;;
+    *) echo "  우선순위 확인 실패 — 기대 reason=template-violation" >&2
+       printf '%s\n' "$combined" >&2; rc=1 ;;
+  esac
+  case "$combined" in
+    *"위반 "*) ;;
+    *) echo "  위반 상세가 출력되지 않았습니다" >&2; rc=1 ;;
+  esac
+  case "$combined" in
+    *"기대 후보 수 999"*) ;;
+    *) echo "  기대·실제 건수가 출력되지 않았습니다" >&2; rc=1 ;;
+  esac
+
+  return $rc
+}
+
 # is_nonblocking_status의 비차단 집합과 CLAUDE.md 허용 상태값 동기화 검증.
 # 루트 CLAUDE.md에 '대기 중'과 '완료'가 모두 존재해야 함.
 # _ROOT_FILES/CLAUDE.md는 존재하면 함께 확인, 없으면 skip.
@@ -307,6 +543,123 @@ autopilot_headless_entry_check() {
   return $rc
 }
 
+# SKILL.md frontmatter 무결성 — 의존성 없이 검사한다 (PyYAML 부재 환경).
+# 규약: 1행이 `---`, 닫는 `---` 존재, 블록 내 각 행은 `키: 값` 또는 2칸 이상 들여쓴 연속행,
+# `name`·`description` 키 필수.
+_skill_frontmatter_ok() {  # $1=SKILL.md 경로
+  awk '
+    NR==1 { if ($0 != "---") { print "  1행이 --- 가 아님" > "/dev/stderr"; exit 1 } ; next }
+    $0 == "---" { closed=1; exit 0 }
+    /^[a-z][a-z0-9-]*:( |$)/ { key=$0; sub(/:.*/,"",key); seen[key]=1; next }
+    /^  +[^ ]/ { next }
+    /^[[:space:]]*$/ { next }
+    { printf "  frontmatter 규약 밖 행: %s\n", $0 > "/dev/stderr"; exit 1 }
+    END {
+      if (!closed) { print "  닫는 --- 부재" > "/dev/stderr"; exit 1 }
+      if (!seen["name"]) { print "  name 키 부재" > "/dev/stderr"; exit 1 }
+      if (!seen["description"]) { print "  description 키 부재" > "/dev/stderr"; exit 1 }
+    }
+  ' "$1"
+}
+
+# 한 트리의 판정표 정합. 토폴로지 판정을 하지 않는다 — 불변 대상만 무조건 검사하고,
+# 배치가 갈리는 tpl·ship·publish 는 "있으면 플래그가 있어야 한다" 로 조건부 검사한다.
+# 미러 일치는 build_template.sh verify 소유이므로 여기서 비교하지 않는다.
+_skill_flag_scan() {  # $1=SKILL.md → "<frontmatter 안 키 개수>\t<값들을 | 로 이은 문자열>" (frontmatter 없으면 -1)
+  # 값 하나만 보면 "빈 키 + true 중복" 처럼 키가 여러 개인 위반을 통과시킨다. 개수도 함께 돌려준다.
+  awk '
+    NR==1 { if ($0 != "---") { bad=1; exit } ; next }
+    !closed && $0 == "---" { closed=1; exit }
+    !closed && /^disable-model-invocation:/ {
+      n++
+      v=$0; sub(/^disable-model-invocation:[[:space:]]*/, "", v); sub(/[[:space:]]+$/, "", v)
+      acc = (n==1 ? v : acc "|" v)
+    }
+    END { if (bad) print "-1\t"; else printf "%d\t%s\n", n+0, acc }
+  ' "$1"
+}
+
+_skill_manual_guard_tree() {  # $1=트리 경로 — 단계 전환 6개가 각각 정확히 1개, 그리고 6곳이 문자 단위로 동일한지
+  local tree="$1" name f rc=0 c uniq
+  local -a guarded=(request-to-reviewed-plan planning-design-intake implement-reviewed-plan \
+                    final-diff-review small-task-implement gap-check)
+  local -a files=()
+  for name in "${guarded[@]}"; do
+    f="$tree/$name/SKILL.md"
+    [[ -f "$f" ]] || { echo "  $f: 필수 파일 부재" >&2; return 1; }
+    files+=("$f")
+    # 합계만 보면 "한 파일에 2개 + 다른 파일에 0개" 가 통과한다. 파일별로 센다.
+    c=$(grep -c '^`manual` 모드에서는' "$f" || true)
+    if [[ "$c" != "1" ]]; then
+      echo "  $f: manual 자기 점검 문장이 ${c}개 — 정확히 1개여야 한다 (AUTONOMY.md 「실행 모드와 skill 호출 권한」)" >&2
+      rc=1
+    fi
+  done
+  uniq=$(grep -h '^`manual` 모드에서는' "${files[@]}" | LC_ALL=C sort -u | wc -l | tr -d ' ')
+  if [[ "$uniq" != "1" ]]; then
+    echo "  manual 자기 점검 문장이 ${uniq}종 — 6곳이 문자 단위로 동일해야 한다" >&2
+    rc=1
+  fi
+  return $rc
+}
+
+_skill_authority_tree() {  # $1=트리 경로
+  local tree="$1" rc=0 name f scan cnt val
+  # 호출 가능으로 고정할 11개 — 제거 8 + 판정표의 "변경 없음" 3 (플래그가 다시 붙는 회귀도 잡는다)
+  local -a must_absent=(request-to-reviewed-plan planning-design-intake implement-reviewed-plan \
+                        final-diff-review small-task-implement gap-check fr review-config \
+                        autopilot model-strategy workflow-router)
+  local -a keep_always=(comprehensive-audit)
+  local -a keep_if_present=(tpl ship publish)
+  [[ -d "$tree" ]] || { echo "  $tree: 필수 디렉터리 부재" >&2; return 1; }
+  for name in "${must_absent[@]}"; do
+    f="$tree/$name/SKILL.md"
+    [[ -f "$f" ]] || { echo "  $f: 필수 파일 부재" >&2; rc=1; continue; }
+    scan=$(_skill_flag_scan "$f"); cnt=${scan%%$'\t'*}
+    if [[ "$cnt" != "0" && "$cnt" != "-1" ]]; then
+      echo "  $f: 호출 가능이어야 하는데 frontmatter 에 disable-model-invocation 키 ${cnt}개 잔존 (AUTONOMY.md 「실행 모드와 skill 호출 권한」)" >&2
+      rc=1
+    fi
+    _skill_frontmatter_ok "$f" || { echo "  $f: frontmatter 무결성 위반" >&2; rc=1; }
+  done
+  for name in "${keep_always[@]}"; do
+    f="$tree/$name/SKILL.md"
+    [[ -f "$f" ]] || { echo "  $f: 유지 대상 필수 파일 부재" >&2; rc=1; continue; }
+    scan=$(_skill_flag_scan "$f"); cnt=${scan%%$'\t'*}; val=${scan#*$'\t'}
+    if [[ "$cnt" != "1" || "$val" != "true" ]]; then
+      echo "  $f: 유지 대상인데 frontmatter 의 disable-model-invocation 이 「키 1개 · 값 true」 가 아님 (키 ${cnt}개, 값 '${val}')" >&2
+      rc=1
+    fi
+    _skill_frontmatter_ok "$f" || { echo "  $f: frontmatter 무결성 위반" >&2; rc=1; }
+  done
+  for name in "${keep_if_present[@]}"; do
+    f="$tree/$name/SKILL.md"
+    [[ -f "$f" ]] || continue   # ROOT_SKIP·ROOT_ONLY 로 토폴로지마다 유무가 갈린다 (부재는 정상)
+    scan=$(_skill_flag_scan "$f"); cnt=${scan%%$'\t'*}; val=${scan#*$'\t'}
+    if [[ "$cnt" != "1" || "$val" != "true" ]]; then
+      echo "  $f: 유지 대상인데 frontmatter 의 disable-model-invocation 이 「키 1개 · 값 true」 가 아님 (키 ${cnt}개, 값 '${val}')" >&2
+      rc=1
+    fi
+    _skill_frontmatter_ok "$f" || { echo "  $f: frontmatter 무결성 위반" >&2; rc=1; }
+  done
+  _skill_manual_guard_tree "$tree" || rc=1
+  return $rc
+}
+
+# 설치본(루트) 판정 — 모든 설치본에서 실행된다 (청중 consumer).
+skill_invocation_authority_check() {
+  _skill_authority_tree "${SCRIPT_DIR}/../claude_skills"
+}
+
+# 정본 판정 — 개발 저장소 전용 (청중 dev-only). 청중은 사람이 넘기는 모드이므로
+# `all` 모드의 소비 프로젝트에서도 실행된다 — 정본 부재는 실패가 아니라 통과로 넘긴다
+# (autopilot_skill_lifecycle_check 의 "정본은 설치본에 없는 것이 정상" 처리와 같다).
+skill_invocation_canon_check() {
+  local canon="${SCRIPT_DIR}/../../_ROOT_FILES/rd-workflow/claude_skills"
+  [[ -d "$canon" ]] || { echo "  정본 트리 없음 — 설치본이므로 건너뜁니다"; return 0; }
+  _skill_authority_tree "$canon"
+}
+
 plan_parallel_phase_check() {
   local root guide skill
   root="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -349,7 +702,8 @@ _hook_repo_root() {
 # 읽어 실패 원인이 섞인다. 경로 계산의 정확성만 고립해 본다.
 root_dir_layout_check() {
   local rc=0 tmp got want
-  tmp="$(mktemp -d)" || { echo "  임시 디렉터리 생성 실패" >&2; return 1; }
+  tmp="$(mktemp -d)" || { echo "root_dir_layout_check: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$tmp" && -d "$tmp" ]] || { echo "root_dir_layout_check: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
 
   # (a) 정본 레이아웃: <repo>/_ROOT_FILES/rd-workflow/scripts + <repo>/scripts/build_template.sh
   mkdir -p "${tmp}/repo/_ROOT_FILES/rd-workflow/scripts" "${tmp}/repo/scripts"
@@ -377,7 +731,7 @@ root_dir_layout_check() {
     echo "  이름만 _ROOT_FILES 인 경우 불일치: got='${got}' want='${want}'" >&2; rc=1
   fi
 
-  rm -rf "$tmp"
+  [[ -n "$tmp" ]] && rm -rf "$tmp"
   return "$rc"
 }
 
@@ -425,7 +779,8 @@ _hook_settings_targets() {  # 출력: "<REQUIRED|OPTIONAL> <path>"
 # 명령을 수정하지 않고 파일시스템을 대역으로 세우므로 prefix·따옴표를 우회할 수 없다.
 hook_path_reachability_check() {
   local rc=0 kind settings probe_base
-  probe_base="$(mktemp -d)"
+  probe_base="$(mktemp -d)" || { echo "hook_path_reachability_check: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$probe_base" && -d "$probe_base" ]] || { echo "hook_path_reachability_check: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   while read -r kind settings; do
     if [[ ! -f "$settings" ]]; then
       [[ "$kind" == "REQUIRED" ]] && { echo "  $settings: 필수 파일 부재" >&2; rc=1; }
@@ -433,7 +788,7 @@ hook_path_reachability_check() {
     fi
     _hook_probe_settings "$settings" "$probe_base" || rc=1
   done < <(_hook_settings_targets)
-  rm -rf "$probe_base"
+  [[ -n "$probe_base" ]] && rm -rf "$probe_base"
   return $rc
 }
 
@@ -550,23 +905,11 @@ hook_target_existence_check() {
 }
 
 
-# 임시 디렉터리를 fail-closed 로 만든다. 성공하면 경로를 stdout 에, 실패하면 무출력 + 1.
-#
-# `d="$(mktemp -d)"` 를 검사 없이 쓰면 실패 시 빈 문자열이 남아 뒤따르는 `"${d}/x"` 가
-# `/x` — **저장소 밖 절대 경로** — 가 된다. 임시 경로를 쓰는 모든 자리가 같은 함정을 가지므로
-# 가드를 한 곳에 모아 호출부가 실수할 여지를 없앤다 (Turn 006 F2 · Turn 008 F2).
-_mktemp_dir_or_empty() {
-  local d
-  d="$(mktemp -d)" || return 1
-  [[ -n "$d" && -d "$d" ]] || return 1
-  printf '%s\n' "$d"
-}
-
-
 # ④ 전용 헬퍼 — 임시 설치본을 세우고 현재 구현과 변형(행 단위 계수) 구현의 판정을 대조한다.
 _hook_p6_regression_fixture() {
   local rc=0 self="${SCRIPT_DIR}/self_test.sh" fx code out ln
-  fx="$(mktemp -d)"
+  fx="$(mktemp -d)" || { echo "_hook_p6_regression_fixture: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$fx" && -d "$fx" ]] || { echo "_hook_p6_regression_fixture: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   mkdir -p "${fx}/.claude" "${fx}/rd-workflow/scripts/hooks"
   cp "$self" "${fx}/rd-workflow/scripts/self_test.sh"
   printf '#!/usr/bin/env bash\n' > "${fx}/rd-workflow/scripts/hooks/keep.sh"
@@ -621,7 +964,7 @@ P6RPL
     fi
   fi
 
-  rm -rf "$fx"
+  [[ -n "$fx" ]] && rm -rf "$fx"
   return $rc
 }
 
@@ -695,6 +1038,7 @@ run_step review consumer "리뷰 프롬프트 인라인 계약 (test_review_prom
 run_step review consumer "reasoning effort override (test_review_effort_override.sh)" bash "${SCRIPT_DIR}/test_review_effort_override.sh"
 run_step review consumer "리뷰 턴 계측 계약 (test_review_metrics.sh)" bash "${SCRIPT_DIR}/test_review_metrics.sh"
 run_step review consumer "어댑터 프롬프트 parity (test_review_adapter_parity.sh)" bash "${SCRIPT_DIR}/test_review_adapter_parity.sh"
+run_step review consumer "diff review base 판정·seal 계약 (test_review_base_resolution.sh)" bash "${SCRIPT_DIR}/test_review_base_resolution.sh"
 run_step lifecycle consumer "state 단위 테스트 (test_state_common.sh)" bash "${SCRIPT_DIR}/test_state_common.sh"
 run_step hooks consumer "guard state fixture (test_guard_state.sh)" bash "${SCRIPT_DIR}/hooks/test_guard_state.sh"
 run_step hooks consumer "archive gate 테스트 (test_pre_commit_archive_gate.sh)" bash "${SCRIPT_DIR}/hooks/test_pre_commit_archive_gate.sh"
@@ -703,6 +1047,10 @@ run_step lifecycle consumer "LC-19 3자 일치 검증 (TASK/STATE/CLAUDE.md)" ca
 run_step lifecycle consumer "task CLI 단위 테스트" bash "${SCRIPT_DIR}/test_task_cli.sh"
 run_step skills consumer "install_claude_skills 단위 테스트" bash "${SCRIPT_DIR}/test_install_claude_skills.sh"
 run_step lifecycle consumer "lifecycle 단위 테스트 (test_lifecycle.sh)" bash "${SCRIPT_DIR}/lifecycle/test_lifecycle.sh"
+run_step lifecycle consumer "FR 등록 helper 격리 테스트 (test_fr_register.sh)" bash "${SCRIPT_DIR}/test_fr_register.sh"
+run_step lifecycle consumer "미병합 브랜치 backlog 대조 (test_fr_backlog_scan.sh)" bash "${SCRIPT_DIR}/test_fr_backlog_scan.sh"
+run_step lifecycle consumer "인덱스 행 집합 병합 (test_merge_fr_index.sh)" bash "${SCRIPT_DIR}/lifecycle/test_merge_fr_index.sh"
+run_step lifecycle consumer "시작 계약 preflight (test_start_preflight.sh)" bash "${SCRIPT_DIR}/lifecycle/test_start_preflight.sh"
 run_step lifecycle consumer "lifecycle 통합 테스트 (test_integration.sh)" bash "${SCRIPT_DIR}/lifecycle/test_integration.sh"
 run_step review consumer "review 대기 계약 테스트 (test_review_wait.sh)" bash "${SCRIPT_DIR}/test_review_wait.sh"
 run_step review consumer "watchdog 계약·이식성 probe (test_watchdog_portability.sh)" bash "${SCRIPT_DIR}/test_watchdog_portability.sh"
@@ -721,9 +1069,8 @@ run_step skills consumer "sync_template 타입 가드 테스트 (test_sync_templ
 # 많아(48개 workspace) 누수가 쌓이면 self-test 를 돌릴수록 디스크를 먹는다 (Turn 010 Finding 2).
 defect_reports_test_check() {
   local t="${SCRIPT_DIR}/test_defect_reports.sh" tmproot rc=0 left
-  if ! tmproot="$(_mktemp_dir_or_empty)"; then
-    printf '  FAIL 임시 디렉터리 생성 실패 — 테스트를 실행하지 않았습니다\n'; return 1
-  fi
+  tmproot="$(mktemp -d)" || { echo "defect_reports_test_check: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$tmproot" && -d "$tmproot" ]] || { echo "defect_reports_test_check: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   TMPDIR="$tmproot" bash "$t" || rc=1
   left="$(ls -A "$tmproot" 2>/dev/null | wc -l | tr -d ' ')"
   if [[ "$left" != "0" ]]; then
@@ -738,8 +1085,14 @@ defect_reports_test_check() {
 }
 run_step skills consumer "결함 보고 로컬 조작부 테스트 (test_defect_reports.sh)" defect_reports_test_check
 run_step build consumer "스크립트 구문 검사 (bash -n)" syntax_check
+run_step build consumer "mktemp 가드 대조 — 배포 셸" mktemp_guard_scan_shell
+run_step build consumer "mktemp 가드 대조 — 설치본 snippet" mktemp_guard_scan_installed_snippet
+run_step build dev-only "mktemp 가드 대조 — 정본 snippet" mktemp_guard_scan_canon_snippet
+run_step build dev-only "mktemp 스캐너 판정 표본" mktemp_scan_sample_check
 run_step skills dev-only "autopilot SKILL lifecycle 정합 (promote/rollback 일원화)" autopilot_skill_lifecycle_check
 run_step skills dev-only "무인 진입 계약 정합 (autopilot_headless_entry_check)" autopilot_headless_entry_check
+run_step skills consumer "skill 호출 권한 판정표 (설치본)" skill_invocation_authority_check
+run_step skills dev-only "skill 호출 권한 판정표 (정본)" skill_invocation_canon_check
 run_step skills consumer "무인 wrapper 매핑 테스트 (test_autopilot_headless.sh)" bash "${SCRIPT_DIR}/test_autopilot_headless.sh"
 run_step skills dev-only "phase 병렬 규약 문서 정합 (plan_parallel_phase_check)" plan_parallel_phase_check
 # dev-only 인 이유: 점검 대상에 `scripts/` 가 있고 배포본에는 그 디렉터리가 없다.

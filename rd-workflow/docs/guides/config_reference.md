@@ -24,7 +24,7 @@
 | `tools.claude.model` | claude에서 사용할 모델 | `"claude-sonnet-4-5-20250514"`, `null` | `null`이면 도구 기본 모델 |
 | `tools.claude.self_review_warning` | Claude self-review 시 경고 표시 여부 | `true`, `false` | `true` — 경고 표시 |
 | `tools.codex.reasoning_effort` | codex 추론 깊이 기본값 | `"medium"`, `"high"`, `"xhigh"`, `null` | `null`·키 부재면 **전달하지 않음** (전역 `~/.codex/config.toml` 을 따름) |
-| `tools.codex.small_task_reasoning_effort` | small-task 리뷰에서 쓸 추론 깊이 | `"medium"` 이상, `null` | 키가 없으면 전달하지 않음 (자동 하향 없음) |
+| `tools.codex.small_task_reasoning_effort` | `standard` 등급 리뷰에서 쓸 추론 깊이 | `"medium"` 이상, `null` | 키가 없으면 전달하지 않음 (자동 하향 없음) |
 
 **codex 에는 `model` 필드가 없습니다.** 모델은 전역 `~/.codex/config.toml` 을 단일 진실 원천으로 두어
 설정이 두 곳으로 갈라지는 drift 를 막습니다. `adapter_codex.sh` 는 `TOOL_MODEL` 을 받더라도 무시하며,
@@ -51,8 +51,7 @@ kill switch → small-task → review type override → tool 기본 → 미전�
 
 - **키가 없으면 전달하지 않습니다.** 설정이 전혀 없을 때의 동작은 이 기능 도입 전과 완전히 동일합니다.
 - **`medium` 이 허용 하한이며, 하한 검증은 `small_task_reasoning_effort` 에만 적용합니다.** `low`·`minimal` 이 오면
-  경고를 내고 **값을 보정하지 않은 채 전달하지 않습니다**. small-task 는 REQUEST review·spec/plan review 를
-  생략해 final diff review 가 유일한 게이트이고, 판정도 사용자 지정이지 실제 규모의 보증이 아니기 때문입니다.
+  경고를 내고 **값을 보정하지 않은 채 전달하지 않습니다**. `standard` 등급(REQUEST `## Risk Tier` 최종 등급 `standard` → 세션 `execution-path: small-task`) 은 REQUEST review·spec/plan review 를 생략해 final diff review 가 유일한 게이트이기 때문입니다. `## Risk Tier` 가 없는 옛 REQUEST 는 `Execution Path=small-task` 로 fallback 하고, 섹션이 있는데 판독이 안 되면 경고 후 하향을 적용하지 않습니다.
   review 타입 override 와 tool 기본값은 사용자가 명시적으로 지정한 값이므로 하한을 강제하지 않습니다.
 - 허용값 집합은 **모델에 따라 다릅니다** (예: `gpt-5.6-sol` = `low|medium|high|xhigh|max|ultra`,
   `gpt-5.5` = `low|medium|high|xhigh`). 지원하지 않는 값을 남긴 채 모델을 되돌리면 codex 가 설정을 거부하고
@@ -74,7 +73,7 @@ kill switch → small-task → review type override → tool 기본 → 미전�
 
   effort 가 거부되면 턴이 즉시 실패하므로 "전달했지만 무시됐다" 상태는 존재하지 않습니다.
 - **되돌리는 방법**: ① 키 제거 ② `RD_REVIEW_EFFORT_OVERRIDE=0` ③ 값을 올림.
-  **small-task diff review 에서 놓친 결함이 발견되면 `small_task_reasoning_effort` 를 제거하고 FR 로 기록하십시오.**
+  **`standard` diff review 에서 놓친 결함이 발견되면 `small_task_reasoning_effort` 를 제거하고 FR 로 기록하십시오.**
   effort 하락이 리뷰 품질에 주는 영향은 LLM 이 비결정적이라 고정 fixture 로 검증할 수 없으므로,
   실사용 관측과 되돌림 경로로 관리합니다.
 

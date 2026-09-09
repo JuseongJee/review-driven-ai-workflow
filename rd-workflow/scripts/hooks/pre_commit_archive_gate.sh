@@ -57,8 +57,53 @@ fr_status="$(awk '
   /^- status:/ { gsub(/^- status:[[:space:]]*/, ""); print; exit }
 ' "$fr_file")"
 
+# --- 아카이브 보류 상태의 기록 커밋 예외 (spec §4.3) ---
+# task-state status 가 `아카이브 보류` 이면, 커밋에 들어갈 수 있는 변경이 전부 제외 경로(§2.1)
+# 안일 때만 통과시킵니다. 그래야 §4.2 정상 경로(seal → 상태 전이 → 기록 커밋)가 성립합니다.
+#
+# **이 분기는 아래 `done|dropped` 조기 통과보다 반드시 앞에 있어야 합니다.** 정상 archive
+# content commit 은 바로 그 커밋에서 FR status 를 `done` 으로 바꾸므로, 순서가 뒤바뀌면
+# 워킹트리의 `done` 표기 하나로 이 제한이 통째로 우회됩니다 (final diff review Finding 3).
+#
+# 상태는 워킹트리의 task-state 파일에서 읽습니다(index도 HEAD 도 아님) — 전이가 커밋 없이
+# 즉시 반영되어야 순환이 생기지 않기 때문입니다.
+# 경로 판정은 rd_commit_scope_all_records 한 곳에 위임합니다 — 허용 목록(RD_RECORD_PATHS)을
+# 여기에 다시 적지 않습니다. 두 곳이 어긋나면 "커밋은 되는데 발행에서 막히는" 상태가 생깁니다.
+# 환경변수로 이 게이트를 우회하는 경로는 만들지 않는 것이 계약입니다(AC 26).
+pending_block=0
+if [[ "$(state_read_field "status")" == "아카이브 보류" ]]; then
+  # 3값 반환: 0=전부 기록 경로, 1=밖에 있는 것 존재, 2=판정 불가.
+  # 2 는 통과가 아니라 차단입니다(fail-closed).
+  if rd_commit_scope_all_records; then
+    records_rc=0
+  else
+    records_rc=$?
+  fi
+  case "$records_rc" in
+    0)
+      exit 0
+      ;;
+    1)
+      echo "[guard] 아카이브 보류 상태이지만 커밋 대상 변경에 기록 경로 밖의 파일이 있습니다." >&2
+      pending_block=1
+      ;;
+    *)
+      echo "[guard] 커밋 대상 변경이 기록 경로 안인지 판정할 수 없어 차단합니다." >&2
+      pending_block=1
+      ;;
+  esac
+fi
+
 if [[ "$fr_status" == "done" || "$fr_status" == "dropped" ]]; then
-  exit 0
+  # 보류 분기에서 이미 차단이 확정된 경우에만 여기로 옵니다.
+  # 종전에는 이 조기 통과가 보류 분기보다 앞에 있어 제한이 사실상 죽어 있었습니다.
+  if [[ "$pending_block" == "0" ]]; then
+    exit 0
+  fi
+  echo "[guard] 아카이브 보류 상태에서는 기록 경로 밖의 변경을 커밋할 수 없습니다." >&2
+  echo "[guard] 코드 변경이 필요하면 상태를 '구현 중' 으로 되돌리고 리뷰를 다시 받으세요:" >&2
+  echo "[guard]   bash rd-workflow/scripts/rd task set-status \"구현 중\"" >&2
+  exit 2
 fi
 
 echo "[guard] diff review가 통과했지만 REQUEST 아카이브가 완료되지 않았습니다." >&2
