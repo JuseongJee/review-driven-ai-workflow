@@ -28,7 +28,7 @@
 | 단계 | `light` | `standard` | `full` |
 |---|---|---|---|
 | FR 등록·지시 대기 (Intake) | 생략 | 생략 | 필수 |
-| fr 브랜치 (`promote.sh`) | 생략 | 필수 (`--size small`) | 필수 (`--size large`) |
+| fr 브랜치 (`promote.sh`, worktree 기본 생성) | 생략 | 필수 (`--size small`) | 필수 (`--size large`) |
 | raw-capture·short-title 3-way | 생략 | 생략 (short-title 은 promote 가 기록) | 필수 |
 | REQUEST | 생략 | 필수 — 축약형 | 필수 |
 | REQUEST review | 생략 | 생략 | 필수 |
@@ -48,6 +48,8 @@
 
 ### 시작 계약 (`light`·`standard` 공통)
 
+**worktree 격리가 기본입니다.** `promote.sh` 는 인자 없이 호출해도 기본 브랜치에 커밋하지 않고 `<main worktree>/.worktrees/<slug>` 에 별도 worktree 를 만들어 그 안에서 fr 브랜치를 체크아웃합니다(main worktree 는 `$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")`). 여러 작업을 동시에 진행할 때는 각자의 worktree 안에서 독립적으로 구현·검증·커밋합니다. `--no-worktree` 로만 기존처럼 현재 체크아웃에서 `git switch` 하며, 이 옵션은 **현재 체크아웃이 기본 브랜치일 때만** 허용되고 동시에 하나만 가능합니다(대상 선택·마감 경로는 아래 절 참조).
+
 1. `CURRENT_TASK.md Status = 대기 중`. 진행 중 작업이 있으면 Intake 의 "등록만" 규칙을 따릅니다.
 2. **어떤 switch·checkout 보다 먼저** 현재 브랜치와 워킹트리 clean 여부를 읽습니다. dirty 면 상태를 바꾸지 않은 채 중단하고 알립니다. 유일한 예외는 **이미 기본 브랜치에 있고** 사용자가 **dirty 경로 전부**를 이번 작업 입력으로 채택한다고 명시한 경우이며, 채택 경로를 감사 기록의 변경 파일 필드에 적습니다. 다른 브랜치가 dirty 면 예외 없이 중단합니다. AI 는 기존 변경을 stash·checkout·삭제하지 않습니다.
 3. clean 이고 기본 브랜치가 아니면 기본 브랜치로 checkout 한 뒤 clean 을 다시 확인합니다.
@@ -64,6 +66,79 @@
 | task-state·CURRENT_TASK·REQUEST·raw-capture | 건드리지 않음 | 현행 small 경로와 같음 | 현행 |
 | 기존 FR | 있으면 같은 커밋에서 done (인덱스 삭제 + 상세 status) | archive content commit 에서 done | 현행 |
 | 사용자 가시 결과 | 종료 보고 블록 | 종료 보고 + archive 출력 | 현행 |
+
+**`archive.sh` 는 작업 worktree 안에서 호출해도 됩니다.** 발행 대상이 기본 브랜치 worktree(main worktree)가 아니면 그쪽으로 `cd` 해 자기 자신을 재실행하며, 원래 호출한 worktree 는 정리하지 않고 보존합니다. `--task <slug>` 를 명시하면 어느 위치에서 불러도 그 작업을 대상으로 삼습니다.
+
+**merge 만으로는 발행 완료가 아닙니다.** `archive.sh` 는 merge 이후 tag·기본 브랜치 push·tag push 를 별도 단계로 수행하므로, merge 직후 중단되거나 push 가 실패해도 "merge 됐다"는 사실만으로는 발행이 끝난 게 아닙니다. `rd task list`(및 `--rebuild`)는 아래 세 상태로 구별해 보여줍니다.
+
+| 상태 | 의미 | 목록 표시 | 삭제·정리 권고 |
+|---|---|---|---|
+| 진행 중 | fr ref 가 기본 브랜치에 merge 되지 않음 | 진행 중 | 하지 않음 |
+| **발행 확인 필요** | merge 됐지만 archive tag 가 없거나 원격 반영을 확인할 수 없음 | ⚠ 발행 확인 필요 | **하지 않음** — `archive.sh --task <slug>` 재실행으로 확인·재개를 안내 |
+| 정리 잔여 | merge + 이 작업의 발행 commit 을 가리키는 archive tag + (원격 모드면) 그 commit 이 원격 기본 브랜치에 포함됨이 확인됨 | 정리 대기 | 정리 명령 제시 |
+
+### 세션 기동
+
+worktree 를 만든 뒤 `promote.sh` 는 **그 worktree 에서 작업할 에이전트 세션을 기동하려 시도**합니다. 여기서 보장하는 것은 두 가지뿐입니다 — worktree 가 준비되고, 그 안에서 세션을 여는 명령이 화면에 제시됩니다. **실제 자동 기동은 herdr 안에서 돌고 있을 때만** 일어나며(`HERDR_ENV=1`), 그 밖의 환경에서는 제시된 명령을 사람이 직접 실행합니다. 즉 herdr 는 선택적 의존이지 전제가 아닙니다.
+
+기동은 **현재 workspace 안에 tab 을 새로 만들어** 그 안에 세션을 띄웁니다(화면을 분할하지 않습니다). tab 의 이름은 작업 slug 이고, herdr 의 agents 패널은 행마다 그 tab 이름을 보여주므로 **동시에 여러 작업이 떠 있어도 목록에서 바로 구분됩니다.** 사용자의 focus 는 가져오지 않습니다.
+
+기동 직후 세션이 신뢰 확인 같은 다이얼로그를 띄워 `blocked` 로 들어가는 경우가 있습니다 — worktree 는 늘 처음 여는 경로라 드문 일이 아닙니다. 이때 결과는 `unknown` 이고 **tab 은 닫지 않습니다.** 승인은 사람이 합니다. 다만 **승인만으로 작업이 이어지지는 않습니다** — 인계 문구는 승인 뒤에야 전달할 수 있으므로, 그 세션은 승인 직후 지시를 기다리는 상태입니다. 승인한 뒤 `bash rd-workflow/scripts/rd task resolve-launch <slug>` 를 실행하면 세션 생존을 확인해 `launch=ok` 로 확정하고 **그 자리에서 인계 문구를 전달**합니다. 전달에 실패해도 생존 확정은 유효하며, 그때는 인계 문구를 화면에 출력하므로 세션에 직접 붙여 넣으면 됩니다. 시작 요청 뒤 응답이 늦어 시간 초과된 경우(`unknown`)도 같습니다 — tab 을 닫지 않고 같은 명령으로 확인·인계합니다.
+
+**깊이 1 제한.** 기동된 자식 세션은 또 다른 세션을 기동하지 않습니다(`RD_CHILD_SESSION=1` 이 상속됩니다). 자식 세션에서 `promote.sh` 를 부르면 worktree 는 정상적으로 만들어지고 기동만 건너뛰며, 수동 기동 명령이 나옵니다.
+
+기동 결과는 색인의 `launch` 필드에 네 값 중 하나로 남고 `rd task list` 가 그대로 보여줍니다.
+
+| `launch` | 의미 | 사용자가 할 일 |
+|---|---|---|
+| `ok` | 세션이 붙었음이 확인됨 | 없음 |
+| `failed` | 기동을 시도했고 실패가 확정됨 | 제시된 수동 기동 명령 실행 |
+| `none` | 기동을 시도하지 않음(herdr 밖, 자식 세션 등) | 제시된 수동 기동 명령 실행 |
+| `unknown` | 시도했으나 성공·실패를 판정하지 못함(승인 대기·응답 지연·시간 초과 등) | `rd task resolve-launch <slug>` — 생존 확인 후 `ok`/`failed` 로 확정하고, 살아 있으면 인계까지 전달. herdr 로 조회할 수 없으면 아래 「herdr 밖에서 `unknown` 해소하기」 |
+
+**`unknown` 은 `none` 이 아닙니다.** 세션이 실제로 떠 있는데도 없는 것으로 다루면 같은 worktree 에 두 번째 세션을 띄우게 되므로, 자동 재기동을 하지 않고 사람이 확인합니다.
+
+기동이 진행 중인 동안 색인의 `launch` 는 `launching` 으로 예약됩니다. 이 상태에서는 그 작업의 `rollback`·`archive` 가 거부됩니다(기동 중인 세션의 worktree 를 지우지 않기 위해서입니다). `unknown` 도 같은 이유로 거부되므로, **`launching` 과 `unknown` 은 모두 `bash rd-workflow/scripts/rd task resolve-launch <slug>` 로 해소합니다** — 세션이 살아 있으면 `ok`, 찾을 수 없으면 `failed` 로 확정하고, 판정이 서지 않으면 아무것도 바꾸지 않습니다. `launching` 은 예약을 만든 프로세스가 아직 살아 있으면 해소하지 않습니다(`unknown` 은 예약이 없을 수 있으므로 곧바로 생존 확인으로 갑니다).
+
+#### herdr 밖에서 `unknown` 해소하기
+
+herdr 가 없는 셸(또는 herdr 미설치)에서는 생존 조회가 언제나 "판정 불가" 로 돌아옵니다. 그래도 작업을 끝낼 수 있도록 `resolve-launch` 는 두 갈래로 갈립니다.
+
+- **자동 기동을 시도한 기록이 없는 작업** — 기동 예약(`launch-token`)이 없는 행입니다. 구버전 작업을 색인으로 흡수할 때 `launch=unknown` 으로 적히는 경우가 여기 해당합니다. 띄운 세션이 애초에 없으므로 사람 확인 없이 `launch=none` 으로 확정하고, 그 자리에서 `rollback`·`archive` 차단이 풀립니다.
+- **기동을 시도했는데 결과를 모르는 작업** — 조용히 확정하지 않습니다. 살아 있는 세션을 없다고 적으면 같은 worktree 에 두 번째 세션을 띄우게 되기 때문입니다. 세션이 없거나 이미 끝났음을 **직접 확인한 뒤** `bash rd-workflow/scripts/rd task resolve-launch <slug> --assume-ended` 로 `failed` 확정합니다.
+
+### 대상 선택 규칙
+
+여러 작업이 동시에 진행 중일 때 `rd task` 명령(`set-status`·`archive`·`rollback` 등)이 어떤 작업을 대상으로 삼는지는 **호출 위치**가 정합니다(단일 판정 함수 `task_resolve_target`, `rd-workflow/scripts/_task_common.sh`).
+
+| 호출 | 대상 판정 |
+|---|---|
+| 대상 지정 없이, 현재 체크아웃이 그 작업의 worktree 안 | 그 작업 (인자 불요) |
+| 대상 지정 없이, 그 밖의 위치(기본 브랜치 worktree 등) | 진행 중인 작업이 1건이면 그 작업 / **2건 이상이면 아무것도 바꾸지 않고 중단** + 목록과 `--task` 지정 방법 안내 |
+| `--task <slug>` 명시 | 어느 위치에서 불러도 그 작업. 현재 worktree 의 작업과 다르면 **경고 한 줄 후 진행**(거부하지 않음) |
+
+### `--no-worktree` 작업의 마감 경로
+
+`--no-worktree` 로 시작한 작업은 기본 브랜치 체크아웃을 그대로 점유하므로, 별도 worktree 로 옮기지 않고 마감합니다.
+
+1. 작업 기록을 그 체크아웃 위에서 커밋합니다.
+2. `git switch <기본 브랜치>` 로 되돌립니다.
+3. `bash rd-workflow/scripts/lifecycle/archive.sh --task <slug>` 로 마감합니다 — `--task` 로 대상을 명시해야 하며, 되돌린 체크아웃에는 이제 그 작업의 파일이 없으므로 경로가 아니라 fr 브랜치 tip 에 커밋된 상태를 읽습니다.
+
+마감이 아니라 **취소**할 때도 기본 worktree 를 지우지 않습니다. `bash rd-workflow/scripts/lifecycle/promote_rollback.sh --task <slug>` 는 대상이 기본 worktree 이면 worktree 제거 대신 **체크아웃을 기본 브랜치로 되돌린 뒤** fr 브랜치와 색인 행만 정리합니다(되돌릴 수 없으면 — 예: 커밋되지 않은 변경 — 아무것도 바꾸지 않고 멈춥니다).
+
+### 취소(rollback)가 보존하는 것과 `--force`
+
+`rollback` 은 worktree 와 브랜치를 지우는 파괴적 명령이므로, 지우기 전에 두 가지를 확인하고 **하나라도 걸리면 아무것도 바꾸지 않고 멈춥니다.**
+
+| 확인 | 걸렸을 때 |
+|---|---|
+| 그 작업에 기동된 에이전트 세션이 살아 있는가(`launch=ok` 이고 생존 확인이 `dead` 가 아님) | 세션을 먼저 끝내라고 안내하고 중단. 실행 중인 세션이 만든 변경을 지우지 않기 위해서입니다 |
+| 대상 worktree 에 커밋되지 않은 변경이 있는가 | 변경 목록(앞 10건)을 보여 주고 중단. 커밋·stash 방법을 함께 안내합니다 |
+
+`launching`·`unknown` 은 기존대로 `resolve-launch` 로 해소한 뒤 다시 시도합니다.
+
+취소를 정말 진행하려면 **`--force`** 를 붙입니다 — "살아 있을 수 있는 세션과 미커밋 작업물을 알고도 버린다" 는 뜻이며, 버리는 내용을 경고로 출력한 뒤 진행합니다. 무엇을 잃게 되는지 미리 보려면 `--dry-run` 이 같은 요약(세션 상태 + 미커밋 변경)을 출력합니다.
 
 ### 커밋 전 재분류와 상향
 
@@ -186,22 +261,18 @@ autopilot 에서는 이 분기가 모드 A(`full`)/모드 B(`standard`) 로 나�
 - single source of truth: `CURRENT_TASK.md ## Short Title`
 - canonical: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$` (영문 kebab-case, 영숫자 시작·끝, `-` 단독 / empty / hyphen-only 금지 — `-` 는 reserved sentinel)
 - 부여 진입점 (start point — 3 곳): `/fr add` (FR 시작), `planning-design-intake` (FR 없는 직접 REQUEST), `promote.sh` (FR 없는 직접 `standard` 작업 — `small-task-implement`가 이를 호출하며 skill 자체는 read-only). 부여 조건은 진입점별로 다름:
-  - **`planning-design-intake` — equality-aware 3-way:**
+  - **`planning-design-intake`(`--mode intake`) · `request-to-reviewed-plan` FR 승격 진입(`--mode promote`)** — 둘 다 `rd task guard` 의 같은 판정 함수(`task_guard_decide`)를 mode 만 다르게 호출한다. 판정 7순위·`fr-branch` 활성 판정은 `rd-workflow/docs/guides/task-state-guide.md` 「guard 판정」·「fr-branch 활성 판정」 절이 정본이며 여기서 중복 서술하지 않는다. 요지만 적으면:
     - (a) `## Short Title = -` 또는 섹션 부재 → CANDIDATE 기록 (부재 시 섹션 자동 추가)
     - (b) `## Short Title = CANDIDATE` (equal) → read-only continue
-    - (c) `## Short Title ≠ CANDIDATE` AND ≠ `-` → `## Status` 판정 (Status-aware guard):
-      - `## Status` 부재/파싱 불가 → 보수적 차단 + 별도 malformed 경고
-      - `## Status = 대기 중` → stale Short Title, 차단 없이 (a)처럼 CANDIDATE 기록(+교체 알림) 후 진행
-      - `## Status ≠ 대기 중` (`완료` 포함) → active-task guard (명시 경고 + skill 차단)
-  - **`/fr add` — `Intake 규칙` 따라:**
+    - (c) 그 외 → 순위 4(같은 source FR 로 재진입) 이후를 따른다 — `fr-branch` 활성이면 차단, `## Status = 대기 중` 이면 stale 값으로 보고 rebind, 그 외(완료 포함)·부재/파싱불가는 차단
+  - **`/fr add`(`--mode fr-add`) — `Intake 규칙` 따라:**
     - `## Short Title = -` → 새로 부여 (baseline)
     - non-`-` → read-only (FR 등록 + FR 캡처는 새 short-title, `CURRENT_TASK` 변경 안 함)
     - 섹션 부재 → warn-only (legacy active task 보호)
-- `request-to-reviewed-plan` FR 승격 진입 — 3-way (rebind / baseline equal / active-task guard) 별도 항목. active-task guard는 `## Status` 판정으로 stale(`대기 중`)이면 rebind, 그 외(완료 포함) 차단, 부재/파싱불가는 보수적 차단.
-- 부여 후 ~ archive 까지 immutable (변경 금지)
+- 부여 후 ~ archive 까지 원칙적으로 immutable (변경 금지). 예외: `rd task set-title -` — `## Status == 대기 중` 이고 `fr-branch` 가 비활성일 때만 허용되는 수동 reset(상세는 `task-state-guide.md` 「Short Title reset」)
 - 캡처 단계 (`request-to-reviewed-plan` 의 일반 진입) 는 short-title 부재 시 부여 안 함, 캡처 생략 + 경고
 - post-plan skill (`implement-reviewed-plan`, `final-diff-review`) 은 read-only
-- reset trigger 3 가지: (1) autopilot REQUEST archive, (2) 수동 archive (`request-archive/README.md` 4 단계), (3) `planning-design-intake` overwrite-backup (implicit archive). 모두 default `-` 로 복귀
+- reset trigger 4 가지: (1) autopilot REQUEST archive, (2) 수동 archive (`request-archive/README.md` 4 단계), (3) `planning-design-intake` overwrite-backup (implicit archive), (4) `rd task set-title -` 수동 reset(위 예외 조건 충족 시). (1)~(3) 은 default `-` 로 복귀, (4) 는 `short-title` 과 `source-fr` 을 함께 `-` 로 복귀
 
 ### Archive 통합
 
@@ -235,6 +306,11 @@ fr branch lifecycle 관련 스크립트 요약:
 | `rd-workflow/scripts/fr_backlog_scan.sh` | 미병합 브랜치의 backlog 추가 파일 대조 (단독 실행 가능) |
 
 세부 사용법은 `rd-workflow/scripts/lifecycle/README.md` 참조.
+
+### 관련 `workflow.json` 설정 키
+
+- `stale_behind_threshold`(기본 `20`) — `rd task list` 가 작업을 "묵은 작업"(`⚠ N커밋 뒤처짐`)으로 표시하는 기준. 판정은 기본 브랜치 대비 그 fr 브랜치가 뒤처진 커밋 수(`git rev-list --count <fr-branch>..<default-branch>`)입니다. `tasks_list.sh` 가 이 키를 읽고, 없거나 파싱할 수 없으면 `20` 을 씁니다.
+- `worktree_root`(기본값 `.worktrees`) — `promote.sh` 가 worktree 를 만드는 기본 위치. 상대 경로는 main worktree 기준이고(`<main worktree>/<worktree_root>/<slug>`), 절대 경로와 `~/...` 도 씁니다. 부모 디렉터리가 없으면 만듭니다(새로 만들 때 안내 한 줄). `--worktree-path` 로 넘긴 명시 경로가 이 키보다 우선하며, 그 경우는 부모가 이미 있어야 합니다. 저장소 밖으로 옮기면 `.gitignore` 의 `.worktrees/` 항목이 더는 의미가 없으므로, 새 위치가 저장소 안이면 그 경로를 직접 무시 목록에 넣어야 합니다.
 
 ## 기본 원칙
 

@@ -96,10 +96,11 @@ example 값으로 덮여 사라집니다. 그래서 **경로가 없을 때만** 
 
 ### 2.4 팀 프로젝트에 개인 설치
 
-팀 repo를 오염시키지 않고 개인 private repo로 분리 설치:
+내 private overlay repo 를 루트로 두고 팀 저장소를 그 아래 git submodule 로 붙입니다.
+팀 repo 워킹트리에는 아무것도 두지 않습니다.
 
-- **처음 설치**: [team-overlay-fresh-install.md](rd-workflow/docs/guides/team-overlay-fresh-install.md)
-- **이미 설치된 프로젝트에서 분리**: [team-overlay-migration.md](rd-workflow/docs/guides/team-overlay-migration.md)
+- **처음 설치**: [team-overlay-fresh-install.md](guides/team-overlay-fresh-install.md)
+- **이미 설치된 프로젝트에서 이관**: [team-overlay-migration.md](guides/team-overlay-migration.md)
 
 ```
 "팀 프로젝트에 개인 overlay로 설치해줘"
@@ -534,8 +535,8 @@ UI 작업 시 디자인 레퍼런스 대비 검증 게이트.
     │   │   ├── migrate_existing_project.md  # 기존 프로젝트 적용
     │   │   ├── adapter-interface.md     # 리뷰 어댑터 인터페이스
     │   │   ├── verification-scope-guide.md  # 검증 범위 가이드
-    │   │   ├── team-overlay-fresh-install.md   # 팀 프로젝트 개인 설치
-    │   │   └── team-overlay-migration.md      # 팀 프로젝트 분리 마이그레이션
+    │   │   ├── team-overlay-fresh-install.md   # 팀 프로젝트 개인 설치 (submodule 구조)
+    │   │   └── team-overlay-migration.md      # 기존 설치를 submodule 구조로 이관
     │   ├── prompts/                 # 프롬프트 (보정/수동 복구용)
     │   │   ├── review/                  # 리뷰 기준
     │   │   ├── recovery/                # 절차 보정

@@ -669,6 +669,195 @@ read_hook_agent_id() {
   '
 }
 
+# --- 차단 계측 (guard-block-instrumentation) ---
+#
+# 가드가 실제로 무엇을 막았는지 한 줄씩 남긴다. 목적은 나중에 사람이 「이 가드가 실수를
+# 잡았나, 정당한 작업만 막았나」를 판정하는 것이다 — 가드는 늘기만 하고 은퇴하지 않는데
+# 은퇴를 판정할 데이터가 없었다.
+#
+# **왜 EXIT trap 이 아닌가.** 처음엔 이 파일에 EXIT trap 을 하나 달아 모든 가드를 자동으로
+# 덮으려 했다. 폐기했다 — 이 파일을 source 하는 곳은 hooks 만이 아니고
+# `lifecycle/archive.sh`·`lifecycle/test_lifecycle.sh` 도 포함되며, `test_lifecycle.sh` 는
+# **조용한 중단 센티넬 EXIT trap** 을 먼저 걸고 나중에 이 파일을 source 한다. bash 는 EXIT
+# trap 을 하나만 가지므로 나중에 건 쪽이 앞의 것을 말없이 지운다 — 계측이 그 센티넬을
+# 무력화했다(`self_test.sh lifecycle` 이 검출). 반대로 소비자가 나중에 trap 을 걸면 계측이
+# 조용히 꺼진다. **동작하는 것처럼 보이면서 꺼지는 것이 잊을 수 있는 것보다 나쁘다.**
+#
+# 그래서 차단 지점마다 `guard_deny` 를 부른다. 「새 가드가 계측을 빠뜨릴 수 있다」는 약점은
+# `self_test.sh` 의 구조 검사(`guard_deny_convention_check`)가 대신 막는다. 그 검사는 텍스트
+# 기반이므로 모든 셸 표현을 증명하지는 못한다 — 규약 위반을 흔한 형태에서 잡는 장치다.
+#
+# **통과는 기록하지 않는다.** 모든 Bash·Edit·Write 호출마다 한 줄씩 쌓이면 로그가 무의미해
+# 지고 저장소가 부풀어 오른다. 알고 싶은 것은 "무엇을 막았나" 다.
+#
+# **로그가 자라는 것을 회전으로 감추지 않는다.** 차단은 드물어야 정상이므로, 로그가 빠르게
+# 자란다면 그 자체가 「이 가드가 정당한 작업을 막고 있다」는 신호다. 조용히 버리지 않는다.
+#
+# **경로는 env 로 override 할 수 있다.** 편의가 아니라 오염 방지다 — 차단 가드의 테스트는
+# **실제 hook** 을 부르고 hook 은 자기 위치에서 project_root 를 도출하므로, 그냥 두면 검증이
+# 운영 감사 로그에 쓴다(실측: `self_test.sh hooks` 한 번에 28줄). 그러면 로그가 테스트
+# 잡음으로 채워져 「이 가드가 무엇을 막았나」를 볼 수 없다. `self_test.sh` 와 **실제 hook 을
+# 부르는 개별 테스트가 각각** 이 변수를 임시 경로로 돌린다(둘 다 필요하다 — self_test 만
+# 격리하면 테스트를 직접 실행하는 정상적인 개발 경로가 여전히 오염시킨다).
+RD_GUARD_BLOCK_LOG="${RD_GUARD_BLOCK_LOG:-${project_root}/rd-workflow-workspace/.lifecycle/guard-block-audit.log}"
+
+# _rd_guard_sanitize <문자열> — 한 차단 = 한 줄을 보장한다.
+#
+# **외부 바이너리를 쓰지 않는다.** 초판은 `tr`·`cut` 을 썼는데, 그것들이 없는 제한된 PATH
+# (테스트의 격리 환경, 최소 컨테이너)에서 127 로 죽어 **차단(2)이 127 로 나갔다.** 차단이
+# 차단으로 보이지 않게 되는 실제 버그였다. 제어문자 치환과 길이 제한을 bash 3.2 의 패턴
+# 치환·부분문자열로만 한다. 필드 구분자(`|`)도 공백으로 바꿔 열이 밀리지 않게 한다.
+_rd_guard_sanitize() {
+  local v="${1-}"
+  v="${v//[[:cntrl:]]/ }"
+  v="${v//|/ }"
+  printf '%s' "${v:0:200}"
+}
+
+# _rd_guard_cmd_summary <명령 원문> — **인자를 버리고 프로그램 이름만 남긴다.**
+#
+# **원문 명령을 기록하면 안 된다.** headless 차단은 임의의 Bash 명령에 걸리므로 토큰이 담긴
+# `curl -H "Authorization: Bearer …"` 나 환경변수 대입이 그대로 들어온다. 감사 목적에는
+# 「어떤 종류의 명령을 막았나」가 충분하고, 인자는 필요 없다. 로그를 추적 제외로 두는 것과
+# 별개로 내용 자체를 줄인다 — 두 방어를 함께 둔다.
+#
+# **첫 토큰을 그대로 믿으면 안 된다.** 초판은 공백까지 잘라 프로그램 이름으로 봤는데, bash
+# 의 리다이렉션·here-string 연산자는 **공백 없이 붙을 수 있다** — `cat<<<SECRET` 이나
+# `printf>/secret/path` 는 첫 토큰 자체에 비밀을 담는다(리뷰에서 실측). 선행 환경변수 대입
+# (`TOKEN=abc curl …`)도 같은 부류다.
+#
+# 그래서 **화이트리스트로 판정한다.** 첫 토큰이 프로그램 이름으로 안전하다고 확신할 수 있는
+# 문자만으로 되어 있을 때에만 그 값을 남기고, 그 밖에는 고정 표식으로 축약한다. 셸 연산자·
+# 인용·확장이 섞이면 안전한 이름을 확신할 수 없으므로 보수적으로 버린다. 입력을 실행하거나
+# 셸에 평가시키지 않는다.
+_rd_guard_cmd_summary() {
+  local c="${1-}" first
+  c="${c#"${c%%[![:space:]]*}"}"          # 앞 공백 제거
+  first="${c%%[[:space:]]*}"
+  [[ -n "$first" ]] || { printf '%s' '-'; return 0; }
+  case "$first" in
+    *=*) printf '%s' '<env-assign>'; return 0 ;;   # 값이 비밀일 수 있다
+  esac
+  # 허용: 영숫자 · _ . - + / (경로 포함 실행 파일 이름). 그 밖의 문자가 하나라도 있으면 버린다.
+  case "$first" in
+    *[!A-Za-z0-9_.+/-]*) printf '%s' '<unparsed>'; return 0 ;;
+  esac
+  printf '%s' "${first##*/}"                        # 경로가 붙어 있으면 이름만
+}
+
+# _rd_guard_json_get <jq 표현> — jq → python3 순으로 읽는다.
+#
+# **jq 만 있는 경로로 만들면 안 된다.** 판정(`hook_input_bool_true`)은 python3 폴백을 갖는데
+# 계측만 jq 를 요구하면, jq 가 없는 지원 환경에서 차단은 정상 동작하면서 로그는 `tool=-
+# target=- session=-` 만 남는다 — 「언제 무엇을 막았나」라는 목적 자체가 무너진다.
+# 둘 다 없으면 필드를 비우고 진행한다(기능 축소이며, 차단 판정에는 영향이 없다).
+_rd_guard_json_get() {
+  local expr="${1-}" out=""
+  if command -v jq >/dev/null 2>&1; then
+    out="$(printf '%s' "$_hook_input" | jq -r "$expr // \"\"" 2>/dev/null)" || out=""
+    printf '%s' "$out"; return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    # jq 표현을 그대로 쓸 수 없으므로 키 이름만 넘긴다 — 호출측이 단순 경로만 쓴다.
+    out="$(printf '%s' "$_hook_input" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+if not isinstance(d, dict):
+    sys.exit(0)
+cur = d
+for k in sys.argv[1].split("."):
+    if not k:
+        continue
+    if isinstance(cur, dict) and k in cur:
+        cur = cur[k]
+    else:
+        sys.exit(0)
+if isinstance(cur, (str, int, float)) and not isinstance(cur, bool):
+    sys.stdout.write(str(cur))
+' "${2-}" 2>/dev/null)" || out=""
+    printf '%s' "$out"; return 0
+  fi
+  printf '%s' ""
+}
+
+# guard_deny — 차단을 기록하고 exit 2 로 끝낸다. **가드의 마지막 줄에서 `exit 2` 대신 쓴다.**
+#
+# **기록 실패가 차단을 바꾸면 안 된다.** 로그를 못 써도 차단은 차단이다. 그래서 외부
+# 바이너리에 의존하지 않고(`date` 만 예외이며 실패해도 `||` 로 흡수), 쓰기 실패를 흡수한 뒤
+# 반드시 `exit 2` 한다.
+#
+# **다만 실패를 숨기지는 않는다.** 초판은 모든 실패를 무음으로 흡수했는데, 이 기능은 사람이
+# 로그를 보고 가드를 평가하는 것이므로 누락을 모르면 「차단한 적 없음」이라는 반대 결론으로
+# 이어진다. 셸의 원시 오류(차단 안내를 오염시킨다)는 막고, 대신 **우리가 만든 한 줄 경고와
+# 로그 경로**를 보여준다. 원래 차단 안내와 exit 2 는 그대로다.
+#
+# **리다이렉션 실패는 명령이 아니라 셸이 보고한다.** `printf ... >> f 2>/dev/null` 은 `>>`
+# 자체가 실패할 때 메시지를 막지 못하므로(실측), 블록으로 감싼다.
+#
+# **`reason` 인자(선택, guard-block-reason-identifier)** — 한 가드 안에 판정 분기가 여럿일 때
+# 로그 한 줄만으로 어느 분기였는지 구별하기 위한 짧은 고정 식별자다. 형식은
+# `<가드 파일명(접미사 제외)>.<분기 토큰>` (예: `pre_commit_archive_gate.incomplete-source-fr`).
+# **자유 텍스트를 넣지 않는다** — 고정 토큰만 허용해야 원문 인자 미기록(F1) 방향과 양립한다.
+# **필수 인자가 아니다.** 소비 프로젝트의 vendored 사본·extension 가드가 인자 없이
+# `guard_deny`를 호출해도 깨지지 않아야 한다(하위호환) — 그래서 인자를 생략하면 `reason=`
+# 필드 자체를 붙이지 않는다(빈 값 강제가 아니라 필드 누락으로 하위호환한다). 이 저장소 안의
+# 호출부(스캔 범위: `rd-workflow/scripts/hooks/*.sh` + `_ROOT_FILES` 사본, `test_*` 제외)는
+# `self_test.sh`의 `guard_deny_convention_check`가 식별자 누락을 강제한다.
+guard_deny() {
+  local reason="${1-}"
+  local guard tool target sid ts line dir src cmd
+  src="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
+  guard="${src##*/}"
+  [[ -n "$guard" ]] || guard="unknown"
+
+  tool=""; target=""; sid=""
+  if [[ -n "${_hook_input:-}" ]]; then
+    tool="$(_rd_guard_json_get '.tool_name' 'tool_name')"
+    sid="$(_rd_guard_json_get '.session_id' 'session_id')"
+    cmd="$(_rd_guard_json_get '.tool_input.command' 'tool_input.command')"
+    if [[ -n "$cmd" ]]; then
+      target="$(_rd_guard_cmd_summary "$cmd")"
+    else
+      # Edit·Write 는 file_path 가 실질 대상이다. 인자가 아니라 경로이므로 그대로 남긴다.
+      target="$(_rd_guard_json_get '.tool_input.file_path' 'tool_input.file_path')"
+    fi
+  fi
+
+  ts="$(date '+%Y-%m-%dT%H:%M:%S%z' 2>/dev/null)" || ts=""
+  [[ -n "$ts" ]] || ts="unknown-time"
+
+  line="${ts} | $(_rd_guard_sanitize "$guard")"
+  line="${line} | rc=2"
+  line="${line} | tool=$(_rd_guard_sanitize "${tool:--}")"
+  line="${line} | target=$(_rd_guard_sanitize "${target:--}")"
+  line="${line} | session=$(_rd_guard_sanitize "${sid:--}")"
+  # **필드는 항상 끝에 추가한다.** 기존 필드 순서를 바꾸지 않아야 기존 소비 도구(수동
+  # grep·test_guard_block_log.sh)의 파싱 가정이 깨지지 않는다. 인자가 없으면 이 필드
+  # 자체를 붙이지 않는다 — 무인자 호출 시 로그 줄이 이 변경 이전과 바이트 동일하다.
+  if [[ -n "$reason" ]]; then
+    line="${line} | reason=$(_rd_guard_sanitize "$reason")"
+  fi
+
+  # **슬래시가 없으면 부모는 현재 디렉터리다.** `${v%/*}` 는 슬래시 없는 값을 그대로
+  # 돌려주므로, `RD_GUARD_BLOCK_LOG=audit.log` 같은 상대 파일명에서는 `mkdir -p audit.log` 가
+  # **로그 파일 자리에 디렉터리를 만들고** 이후 모든 append 가 영구 실패한다(리뷰에서 실측 —
+  # 경고는 권한 문제라고 안내하지만 권한을 고쳐도 기록되지 않는다).
+  case "$RD_GUARD_BLOCK_LOG" in
+    */*) dir="${RD_GUARD_BLOCK_LOG%/*}" ;;
+    *)   dir="." ;;
+  esac
+  { mkdir -p "$dir"; } 2>/dev/null || true
+  if ! { printf '%s\n' "$line" >> "$RD_GUARD_BLOCK_LOG"; } 2>/dev/null; then
+    printf '[guard] 차단은 적용됐으나 감사 로그 기록에 실패했습니다 — %s\n' \
+      "$RD_GUARD_BLOCK_LOG" >&2
+    printf '[guard] 이 차단은 은퇴 심사 데이터에 남지 않습니다. 경로 쓰기 권한을 확인하십시오.\n' >&2
+  fi
+  exit 2
+}
+
 # --- JSON 파싱 ---
 
 _hook_input=""
@@ -696,6 +885,51 @@ extract_json_field() {
   fi
 
   printf '%s' "$value"
+}
+
+# hook_input_bool_true <key>
+# _hook_input 의 .tool_input.<key> 가 JSON literal true 이면 0, 그 외·판정 불가면 1.
+#
+# **extract_json_field 를 이 용도에 쓰면 안 된다.** 그 헬퍼는 값이 문자열이라고
+# 가정한다 — jq 경로의 `// empty` 는 boolean false 를 빈 값으로 만들고, bash 폴백은
+# 따옴표를 찾으므로 boolean 값에는 뒤따르는 **다른 필드의 값**을 집어온다.
+#
+# **판독은 실제 JSON 파서로만 한다.** 문자열 안/밖만 가르는 조각 인식기는 문법
+# 검증기가 아니어서 후행 쉼표·쉼표 누락·괄호 짝 불일치·잘못된 escape·중복 키에서
+# 파서와 다른 답을 낸다(리뷰에서 실행으로 확인). boolean 하나를 위해 awk 로 JSON
+# 파서를 새로 쓰는 것은 유지비가 맞지 않으므로 python3 을 2순위로 둔다.
+#
+# 둘 다 없으면 판정하지 않고 1(=통과)을 반환한다. 그 환경에서는 이 hook 의 강제가
+# 없고 산문 규율만 남는다 — 계약의 축소이며 change spec 2.1 에 명시돼 있다.
+#
+# 판정 실패는 곧 "true 아님"(return 1)이며, 호출측 hook 은 이를 통과로 다룬다 —
+# positive 감지 한정 fail-open. 이 fail-open 은 hook 전용이며 완료 판정에 쓰지 않는다.
+hook_input_bool_true() {
+  local key="$1"
+  [[ -n "$_hook_input" ]] || return 1
+
+  if command -v jq &>/dev/null; then
+    # -e 는 결과를 exit code 에 싣는다 — `//` 함정을 원천 회피한다.
+    # tool_input 부재는 empty 로 비0, 깨진 JSON 은 파싱 실패로 비0 이다.
+    printf '%s' "$_hook_input" \
+      | jq -e --arg k "$key" '(.tool_input // empty) | (.[$k]? == true)' >/dev/null 2>&1
+    return $?
+  fi
+
+  if command -v python3 &>/dev/null; then
+    printf '%s' "$_hook_input" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+ti = d.get("tool_input") if isinstance(d, dict) else None
+sys.exit(0 if isinstance(ti, dict) and ti.get(sys.argv[1]) is True else 1)
+' "$key" >/dev/null 2>&1
+    return $?
+  fi
+
+  return 1
 }
 
 # --- commit scan 계약 (guard-hook-commit-target-scope) ---

@@ -30,8 +30,24 @@
 
 1. final diff review 종결 후 `bash rd-workflow/scripts/rd review seal <세션 경로>` 로 종결 마커를 만든다.
 2. `bash rd-workflow/scripts/rd task set-status "아카이브 보류"` 로 전이한다 (「리뷰 종결·발행 대기」 — 완료가 아니다).
-3. fr branch 에서 archive content commit 수행 (REQUEST.md 비우기, archive 파일 생성, FR done 처리, completion report) — **1번의 seal 파일도 이 커밋에 함께 싣는다.** `CURRENT_TASK.md` 미러는 `archive.sh` 가 baseline 으로 되돌리므로 사람이 하지 않습니다 (fr·no-fr 두 모드 모두 그렇습니다).
-4. main 으로 switch 후 `bash rd-workflow/scripts/lifecycle/archive.sh` 호출 → merge + tag + push + branch/worktree 정리 일괄 처리.
+3. fr branch 에서 archive content commit 수행 (REQUEST.md 비우기, archive 파일 생성, **FR done 처리**, completion report) — **1번의 seal 파일도 이 커밋에 함께 싣는다.** `CURRENT_TASK.md` 미러는 `archive.sh` 가 baseline 으로 되돌리므로 사람이 하지 않습니다 (fr·no-fr 두 모드 모두 그렇습니다).
+
+   **FR done 처리**는 이 기록 커밋 단계(task-state 가 아직 살아 있는 시점)에서 다음을 호출한다:
+   ```bash
+   bash rd-workflow/scripts/rd task fr-done
+   ```
+   인자 없이 부르면 task-state 의 `source-fr` 집합 전부가 대상이다. **`fr-done` 은 묶은 FR 전부의 `items/` status 와 인덱스 행 status 를 함께 `done` 으로 바꾼다** — 인덱스 행의 **삭제**는 여전히 `/fr archive` 몫이며, `/fr archive` 는 그 status 를 보고 삭제 대상을 고른다. 즉 `fr-done` 이 status 를 두 자리 모두 바꾸지 않으면(예: items 만 바꾸면) `/fr archive` 는 인덱스가 여전히 활성이라 0건으로 끝나고 FR 이 활성으로 남는다 — 이 연결이 끊기지 않게 항상 `fr-done` 을 먼저 호출한다.
+
+   **실패해도 발행을 계속한다.** `fr-done` 이 exit 1(실패 1건 이상)이어도 이 기록 커밋과 이어지는 4번 발행을 중단하지 않는다. 대신:
+   - `fr-done` 의 표준출력(FR 별 items/인덱스 결과 + `처리 N / 건너뜀 M / 실패 K` 요약 + 실패 목록)을 completion report 의 **「FR 정리 결과」 절**에 그대로 옮긴다.
+   - `PROJECT_CONTEXT.md` 의 `auto_completion_report` 가 꺼진 프로젝트는 같은 내용을 **아카이브된 REQUEST 사본**(`request-archive/YYYY-MM-DD-HHMM-*.md`) 말미에 적는다.
+   - 최종 사용자 보고는 **발행 결과**(`archive.sh` 의 merge/tag/push 성공 여부)와 **FR 정리 결과**(`fr-done` 성공/실패)를 **두 줄로 분리**해 보고한다 — 섞어서 한 줄로 보고하지 않는다.
+
+   **재시도**: 발행 후 task-state 는 초기화되므로 `fr-done` 을 인자 없이 다시 부를 수 없다. 미완료 FR 목록은 **아카이브된 REQUEST 사본의 `## Source FR`** 과 completion report(또는 REQUEST 사본 말미)의 「FR 정리 결과」 절에 남아 있다 — 거기서 경로를 회수해 다음처럼 다시 부른다:
+   ```bash
+   bash rd-workflow/scripts/rd task fr-done <path>...
+   ```
+4. main 으로 switch 후 `bash rd-workflow/scripts/lifecycle/archive.sh` 호출 → merge + tag + push + branch/worktree 정리 일괄 처리. (`archive.sh` 자체는 FR 정리에 관여하지 않는다 — 위 3번에서 이미 끝나 있어야 한다.)
 
 즉, **사용자가 수동으로 REQUEST archive 를 진행할 때**:
 - 리뷰 종결 직후 seal → `아카이브 보류` 전이 순으로 준비한다. 이 둘은 커밋 **앞**이다 — 게이트가 워킹트리의 task-state 를 읽으므로 전이는 즉시 반영되고, 보류 상태에서만 archive 기록 커밋이 통과한다.

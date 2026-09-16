@@ -42,5 +42,8 @@ small-task / existing-code-change / new-feature-or-large-task
 
 ## Source FR
 <!-- 형식: rd-workflow-workspace/backlog/items/<파일>.md (예: rd-workflow-workspace/backlog/items/2026-08-12-example.md) -->
+<!-- 묶은 작업이라 FR 이 여러 건이면 한 줄에 1건씩 적습니다 ('- ' 접두 허용):
+     rd-workflow-workspace/backlog/items/2026-08-12-example-a.md
+     rd-workflow-workspace/backlog/items/2026-08-19-example-b.md -->
 <!-- FR 없이 시작한 작업이면 - 로 둡니다. -->
 -

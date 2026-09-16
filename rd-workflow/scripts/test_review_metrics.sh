@@ -11,7 +11,8 @@ fail() { printf '  FAIL  %s\n' "$1"; FAIL=1; }
 eq()   { if [ "$1" = "$2" ]; then pass "$3"; else fail "$3 (기대=[$2] 실제=[$1])"; fi; }
 chk()  { if [ "$1" -eq 0 ]; then pass "$2"; else fail "$2"; fi; }
 
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d)" || { echo "test_review_metrics.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$TMP" && -d "$TMP" ]] || { echo "test_review_metrics.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 cleanup() { chmod -R u+w "$TMP" 2>/dev/null; rm -rf "$TMP"; }
 trap cleanup EXIT
 
@@ -112,7 +113,8 @@ EOF
 
 run_with_mock_adapter() { # $1=session $2=mock-adapter-body — rc 를 echo 하고 출력은 $TMP/last_{out,err}.txt 에 캡처
   local sess="$1" body="$2" fake_dir rc=0
-  fake_dir="$(mktemp -d)"
+  fake_dir="$(mktemp -d)" || { echo "test_review_metrics.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$fake_dir" && -d "$fake_dir" ]] || { echo "test_review_metrics.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   # run_review_turn.sh 는 script_dir 기준으로 adapter_<tool>.sh 를 찾으므로
   # 스크립트 사본 + mock adapter 를 한 디렉토리에 구성한다.
   cp "${script_dir}/run_review_turn.sh" "${script_dir}/review_common.sh" "$fake_dir/"
@@ -188,7 +190,8 @@ grep -q '기록 실패' "$TMP/last_err.txt"; chk $? "fail-open E2E: 기록 실�
 # 경로 6: 시간 원천 실패 — date +%s 만 실패시키는 shim 을 PATH 에 주입해도
 # 유효 mock 턴은 부모 rc=0 (fail-open 이 시간 수집 단계까지 확장 — diff review 턴 002 Finding 1)
 S6="$TMP/it_datefail"; mk_full_session "$S6"
-DATE_SHIM="$(mktemp -d)"
+DATE_SHIM="$(mktemp -d)" || { echo "test_review_metrics.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$DATE_SHIM" && -d "$DATE_SHIM" ]] || { echo "test_review_metrics.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 cat > "$DATE_SHIM/date" <<'EOF'
 #!/usr/bin/env bash
 if [ "${1:-}" = "+%s" ]; then exit 1; fi

@@ -19,7 +19,7 @@
 
 새 작업 요청이 오면 등급을 판정합니다(시작 보고 블록의 시점은 WORKFLOW.md 위험 등급 절). `light`·`standard` 는 FR 등록 없이 바로 진행하고, `full` 은 판정 직후(원격 모드면 비변경 preflight 로 기본 브랜치 미push 수를 읽은 뒤) 시작 보고 블록을 낸 뒤 FR 에 등록하고(`/fr add`와 동일 절차 — `FUTURE_REQUESTS.md` 인덱스 + `items/` 상세 파일) "FR 등록: **{title}** — {summary}. 다음 단계를 지정해주세요."를 출력한 뒤 지시를 기다립니다. Source FR은 그 FR을 현재 작업으로 승격해 REQUEST.md를 쓸 때 채웁니다. 이미 등록된 FR 을 착수할 때 `light`·`standard` 로 판정되면 그 등급 절차로 진행하고 마감에서 FR 을 done 처리합니다.
 
-진행 중(`CURRENT_TASK.md` Status ≠ `대기 중`)에 들어온 독립 요청은 등록만 하고 현재 작업을 중단하지 않습니다 — "FR 등록: **{title}**. 현재 작업 완료 후 진행합니다." 알림 후 복귀합니다.
+진행 중(`CURRENT_TASK.md` Status ≠ `대기 중`)에 들어온 독립 요청은 **FR 로 등록**합니다. 등록 후 **동시 착수 여부는 사용자가 정합니다** — worktree 격리로 동시 진행이 가능해졌더라도 **AI 가 임의로 동시 착수하지 않습니다.** 사용자가 착수를 지시하면 별도 worktree 로 착수하고, 지시가 없으면 "FR 등록: **{title}**. 현재 작업 완료 후 진행하거나, 지금 별도 worktree 로 동시에 진행할 수 있습니다." 를 알린 뒤 현재 작업으로 복귀합니다.
 
 등록 제외: `/fr add` 직접 호출(FR skill이 처리) / 단순 질문·확인, 워크플로 지시, 메타 대화 / 이미 등록된 요청의 후속 대화(clarification·수정·재시도).
 
@@ -51,7 +51,7 @@
 ### REQUEST 아카이브
 
 - `REQUEST.md`를 `rd-workflow-workspace/backlog/request-archive/YYYY-MM-DD-HHMM-${SHORT_TITLE}.md`로 복사한 뒤 초기 템플릿 상태로 비웁니다.
-- `Source FR`이 `-`가 아니면 그 FR status를 `done`으로 바꾸고 `FUTURE_REQUESTS.md` 인덱스에서 삭제합니다.
+- `Source FR`이 `-`가 아니면 아카이브 기록 커밋 단계에서 `bash rd-workflow/scripts/rd task fr-done`을 호출합니다. `fr-done`이 묶은 FR 전부의 `items/` status와 인덱스 행 status를 함께 `done`으로 바꾸고, **인덱스 행 삭제는 `/fr archive`가 그 status를 보고 수행**합니다(연결이 끊기면 `/fr archive`가 0건으로 끝나 FR이 활성으로 남습니다). `fr-done`이 실패해도 발행은 계속하고, 출력을 completion report의 「FR 정리 결과」 절로 옮겨 발행 결과와 분리 보고합니다(재시도 대상은 아카이브된 REQUEST 사본의 `## Source FR`에서 회수, 상세는 `fr/archive.md`).
 - `PROJECT_CONTEXT.md`의 `auto_completion_report: true`면 자동으로, 아니면 "작업 요약 report를 남길까요?" 질문 후 `rd-workflow-workspace/reports/completions/YYYY-MM-DD-HHMM-작업명.md`에 report를 씁니다.
 - **완전 마감 후 `/clear` 안내 (필수)**: 아카이브 완료 + 산출물 손실 없음 확인(remote-mode는 push까지, local-only는 commit·merge까지) 후 마지막 응답에 `/clear` 가능 여부를 반드시 한 줄 명시합니다. 사용자가 추가 FR 등록 의사를 보이면 등록을 먼저 처리한 뒤 안내합니다.
 - **큰 작업 lifecycle**: ① fr branch에서 archive content commit(REQUEST.md 비우기, archive 파일 생성, FR done 처리, completion report) — `CURRENT_TASK.md` 미러는 `archive.sh`가 baseline으로 되돌리므로 사람이 하지 않습니다. ② 기본 브랜치로 switch 후 `bash rd-workflow/scripts/lifecycle/archive.sh` 호출 (merge + tag + push + branch/worktree 정리 일괄).

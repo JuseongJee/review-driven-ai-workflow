@@ -44,3 +44,17 @@ rd-workflow-workspace/handoffs/review_pipeline/*/.review_wait_status.*
 rd-workflow-workspace/handoffs/review_pipeline/*/.wait_timeout
 rd-workflow-workspace/handoffs/review_pipeline/*/.wait_timeout.*
 rd-workflow-workspace/handoffs/review_pipeline/*/.last_message.*
+# 가드 차단 감사 로그 (은퇴 심사용 — 로컬 보존, 추적 제외).
+# **로컬 보존과 사용자 가시성은 유지하고 추적만 제외합니다** — 파일은 그대로 남습니다.
+# 추적하지 않는 이유는 위 리뷰 런타임 산출물과 같습니다: 차단 대상 요약과 세션 ID·경로가
+# 담기고, 차단은 임의의 Bash 명령에 걸리므로 자격 증명이 섞이는 순간 원격 이력에 영구
+# 보존됩니다. 인자를 버리고 프로그램 이름만 남기는 1차 방어는 guard_deny 안에 있고,
+# 이 항목은 그 방어가 새더라도 원격으로 나가지 않게 하는 2차 방어입니다.
+rd-workflow-workspace/.lifecycle/guard-block-audit.log
+# review 종결 우회(--force-skip-review-check) 감사 로그 — 위 guard-block-audit.log 와
+# 같은 이유로 로컬 보존·추적 제외입니다. 우회 사유·slug·시각이 담기고, worktree 병렬
+# 진행(archive.sh 를 여러 작업에 연속 호출)이 정상 경로가 되면서 이 파일이 untracked
+# 로 남아 다음 archive 호출의 clean 검증(Step 0)을 방해하는 빈도가 함께 올라갑니다.
+rd-workflow-workspace/.lifecycle/review-skip-audit.log
+# worktree 격리 착수의 기본 경로
+.worktrees/

@@ -16,6 +16,7 @@ REQUEST.md
 ## Source FR
 -
 <!-- 권위는 rd-workflow-workspace/.lifecycle/task-state. 변경은 rd task set-source-fr 경유 -->
+<!-- 복수(묶은 작업)이면 미러 쓰기가 자동으로 한 줄에 1건씩 나열합니다 — 여기 직접 목록을 적지 않습니다 -->
 
 ## Spec
 -

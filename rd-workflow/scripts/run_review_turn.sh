@@ -563,7 +563,8 @@ fi
 load_session_state "$SESSION_FILE"
 
 # 프롬프트 생성
-prompt_file="$(mktemp)"
+prompt_file="$(mktemp)" || { echo "run_review_turn: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$prompt_file" && -f "$prompt_file" ]] || { echo "run_review_turn: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 chmod 600 "$prompt_file"
 cleanup() { rm -f "$prompt_file"; }
 trap cleanup EXIT

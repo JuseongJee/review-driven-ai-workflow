@@ -129,6 +129,8 @@ autopilot은 두 실행 모드를 제공한다. 모드는 작업 선택 직후 `
 | foreground 명령이 시간 초과로 harness 가 자동 이관 | **정상** — 완료 알림으로 재진입한다 |
 
 1. **결과가 필요한 명령을 `run_in_background: true` 로 시작하지 않는다.** 리뷰 턴 실행, 빌드, 검증 스크립트, subagent dispatch 가 모두 해당한다. 결과를 쓰지 않고 던져두기만 하는 명령에만 백그라운드를 쓴다.
+
+   이 금지는 산문 규율이 아니라 **`headless_background_gate.sh` PreToolUse hook 으로 강제됩니다.** `RD_AUTOPILOT_FR` 이 설정된 세션에서 `run_in_background: true` Bash 호출은 exit 2 로 차단되며, 차단 메시지가 foreground 대안(`timeout` 최대치)과 리뷰 턴의 `WAIT_TIMEOUT` 조정법을 함께 제시합니다. hook 은 positive 감지에만 차단하므로(파싱 불가·필드 부재는 통과) 정상 호출을 막지 않습니다.
 2. **긴 명령도 foreground 로 건다.** `timeout` 을 최대치인 `600000ms` 로 지정하고, 그보다 오래 걸리면 harness 의 자동 백그라운드 이관에 맡긴다. 스스로 백그라운드를 선택하지 않는다.
 
    **명령 자체에 watchdog 이 있으면 안쪽을 바깥보다 크게 잡는다.** `run_review_turn.sh` 의 어댑터는 두 축으로 대기한다 — 유휴 임계 `RD_REVIEW_IDLE_TIMEOUT`(기본 600초)과 절대 상한 `WAIT_TIMEOUT`(기본 7200초). **codex 가 출력을 내는 동안에는 유휴 타이머가 계속 갱신되므로, 정상 진행 중인 턴이 상한 전에 잘리지 않는다.** 따라서 종전처럼 `WAIT_TIMEOUT` 을 매번 올려 걸 필요가 없다.
@@ -321,7 +323,13 @@ compact 후에도 한계에 가까워지면:
      bash rd-workflow/scripts/rd task archive-captures --stages request,spec,plan
      ```
 
-  4. **Source FR 처리**: FUTURE_REQUESTS.md 인덱스에서 해당 항목의 상태를 `done`으로 변경하고, `items/` 상세 파일에서도 status를 `done`으로 표기한다.
+  4. **Source FR 처리**:
+     ```bash
+     bash rd-workflow/scripts/rd task fr-done
+     ```
+     인자 없이 부르면 task-state 의 `source-fr` 집합 전부가 대상이다. `fr-done` 이 묶은 FR 전부의 `items/` status 와 인덱스 행 status 를 함께 `done` 으로 바꾸고, **인덱스 행 삭제는 `/fr archive`(아래 6단계)가 그 status 를 보고 수행한다** — `fr-done` 이 status 를 바꾸지 않으면 `/fr archive` 가 0건으로 끝나 FR 이 활성으로 남는다.
+
+     **실패해도 다음 단계(발행)를 멈추지 않는다.** exit 1(실패 1건 이상)이면 `fr-done` 출력을 최종 보고서의 「FR 정리 결과」 절에 그대로 옮기고(`auto_completion_report` 가 꺼진 프로젝트는 아카이브된 REQUEST 사본 말미에), §7 최종 보고에서 **발행 결과와 FR 정리 결과를 두 줄로 분리**해 보고한다. 재시도 대상 목록은 발행 후 task-state 가 초기화되므로 아카이브된 REQUEST 사본의 `## Source FR` 과 보고서의 「FR 정리 결과」 절에서 회수해 `bash rd-workflow/scripts/rd task fr-done <path>...` 로 다시 부른다. 상세는 `fr/archive.md` 참조.
 
   5. **REQUEST.md 비우기 + Short Title reset**: `REQUEST.md`를 초기 템플릿 상태로 비우고, `CURRENT_TASK.md`의 `## Short Title`을 기본값 `-`로 reset한다.
 

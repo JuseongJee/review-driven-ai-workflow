@@ -76,8 +76,10 @@ _insert_after_line() {
 # 복사+삭제로 떨어지고, 그 순간 크래시하면 파일이 깨진다. 같은 디렉토리면 rename 이
 # 보장된다 (final diff review 개선 제안).
 _tmp_beside() {
-  local dir; dir="$(dirname "$1")"
-  mktemp "${dir}/.rd-defect.XXXXXX"
+  local dir f; dir="$(dirname "$1")"
+  f="$(mktemp "${dir}/.rd-defect.XXXXXX")" || { echo "_tmp_beside: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$f" && -f "$f" ]] || { echo "_tmp_beside: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  printf '%s\n' "$f"
 }
 
 # symlink 체인을 따라가 **최종 referent(실제 regular file) 경로**를 출력한다.

@@ -76,6 +76,8 @@
 
 ### 규칙
 
+- **한 세션에서 여러 건을 등록해도 `CURRENT_TASK.md ## Short Title` 은 첫 등록으로 고정된다** (5단계 guard 의 `write`/`proceed-readonly` 분기).
+- **reset**: 위 5단계에서 잘못 고정된 Short Title 을 되돌려야 하면 `bash rd-workflow/scripts/rd task set-title -` 를 쓴다. 허용 조건은 `Status == 대기 중` **그리고** `fr-branch` 가 활성이 아님(값이 비었거나 그 브랜치 ref 가 없음) 이며, 둘 다 성립해야 `short-title`·`source-fr` 을 함께 sentinel(`-`)로 되돌린다. **`--force` 로는 reset 되지 않는다** — 이 경로는 진행 중 작업 보호의 우회 통로를 열지 않기 위해 의도적으로 `--force` 를 받지 않으며, 조건 미충족·force 동반 모두 상태를 바꾸지 않고 사유만 알린다. 정말 막혔다면 그 작업을 archive 하는 것이 정본 경로다.
 - 같은 short-title이 인덱스에 이미 있거나 `items/` 에 같은 파일명이 존재하면 등록하지 않고 사용자에게 알린다. (done/dropped로 인덱스에서 삭제된 항목도 상세 파일이 남아있으므로 파일 존재 여부를 반드시 확인한다.) 기본 브랜치의 `items/` 에 같은 파일이 있는지도 확인한다 (`git cat-file -e <기본 브랜치>:rd-workflow-workspace/backlog/items/<파일>`) — fr 브랜치 세션에서는 현재 트리에 없어도 기본 브랜치에 이미 등록된 FR 이 있을 수 있다.
 - 입력이 너무 짧아서 summary를 만들 수 없으면 한 줄 질문으로 보충을 요청한다.
 - FUTURE_REQUESTS.md의 기존 형식(테이블 구조, 상태 값)을 변경하지 않는다.

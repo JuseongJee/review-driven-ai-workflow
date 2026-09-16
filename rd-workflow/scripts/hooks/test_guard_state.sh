@@ -26,7 +26,8 @@ trap 'cleanup_fixture' EXIT INT TERM
 # ---------------------------------------------------------------------------
 make_base_fixture() {
   local fixture
-  fixture="$(mktemp -d)"
+  fixture="$(mktemp -d)" || { echo "test_guard_state.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$fixture" && -d "$fixture" ]] || { echo "test_guard_state.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   mkdir -p "$fixture/rd-workflow/scripts/hooks"
   mkdir -p "$fixture/rd-workflow-workspace/.lifecycle"
   cp "$GUARD_COMMON" "$fixture/rd-workflow/scripts/hooks/_guard_common.sh"
@@ -129,7 +130,7 @@ assert_fn_return() {
 # ---------------------------------------------------------------------------
 echo "--- fixture 1: task-state 우선 (뷰 drift 무시) ---"
 {
-  f="$(make_base_fixture)"
+  f="$(make_base_fixture)" || { echo "test_guard_state.sh:133: make_base_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   write_task_state "$f" "구현 중" "my-task"
   write_current_task "$f" "완료" "my-task"
@@ -145,7 +146,7 @@ echo "--- fixture 1: task-state 우선 (뷰 drift 무시) ---"
 # ---------------------------------------------------------------------------
 echo "--- fixture 2: task-state 부재, legacy fallback ---"
 {
-  f="$(make_base_fixture)"
+  f="$(make_base_fixture)" || { echo "test_guard_state.sh:149: make_base_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   # task-state 미생성
   write_current_task "$f" "구현 중" "legacy-task"
@@ -161,7 +162,7 @@ echo "--- fixture 2: task-state 부재, legacy fallback ---"
 # ---------------------------------------------------------------------------
 echo "--- fixture 3: short-title task-state 우선 (active-fr 비정상 잔존 무시) ---"
 {
-  f="$(make_base_fixture)"
+  f="$(make_base_fixture)" || { echo "test_guard_state.sh:165: make_base_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   write_task_state "$f" "구현 중" "foo"
   write_current_task "$f" "구현 중" "foo"
@@ -178,7 +179,7 @@ echo "--- fixture 3: short-title task-state 우선 (active-fr 비정상 잔존 �
 # ---------------------------------------------------------------------------
 echo "--- fixture 4: legacy 체인 (CURRENT_TASK '-' → active-fr fallback) ---"
 {
-  f="$(make_base_fixture)"
+  f="$(make_base_fixture)" || { echo "test_guard_state.sh:182: make_base_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   write_current_task "$f" "구현 중" "-"
   write_active_fr "$f" "baz"
@@ -196,7 +197,7 @@ echo "--- fixture 4: legacy 체인 (CURRENT_TASK '-' → active-fr fallback) ---
 echo "--- fixture 5: commit_has_archive_signal AS2 ---"
 {
   # 5a: 대기 중 + short-title=- → archive 신호 있음 (return 0)
-  f="$(make_base_fixture)"
+  f="$(make_base_fixture)" || { echo "test_guard_state.sh:200: make_base_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   write_task_state "$f" "대기 중" "-"
   write_current_task "$f" "대기 중" "-"
@@ -211,7 +212,7 @@ echo "--- fixture 5: commit_has_archive_signal AS2 ---"
 }
 {
   # 5b: 구현 중 → archive 신호 없음 (return 1)
-  f="$(make_base_fixture)"
+  f="$(make_base_fixture)" || { echo "test_guard_state.sh:215: make_base_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   write_task_state "$f" "구현 중" "some-task"
   write_current_task "$f" "구현 중" "some-task"
@@ -231,7 +232,7 @@ echo "--- fixture 5: commit_has_archive_signal AS2 ---"
 # ---------------------------------------------------------------------------
 echo "--- fixture 6: 손상 task-state — 값 반환 + 비차단 판정 ---"
 {
-  f="$(make_base_fixture)"
+  f="$(make_base_fixture)" || { echo "test_guard_state.sh:235: make_base_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   write_task_state "$f" "이상한값" "some-task"
   write_current_task "$f" "구현 중" "some-task"  # 뷰와 달라도 task-state 우선
@@ -273,7 +274,8 @@ SEAL_SID="20260906_101500_final-diff-review"
 # git 저장소 fixture — 보호 경로(src/, rd-workflow/) 를 1회 커밋해 둡니다.
 make_seal_fixture() {
   local f
-  f="$(mktemp -d)"
+  f="$(mktemp -d)" || { echo "test_guard_state.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$f" && -d "$f" ]] || { echo "test_guard_state.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   mkdir -p "$f/rd-workflow/scripts/hooks" \
            "$f/rd-workflow-workspace/.lifecycle/review-seals" \
            "$f/rd-workflow-workspace/handoffs/review_pipeline" \
@@ -366,7 +368,7 @@ seal_verify_msg() {
 # ---------------------------------------------------------------------------
 echo "--- fixture 7: 마커 strict 검증 10종 ---"
 {
-  f="$(make_seal_fixture)"
+  f="$(make_seal_fixture)" || { echo "test_guard_state.sh:371: make_seal_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   SEAL_HASH="$(protected_hash "$f" "HEAD")"
   SEAL_HEAD="$(git -C "$f" rev-parse HEAD 2>/dev/null)"
@@ -439,7 +441,7 @@ echo "--- fixture 7: 마커 strict 검증 10종 ---"
   #   `rd task status` 경로) 로 검증하면 포인터·마커·필드 검사까지 통과한 뒤 `HEAD` 를
   #   commit 으로 해석하지 못해 해시 계산이 실패합니다. 계산 실패를 통과로 흘리는 구현
   #   (빈 해시끼리 일치)이 여기서만 걸립니다.
-  f="$(make_base_fixture)"
+  f="$(make_base_fixture)" || { echo "test_guard_state.sh:444: make_base_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   mkdir -p "$f/rd-workflow-workspace/.lifecycle/review-seals"
   echo "9.9.9" > "$f/rd-workflow/VERSION"
@@ -462,7 +464,7 @@ echo "--- fixture 7: 마커 strict 검증 10종 ---"
 # ---------------------------------------------------------------------------
 echo "--- fixture 8: AC 25 회귀 (미종결 리뷰 차단 유지) ---"
 {
-  f="$(make_seal_fixture)"
+  f="$(make_seal_fixture)" || { echo "test_guard_state.sh:467: make_seal_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   SEAL_HASH="$(protected_hash "$f" "HEAD")"
   SEAL_HEAD="$(git -C "$f" rev-parse HEAD 2>/dev/null)"
@@ -503,7 +505,7 @@ EOS
 # ---------------------------------------------------------------------------
 echo "--- fixture 9: seal 선택 규칙 ---"
 {
-  f="$(make_seal_fixture)"
+  f="$(make_seal_fixture)" || { echo "test_guard_state.sh:508: make_seal_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   SEAL_HASH="$(protected_hash "$f" "HEAD")"
   SEAL_HEAD="$(git -C "$f" rev-parse HEAD 2>/dev/null)"
@@ -579,7 +581,7 @@ err_has() {
 
 {
   # 마커는 만들지 않습니다 — 검증이 실패해야 force-skip 경로로 들어갑니다.
-  f="$(make_seal_fixture)"
+  f="$(make_seal_fixture)" || { echo "test_guard_state.sh:584: make_seal_fixture 실패 (rc=$?)" >&2; exit 1; }
   _current_fixture="$f"
   write_seal_state "$f" "$SEAL_SID"
   seal_commit "$f"

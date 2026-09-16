@@ -693,7 +693,8 @@ metadata_clear() {
     "base-commit=null" "review-session=null"
   # created-at 줄 제거 (fr 비활성 시 부재 계약)
   local tmp
-  tmp="$(mktemp "$(dirname "$TASK_STATE_PATH")/.task-state.XXXXXX")"
+  tmp="$(mktemp "$(dirname "$TASK_STATE_PATH")/.task-state.XXXXXX")" || { echo "metadata_clear: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$tmp" && -f "$tmp" ]] || { echo "metadata_clear: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   awk -F'=' '$1!="created-at"' "$TASK_STATE_PATH" > "$tmp" && mv "$tmp" "$TASK_STATE_PATH"
   # legacy active-fr 잔재 정리 (archive cleanup 커밋에 자연 포함)
   local _legacy_afr="${project_root:-$PWD}/rd-workflow-workspace/.lifecycle/active-fr"
@@ -874,7 +875,8 @@ loop_state_record() {
     *) printf 'loop_state_record: unknown op: %s\n' "$op" >&2; return 1 ;;
   esac
   mkdir -p "$(dirname "$LOOP_STATE_PATH")"
-  tmp="$(mktemp "$(dirname "$LOOP_STATE_PATH")/.loop-state.XXXXXX")"
+  tmp="$(mktemp "$(dirname "$LOOP_STATE_PATH")/.loop-state.XXXXXX")" || { echo "loop_state_record: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$tmp" && -f "$tmp" ]] || { echo "loop_state_record: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   if [[ -f "$LOOP_STATE_PATH" ]]; then
     awk -F'=' -v k="$key" -v val="$new" '
       $1==k {print k"="val; found=1; next}
@@ -891,7 +893,8 @@ loop_state_record() {
 loop_state_clear_attempt() {
   local tmp
   [[ -f "$LOOP_STATE_PATH" ]] || return 0
-  tmp="$(mktemp "$(dirname "$LOOP_STATE_PATH")/.loop-state.XXXXXX")"
+  tmp="$(mktemp "$(dirname "$LOOP_STATE_PATH")/.loop-state.XXXXXX")" || { echo "loop_state_clear_attempt: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$tmp" && -f "$tmp" ]] || { echo "loop_state_clear_attempt: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   awk -F'=' '$1 !~ /^(verify-fail::|reedit::)/' "$LOOP_STATE_PATH" > "$tmp"
   mv "$tmp" "$LOOP_STATE_PATH"
 }

@@ -6,7 +6,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRAIN="${SCRIPT_DIR}/ralph_drain.sh"
 
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d)" || { echo "test_ralph_drain.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$TMP" && -d "$TMP" ]] || { echo "test_ralph_drain.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 trap 'rm -rf "$TMP"' EXIT
 
 # exit code 시퀀스를 반환하는 stub wrapper. 호출마다 counter 파일로 다음 코드를 낸다.

@@ -18,7 +18,18 @@ cleanup_fixture() {
     _current_fixture=""
   fi
 }
-trap 'cleanup_fixture' EXIT INT TERM
+
+# 이 테스트는 **실제 차단 hook** 을 부르고, hook 은 자기 위치에서 project_root 를 도출해
+# 운영 감사 로그(`rd-workflow-workspace/.lifecycle/guard-block-audit.log`)에 쓴다. 그대로
+# 두면 검증 차단이 실사용 차단과 섞여 가드 은퇴 심사 데이터가 오염된다 — `self_test.sh`
+# 경유만 격리하면 이 파일을 직접 실행하는 정상적인 개발 경로가 여전히 오염시킨다.
+RD_GUARD_BLOCK_LOG="$(mktemp -t rd-guard-block-test.XXXXXX 2>/dev/null)" \
+  || RD_GUARD_BLOCK_LOG="/dev/null"
+export RD_GUARD_BLOCK_LOG
+_rd_gbl_cleanup() {
+  [ "$RD_GUARD_BLOCK_LOG" = "/dev/null" ] || rm -f "$RD_GUARD_BLOCK_LOG"
+}
+trap 'cleanup_fixture; _rd_gbl_cleanup' EXIT INT TERM
 
 # make_fixture <source-fr-값(__NONE__=섹션 없음)> <fr상세파일 상대경로(__NONE__=생성 안 함)> <fr-status> [세션모드]
 # hook 은 script_dir/../../.. 를 project_root 로 계산 → fixture/rd-workflow/scripts/hooks 에 배치.
@@ -28,7 +39,8 @@ trap 'cleanup_fixture' EXIT INT TERM
 make_fixture() {
   local src_val="$1" fr_rel="$2" fr_status="$3" sess_mode="${4:-resolved}"
   local fixture
-  fixture="$(mktemp -d)"
+  fixture="$(mktemp -d)" || { echo "test_pre_commit_archive_gate.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$fixture" && -d "$fixture" ]] || { echo "test_pre_commit_archive_gate.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   mkdir -p "$fixture/rd-workflow/scripts/hooks"
   cp "$HOOK_SOURCE" "$fixture/rd-workflow/scripts/hooks/pre_commit_archive_gate.sh"
   cp "$GUARD_COMMON" "$fixture/rd-workflow/scripts/hooks/_guard_common.sh"
@@ -82,7 +94,11 @@ run_hook() {
 run_scenario() {
   local num="$1" name="$2" src="$3" fr_rel="$4" fr_status="$5" expected="$6" err_sub="$7" cmd="${8:-}" sess_mode="${9:-resolved}"
   local fixture
-  fixture="$(make_fixture "$src" "$fr_rel" "$fr_status" "$sess_mode")"
+  fixture="$(make_fixture "$src" "$fr_rel" "$fr_status" "$sess_mode")" || {
+    echo "[FAIL] scenario ${num}: ${name} — fixture 생성 실패 (make_fixture rc=$?)" >&2
+    FAIL=$((FAIL + 1))
+    return 1
+  }
   _current_fixture="$fixture"
   if [[ -n "$cmd" ]]; then run_hook "$fixture" "$cmd"; else run_hook "$fixture"; fi
   local ok=1
@@ -104,6 +120,15 @@ ITEM="rd-workflow-workspace/backlog/items/2026-01-01-t1.md"
 
 run_scenario 1 "백틱 path + status idea → 차단" \
   '`'"$ITEM"'`' "$ITEM" "idea" 2 "done/dropped 필요"
+# guard-block-reason-identifier: 이 분기(Source FR done/dropped 미완료)가 실제로 유발됐을 때
+# 기대한 reason 값이 감사 로그에 기록되는지 값 대응 검증.
+if tail -n1 "$RD_GUARD_BLOCK_LOG" 2>/dev/null | grep -qE 'reason=pre_commit_archive_gate\.incomplete-source-fr$'; then
+  echo "[PASS] scenario 1 reason 검증"
+  PASS=$((PASS + 1))
+else
+  echo "[FAIL] scenario 1 reason 검증 — 감사 로그에 reason=pre_commit_archive_gate.incomplete-source-fr 가 없습니다" >&2
+  FAIL=$((FAIL + 1))
+fi
 run_scenario 2 "백틱 path + status done → 통과" \
   '`'"$ITEM"'`' "$ITEM" "done" 0 "-"
 run_scenario 3 "legacy slug + status idea → 차단" \
@@ -116,6 +141,15 @@ run_scenario 6 "Source FR 섹션 없음 → 통과" \
   "__NONE__" "__NONE__" "-" 0 "-"
 run_scenario 7 "path + FR 파일 미존재 → 차단" \
   '`rd-workflow-workspace/backlog/items/2026-01-01-none.md`' "__NONE__" "-" 2 "2026-01-01-none.md"
+# guard-block-reason-identifier: 이 분기(Source FR 해석 실패)가 실제로 유발됐을 때 기대한
+# reason 값이 감사 로그에 기록되는지 값 대응 검증.
+if tail -n1 "$RD_GUARD_BLOCK_LOG" 2>/dev/null | grep -qE 'reason=pre_commit_archive_gate\.unresolved-source-fr$'; then
+  echo "[PASS] scenario 7 reason 검증"
+  PASS=$((PASS + 1))
+else
+  echo "[FAIL] scenario 7 reason 검증 — 감사 로그에 reason=pre_commit_archive_gate.unresolved-source-fr 가 없습니다" >&2
+  FAIL=$((FAIL + 1))
+fi
 run_scenario 8 "절대경로 → 차단" \
   "/etc/passwd" "__NONE__" "-" 2 "/etc/passwd"
 run_scenario 9 ".. 세그먼트 → 차단" \
@@ -159,6 +193,72 @@ run_scenario 16 "같은 차단 상태의 일반 커밋 → 차단 유지" \
   '`'"$ITEM"'`' "$ITEM" "idea" 2 "done/dropped 필요" \
   "git commit -m x"
 
+# --- 복수 Source FR — 부분 미완료 전부 열거 (task-guard-source-fr-contract T4) ---
+# 없으면 새는 실수: 게이트 범위 안에서도 여러 건 중 1건만 보고 나머지 미완료 FR을
+# 놓친다(구 구현은 첫 유효행만 읽어 검사했다).
+# 주의: 이 테스트는 게이트가 실제로 검사하는 범위(=Source FR이 남아 있는 아카이브
+# 커밋 시도) **안에서의** 전수 열거만 증명한다. 마감 누락 자체를 막는다는 증명은
+# 아니다 — 게이트는 REQUEST 부재·Source FR 공백·`아카이브 보류` 기록 커밋을
+# 통과시키므로 최종 보장이 아니다 (spec §2.5.3).
+ITEM_A="rd-workflow-workspace/backlog/items/2026-01-01-a.md"
+ITEM_B="rd-workflow-workspace/backlog/items/2026-01-01-b.md"
+ITEM_C="rd-workflow-workspace/backlog/items/2026-01-01-c.md"
+ITEM_D="rd-workflow-workspace/backlog/items/2026-01-01-d.md"
+
+make_multi_fixture() {
+  local fixture
+  fixture="$(mktemp -d)" || { echo "test_pre_commit_archive_gate.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$fixture" && -d "$fixture" ]] || { echo "test_pre_commit_archive_gate.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  mkdir -p "$fixture/rd-workflow/scripts/hooks"
+  cp "$HOOK_SOURCE" "$fixture/rd-workflow/scripts/hooks/pre_commit_archive_gate.sh"
+  cp "$GUARD_COMMON" "$fixture/rd-workflow/scripts/hooks/_guard_common.sh"
+  cp "$STATE_COMMON" "$fixture/rd-workflow/scripts/_state_common.sh"
+  [[ -f "$HOOK_DIR/_commit_scan.awk" ]] && cp "$HOOK_DIR/_commit_scan.awk" "$fixture/rd-workflow/scripts/hooks/"
+  mkdir -p "$fixture/rd-workflow-workspace/.lifecycle"
+  cat > "$fixture/rd-workflow-workspace/.lifecycle/task-state" <<'TSEOF'
+schema=1
+short-title=t1
+status=diff review 대기
+fr-branch=null
+worktree-path=null
+source-fr=-
+TSEOF
+  local sess="$fixture/rd-workflow-workspace/handoffs/review_pipeline/20260101_000000_final-diff-review"
+  mkdir -p "$sess"
+  printf '%s\n' "# Review Session" "" "## Status" "awaiting-user" "" "## Branch Context" "- short-title: t1" > "$sess/SESSION.md"
+  printf '%s\n' "# Review Checkpoint" "" "## Open Issues" "- 없음" > "$sess/CHECKPOINT.md"
+  printf '%s\n' "# Change Request" "" "## Source FR" \
+    "- ${ITEM_A}" "- ${ITEM_B}" "- ${ITEM_C}" "- ${ITEM_D}" > "$fixture/REQUEST.md"
+  mkdir -p "$fixture/$(dirname "$ITEM_A")"
+  printf '%s\n' "# fr item" "- status: done" > "$fixture/$ITEM_A"
+  printf '%s\n' "# fr item" "- status: idea" > "$fixture/$ITEM_B"
+  printf '%s\n' "# fr item" "- status: dropped" > "$fixture/$ITEM_C"
+  printf '%s\n' "# fr item" "- status: 구현 중" > "$fixture/$ITEM_D"
+  printf '%s' "$fixture"
+}
+
+FX_MULTI="$(make_multi_fixture)" && { _current_fixture="$FX_MULTI"; multi_fixture_ok=1; } || multi_fixture_ok=0
+if [[ "$multi_fixture_ok" == "1" ]]; then
+  run_hook "$FX_MULTI"
+  _ok=1
+  [[ "$_hook_last_exit" == "2" ]] || _ok=0
+  case "$_hook_last_err" in *"$ITEM_B"*) ;; *) _ok=0 ;; esac
+  case "$_hook_last_err" in *"$ITEM_D"*) ;; *) _ok=0 ;; esac
+  case "$_hook_last_err" in *"$ITEM_A"*) _ok=0 ;; esac
+  case "$_hook_last_err" in *"$ITEM_C"*) _ok=0 ;; esac
+  if [[ "$_ok" == 1 ]]; then
+    echo "[PASS] scenario 17: 복수 Source FR 4건 중 2건만 done/dropped → 차단 + 미완료 2건 전부 열거 (exit=$_hook_last_exit)"
+    PASS=$((PASS + 1))
+  else
+    echo "[FAIL] scenario 17: 복수 Source FR 부분 미완료 열거 — exit=$_hook_last_exit err=[${_hook_last_err}]" >&2
+    FAIL=$((FAIL + 1))
+  fi
+  cleanup_fixture
+else
+  echo "[FAIL] scenario 17: multi fixture 생성 실패" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 
 # ===========================================================================
 # 보호 트리 해시·기록 경로 판정 (change spec §2.1~§2.3, §6 의 1~4)
@@ -176,7 +276,8 @@ run_scenario 16 "같은 차단 상태의 일반 커밋 → 차단 유지" \
 
 # _state_common.sh 의 함수를 fixture 컨텍스트에서 실행하는 러너입니다.
 # fixture 안에 두면 tracked/untracked 상태가 트리 해시 케이스와 얽히므로 밖에 둡니다.
-_SC_RUNNER="$(mktemp "${TMPDIR:-/tmp}/rd-sc-runner.XXXXXX")"
+_SC_RUNNER="$(mktemp "${TMPDIR:-/tmp}/rd-sc-runner.XXXXXX")" || { echo "test_pre_commit_archive_gate.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$_SC_RUNNER" && -f "$_SC_RUNNER" ]] || { echo "test_pre_commit_archive_gate.sh: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 cat > "$_SC_RUNNER" <<'RUNEOF'
 #!/bin/bash
 # <fixture(스크립트 사본 위치)> <project_root> <실행할 셸 코드>
@@ -187,7 +288,7 @@ eval "$3"
 RUNEOF
 
 cleanup_runner() { [[ -n "${_SC_RUNNER:-}" ]] && rm -f "$_SC_RUNNER"; }
-trap 'cleanup_fixture; cleanup_runner' EXIT INT TERM
+trap 'cleanup_fixture; cleanup_runner; _rd_gbl_cleanup' EXIT INT TERM
 
 # sc_run <fixture> <project_root> <cwd> <코드> — stdout 만 돌려줍니다.
 # project_root 를 fixture 와 따로 받는 것이 이식성 케이스(§6 의 2)의 핵심입니다 — 하위
@@ -222,7 +323,8 @@ assert_ne() {
 # set_state_status <fixture> <status> — task-state 의 status 를 바꿉니다 (sed -i 비의존).
 set_state_status() {
   local f="$1/rd-workflow-workspace/.lifecycle/task-state" tmp
-  tmp="$(mktemp "${TMPDIR:-/tmp}/rd-ts.XXXXXX")"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/rd-ts.XXXXXX")" || { echo "test_pre_commit_archive_gate.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$tmp" && -f "$tmp" ]] || { echo "test_pre_commit_archive_gate.sh: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   awk -v s="$2" '/^status=/{print "status=" s; next} {print}' "$f" > "$tmp" && mv "$tmp" "$f"
 }
 
@@ -231,7 +333,10 @@ set_state_status() {
 # 심어 경계 케이스가 같은 fixture 에서 재현되게 합니다.
 make_git_fixture() {
   local fixture
-  fixture="$(make_fixture '`'"$ITEM"'`' "$ITEM" "idea" "resolved")"
+  fixture="$(make_fixture '`'"$ITEM"'`' "$ITEM" "idea" "resolved")" || {
+    echo "test_pre_commit_archive_gate.sh:248: make_fixture 실패 (rc=$?)" >&2
+    return 1
+  }
   set_state_status "$fixture" "아카이브 보류"
   printf '%s\n' "# Current Task" > "$fixture/CURRENT_TASK.md"
   mkdir -p "$fixture/src" "$fixture/rd-workflow-workspace/reports/completions"
@@ -266,7 +371,7 @@ hash_of() { sc_run "$1" "$1" "$1" "rd_protected_tree_hash \"$2\""; }
 # 여기서 함께 고정합니다 — 두 소비처가 어긋나면 "커밋은 되는데 발행에서 막히는" 상태가
 # 생깁니다.
 # ---------------------------------------------------------------------------
-FX="$(make_git_fixture)"
+FX="$(make_git_fixture)" || { echo "test_pre_commit_archive_gate.sh:290: make_git_fixture 실패 (rc=$?)" >&2; exit 1; }
 _current_fixture="$FX"
 
 # 게이트: 보류 상태 + 기록 경로만 staged → 통과
@@ -286,6 +391,9 @@ _ok=1
 [[ "$_hook_last_exit" == "2" ]] || _ok=0
 case "$_hook_last_err" in *"기록 경로 밖의 파일"*) ;; *) _ok=0 ;; esac
 assert_eq "gate 1b: 보류 상태 + 보호 경로 변경 staged → 차단" "1" "$_ok"
+# 주의: gate 1b 의 fixture 는 FR status 가 "idea"(미완료)라서 실제로 유발되는 분기는
+# incomplete-source-fr 이다(아래 gate 1d 가 FR→done 으로 만들어 pending-out-of-scope 를
+# 유발한다) — reason 값 대응 검증은 실제로 그 분기를 유발하는 gate 1d 뒤에서 한다.
 
 # --- final diff review Finding 3: 보류 분기가 `done` 조기 통과보다 먼저 적용되는가 ---
 # 없으면 새는 실수: 정상 archive content commit 은 **같은 커밋에서** FR 을 done 으로 바꾸므로,
@@ -322,6 +430,16 @@ pending_case "gate 1d: 같은 커밋에서 FR→done + 보호 경로 staged → 
   2 "git commit -m archive" \
   'printf "code v2\n" > src/app.sh && git add -A' \
   "기록 경로 밖의 파일"
+# guard-block-reason-identifier: 이 분기(아카이브 보류 + FR 전부 done/dropped 인데 기록
+# 경로 밖 변경이 있는 경우)가 실제로 유발됐을 때 기대한 reason 값이 감사 로그에 기록되는지
+# 값 대응 검증. (gate 1b 는 FR 미완료라 incomplete-source-fr 이 대신 유발되므로 여기서 본다.)
+if tail -n1 "$RD_GUARD_BLOCK_LOG" 2>/dev/null | grep -qE 'reason=pre_commit_archive_gate\.pending-out-of-scope$'; then
+  echo "[PASS] gate 1d reason 검증"
+  PASS=$((PASS + 1))
+else
+  echo "[FAIL] gate 1d reason 검증 — 감사 로그에 reason=pre_commit_archive_gate.pending-out-of-scope 가 없습니다" >&2
+  FAIL=$((FAIL + 1))
+fi
 pending_case "gate 1e: 빈 index + 보호 경로 워킹트리 수정 + git commit -a → 차단" \
   2 "git commit -a -m x" \
   'printf "code v2\n" > src/app.sh' \
@@ -359,7 +477,7 @@ cleanup_fixture
 # 그룹 B — §6 의 2·3·4: 이식성 / 경로 경계 / fail-closed·제외 목록
 # fixture 하나를 `reset --hard` 로 되돌려 가며 재사용합니다.
 # ---------------------------------------------------------------------------
-FX="$(make_git_fixture)"
+FX="$(make_git_fixture)" || { echo "test_pre_commit_archive_gate.sh:383: make_git_fixture 실패 (rc=$?)" >&2; exit 1; }
 _current_fixture="$FX"
 
 # --- §6 의 3: 경로 경계 -----------------------------------------------------
@@ -415,7 +533,8 @@ assert_ne "hash-portability 2b: 개행 포함 파일명의 변경도 해시에 �
 
 # ls-tree 실패 주입: PATH 앞단의 git shim 이 `ls-tree` 만 nonzero 로 만들고 나머지 인자는
 # 그대로 실제 git 에 넘깁니다. 저장소를 훼손하지 않는 좁은 주입입니다.
-SHIM_DIR="$(mktemp -d "${TMPDIR:-/tmp}/rd-shim.XXXXXX")"
+SHIM_DIR="$(mktemp -d "${TMPDIR:-/tmp}/rd-shim.XXXXXX")" || { echo "test_pre_commit_archive_gate.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$SHIM_DIR" && -d "$SHIM_DIR" ]] || { echo "test_pre_commit_archive_gate.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 REAL_GIT="$(command -v git)"
 cat > "$SHIM_DIR/git" <<SHIMEOF
 #!/bin/bash
@@ -444,10 +563,16 @@ expected_record_paths="$(printf '%s\n' \
   "rd-workflow-workspace/.lifecycle/task-state" \
   "rd-workflow-workspace/backlog/" \
   "rd-workflow-workspace/handoffs/review_pipeline/" \
+  "rd-workflow-workspace/raw-captures/" \
+  "rd-workflow-workspace/reports/autopilot/" \
   "rd-workflow-workspace/reports/completions/" \
   "rd-workflow-workspace/reports/reviews/")"
 actual_record_paths="$(sc_run "$FX" "$FX" "$FX" 'printf "%s\n" "${RD_RECORD_PATHS[@]}"' | LC_ALL=C sort)"
-assert_eq "record-paths 4b: RD_RECORD_PATHS 가 spec §2.1 의 9개 항목과 정확히 일치" \
+# 이 검사는 값을 확인하는 것이 아니라 **tripwire** 입니다 (선행 change-spec §6-4).
+# 목록에 항목을 더하려면 반드시 여기 기대값도 고쳐야 하므로, 제외 확대가 diff 에 두 번
+# 나타나 리뷰어 눈에 띕니다. 「구현 상수를 그대로 베낀 기대값」 금지 규칙의 예외이며,
+# 자동 생성으로 바꾸면 tripwire 로서의 목적이 사라집니다.
+assert_eq "record-paths 4b: RD_RECORD_PATHS 가 change-spec §3.1 의 11개 항목과 정확히 일치" \
   "$expected_record_paths" "$actual_record_paths"
 
 # 목록 밖 `.lifecycle/` 파일은 보호 대상이어야 합니다 — 바꾸면 해시가 바뀝니다.

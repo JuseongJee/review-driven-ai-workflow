@@ -170,7 +170,8 @@ check_turn_complete() {
 # 같은 이름의 symlink 를 따라가 세션 밖 파일을 truncate 하고(codex sandbox 시작 전, 호출자
 # 권한으로), 같은 세션의 동시 실행이 서로의 파일을 비우거나 cleanup 으로 지운다.
 # mktemp 는 배타적으로 새 파일을 만들므로 둘 다 막힌다 (final diff review 002턴).
-last_message_file="$(mktemp "${session_dir}/.last_message.XXXXXX")"
+last_message_file="$(mktemp "${session_dir}/.last_message.XXXXXX")" || { echo "adapter_codex: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$last_message_file" && -f "$last_message_file" ]] || { echo "adapter_codex: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 chmod 600 "$last_message_file"
 
 # --- 읽기 채널 계약 (fd 전용) ---

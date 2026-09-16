@@ -29,7 +29,8 @@ eq()   { if [ "$1" = "$2" ]; then pass "$3"; else fail "$3 (기대=[$2] 실제=[
 ne()   { if [ "$1" != "$2" ]; then pass "$3"; else fail "$3 (달라야 하는데 같음=[$1])"; fi; }
 has()  { case "$2" in *"$1"*) pass "$3" ;; *) fail "$3 (문구 없음: ${1})" ;; esac; }
 
-WORK="$(mktemp -d)"
+WORK="$(mktemp -d)" || { echo "test_review_base_resolution.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$WORK" && -d "$WORK" ]] || { echo "test_review_base_resolution.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 WORK="$(cd "$WORK" && pwd -P)"
 cleanup() { chmod -R u+w "$WORK" 2>/dev/null; rm -rf "$WORK"; }
 trap cleanup EXIT
@@ -54,7 +55,8 @@ mk_repo() {
   local fmt="" br="main" d
   if [ "${1:-}" = "--sha256" ]; then fmt="--object-format=sha256"; shift; fi
   [ -n "${1:-}" ] && br="$1"
-  d="$(mktemp -d "${WORK}/repo.XXXXXX")" || return 1
+  d="$(mktemp -d "${WORK}/repo.XXXXXX")" || { echo "test_review_base_resolution.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$d" && -d "$d" ]] || { echo "test_review_base_resolution.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   d="$(cd "$d" && pwd -P)"
   if ! git init -q $fmt -b "$br" "$d" 2>/dev/null; then
     # git 2.28 미만은 `-b` 를 모릅니다. object-format 자체가 미지원이면 여기서도 실패합니다.
@@ -265,7 +267,7 @@ eq "$(awk -F'=' '$1=="review-session"{print $2}' "${R1}/rd-workflow-workspace/.l
 # --- 우선순위 2: task-state fr-branch → merge-base ---
 # main 을 fr 분기점보다 앞으로 전진시켜, base 가 **merge-base 이지 fr-branch·main tip 이 아님**을
 # 구분할 수 있게 만듭니다. 두 점 오해석(main tip)은 조상 검사에 걸려 실패로 드러납니다.
-R2="$(mk_repo)"
+R2="$(mk_repo)" || { echo "  FAIL  우선순위 2: fixture 생성 실패"; exit 1; }
 FORK="$(git -C "$R2" rev-parse HEAD)"
 git -C "$R2" checkout -q -b fr/demo
 commit_code "$R2" fr-work
@@ -283,7 +285,7 @@ ne "$(bc_field "$S2" review-base-oid)" "$MAINTIP" "우선순위 2: base 가 기�
 eq "$(bc_field "$S2" review-head-oid)" "$FRTIP" "우선순위 2: head 는 현재 HEAD"
 
 # --- 우선순위 3: task-state base-commit (set-base 는 ref 를 OID 로 저장) ---
-R3="$(mk_repo)"
+R3="$(mk_repo)" || { echo "  FAIL  우선순위 3: fixture 생성 실패"; exit 1; }
 commit_code "$R3" one
 commit_code "$R3" two
 ( cd "$R3" && bash rd-workflow/scripts/rd task set-base HEAD~1 ) >/dev/null 2>&1
@@ -298,7 +300,7 @@ eq "$(bc_field "$S3" review-head-oid)" "$(git -C "$R3" rev-parse HEAD)" "우선�
 # --- 우선순위 4 + 실패 5종: 전부 exit 1 이고 세션이 만들어지지 않습니다 ---
 # 하나의 저장소에서 연달아 시험합니다 — 어느 경로도 세션을 남기지 않는 것이 계약이므로
 # 세션 개수 0 이 그대로 유지되는지가 곧 "세션 미생성" 의 증거입니다.
-RF="$(mk_repo)"
+RF="$(mk_repo)" || { echo "  FAIL  우선순위 4 + 실패 5종: fixture 생성 실패"; exit 1; }
 commit_code "$RF" one
 FBLOB="$(git -C "$RF" rev-parse HEAD:code.txt)"
 git -C "$RF" branch -q other main~1
@@ -327,7 +329,7 @@ state_set "$RF" fr-branch "null"
 fail_case "--base 와 위치 인자 동시 입력" "동시에 지정할 수 없습니다" --base main "git diff a..b"
 
 # merge-base 계산 실패 — 공통 조상이 없는 계보(orphan branch)를 fr-branch 로 둡니다.
-RF2="$(mk_repo)"
+RF2="$(mk_repo)" || { echo "  FAIL  merge-base 계산 실패: fixture 생성 실패"; exit 1; }
 ( cd "$RF2" && git checkout -q --orphan fr/orphan && printf 'orphan\n' > code.txt \
     && git add -A && git commit -q -m orphan ) >/dev/null 2>&1
 state_set "$RF2" fr-branch "fr/orphan"
@@ -338,7 +340,7 @@ has "merge-base 계산 실패" "$(cat "${OUT}/prep.err")" "실패: merge-base �
 
 # --- 위치 인자 (§5.2.1) ---
 # 두 점
-RP1="$(mk_repo)"
+RP1="$(mk_repo)" || { echo "  FAIL  위치 인자(두 점): fixture 생성 실패"; exit 1; }
 commit_code "$RP1" one
 P1B="$(git -C "$RP1" rev-parse HEAD~1)"
 P1H="$(git -C "$RP1" rev-parse HEAD)"
@@ -350,7 +352,7 @@ eq "$(bc_field "$SP1" review-head-oid)" "$P1H" "위치 인자(두 점): 오른�
 
 # 세 점 — git 의 의미 그대로 merge-base 를 base 로 씁니다. 두 점으로 오해석하면
 # base 가 전진한 main tip 이 되어 조상 검사에 걸리므로 이 케이스가 두 해석을 가릅니다.
-RP2="$(mk_repo)"
+RP2="$(mk_repo)" || { echo "  FAIL  위치 인자(세 점): fixture 생성 실패"; exit 1; }
 P2FORK="$(git -C "$RP2" rev-parse HEAD)"
 git -C "$RP2" checkout -q -b fr/pos
 commit_code "$RP2" pos-work
@@ -365,7 +367,7 @@ eq "$(bc_field "$SP2" review-base-oid)" "$P2FORK" "위치 인자(세 점): merge
 eq "$(bc_field "$SP2" review-head-oid)" "$P2HEAD" "위치 인자(세 점): head 는 오른쪽 ref"
 
 # 파싱 불가 — 세션은 만들되 두 OID 를 기록하지 않고, 봉인 경로를 미리 고지합니다.
-RP3="$(mk_repo)"
+RP3="$(mk_repo)" || { echo "  FAIL  위치 인자(파싱 불가): fixture 생성 실패"; exit 1; }
 commit_code "$RP3" one
 prep "$RP3" "git -C sub diff main...HEAD"; rc=$?
 eq "$rc" "0" "위치 인자(파싱 불가): 세션은 생성됨 (하위호환)"
@@ -382,7 +384,7 @@ has "--legacy-unverified 가 필요합니다" "$(cat "${OUT}/prep.err")" \
 # 인데 첫 reviewer dispatch 직전에 A 의 HEAD 로 바뀌는 결함이 있었습니다. 사용자가 명시한
 # 검토 대상과 reviewer 가 실제로 보는 대상이 갈리고, 내부 OID 와 프롬프트끼리는 일치하므로
 # 오검토가 눈에 띄지 않습니다. 이 케이스가 그 표류를 잡습니다.
-RB="$(mk_repo)"
+RB="$(mk_repo)" || { echo "  FAIL  target 표류 케이스: fixture 생성 실패"; exit 1; }
 RBBASE="$(git -C "$RB" rev-parse HEAD)"
 git -C "$RB" checkout -q -b branch-B
 commit_code "$RB" b-work
@@ -414,7 +416,7 @@ if [ -f "${OUT}/adapter-called" ]; then pass "pinned 통제군: 유효한 pinned
 # 통제군 — 오른쪽이 문자 그대로 `HEAD` 인 위치 인자는 "지금 작업 중인 것을 보라" 는 뜻이므로
 # 기존 auto 동작을 유지합니다 (서브모듈 워크스페이스 프로젝트의 기존 사용). 이 케이스가 없으면
 # "위치 인자를 전부 pinned 로 고정" 하는 과잉 구현이 위 케이스만으로 통과합니다.
-RA="$(mk_repo)"
+RA="$(mk_repo)" || { echo "  FAIL  통제군(HEAD 위치 인자): fixture 생성 실패"; exit 1; }
 RABASE="$(git -C "$RA" rev-parse HEAD)"
 commit_code "$RA" a1
 state_set "$RA" base-commit "$RABASE"
@@ -431,7 +433,7 @@ eq "$(bc_field "$SA" review-head-oid)" "$A2" "auto 통제군: head 가 새 커�
 # --- 동일 tree · 다른 OID (Finding 4) ---
 # base 뒤에 변경 커밋과 완전 revert 커밋을 두면 OID 는 다르지만 트리가 같아 diff 가 비어
 # 있습니다. "OID 가 서로 다름" 만 보는 구현은 이 빈 diff 를 리뷰 대상으로 기록합니다 (AC 4 위반).
-RE="$(mk_repo)"
+RE="$(mk_repo)" || { echo "  FAIL  동일 tree·다른 OID: fixture 생성 실패"; exit 1; }
 REBASE="$(git -C "$RE" rev-parse HEAD)"
 commit_code "$RE" e1
 git -C "$RE" revert --no-edit HEAD >/dev/null 2>&1
@@ -447,7 +449,7 @@ has "리뷰할 변경이 없습니다" "$(cat "${OUT}/prep.err")" "동일 tree: 
 echo "=== 11. seal 4검사 · iteration · reseal · 원자성 · legacy (§3.2 / §3.2.1 / §3.4) ==="
 
 # --- 본 시나리오 저장소: H1 에서 세션을 만들고 다회차 리뷰를 실제로 돕니다 ---
-RS="$(mk_repo)"
+RS="$(mk_repo)" || { echo "  FAIL  seal 시나리오: fixture 생성 실패"; exit 1; }
 BASE0="$(git -C "$RS" rev-parse HEAD)"
 commit_code "$RS" h1
 H1="$(git -C "$RS" rev-parse HEAD)"
@@ -642,7 +644,7 @@ exec /bin/mv "$@"
 SHIMEOF
 chmod +x "${SHIM}/mv"
 
-R6="$(mk_repo)"
+R6="$(mk_repo)" || { echo "  FAIL  원자성(mv shim) 케이스: fixture 생성 실패"; exit 1; }
 R6ROOT="$(git -C "$R6" rev-parse HEAD)"
 commit_code "$R6" a1
 R6BASE="$(git -C "$R6" rev-parse HEAD)"
@@ -686,7 +688,7 @@ if [ -f "${OUT}/adapter-called" ]; then fail "⑥(a) 계보 단절: 어댑터 �
 # 생성 시점만 막으면 부족합니다 — reviewer iteration 중 변경이 완전히 revert 되면 조상 관계는
 # 유지된 채 diff 만 비어, 빈 target 으로 재snapshot 됩니다. 정상 턴(통제군) → 빈 diff 턴(차단)
 # 순서로 확인해 "무조건 막는" 구현과 구분합니다.
-RV="$(mk_repo)"
+RV="$(mk_repo)" || { echo "  FAIL  iteration 중 tree 원복 케이스: fixture 생성 실패"; exit 1; }
 RVBASE="$(git -C "$RV" rev-parse HEAD)"
 commit_code "$RV" v1
 V1="$(git -C "$RV" rev-parse HEAD)"
@@ -711,7 +713,7 @@ if [ -f "${OUT}/adapter-called" ]; then fail "⑧ 빈 diff 재snapshot: 어댑�
 # 트리가 base 와 같아진 세션이 그대로 reviewer dispatch 까지 가고, 사용자는 빈·엉뚱한 diff 로
 # 돈 결과를 **성공한 리뷰 턴처럼** 받습니다. 세 실패 경로를 한 fixture 에서 이어 시험합니다
 # (저장소·세션 생성이 케이스당 수 초라 공유합니다). 통제군은 위 "pinned 통제군" 블록입니다.
-RPN="$(mk_repo)"
+RPN="$(mk_repo)" || { echo "  FAIL  legacy 실패 경로: fixture 생성 실패"; exit 1; }
 commit_code "$RPN" pn-base
 PNBASE="$(git -C "$RPN" rev-parse HEAD)"          # 세션 base
 git -C "$RPN" checkout -q -b pn/head
@@ -801,8 +803,8 @@ if [ -f "${OUT}/adapter-called" ]; then pass "⑨-b 통제군: 어댑터 호출�
 # --- ⑦ SHA-256 저장소 ---
 # OID 길이를 하드코딩한 구현(`{40}`)은 SHA-1 저장소에서는 절대 드러나지 않으므로
 # 이 형식에서 prepare → 재snapshot → seal 을 한 번은 통과시켜야 합니다.
-R7="$(mk_repo --sha256)"
-if [ -z "$R7" ]; then
+R7="$(mk_repo --sha256)"; rc7=$?
+if [ "$rc7" -ne 0 ] || [ -z "$R7" ]; then
   echo "  SKIP  ⑦ SHA-256: 이 환경의 git 이 --object-format=sha256 을 지원하지 않습니다"
 else
   B7="$(git -C "$R7" rev-parse HEAD)"

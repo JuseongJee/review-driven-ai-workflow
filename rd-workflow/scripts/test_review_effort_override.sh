@@ -14,7 +14,8 @@ eq()   { # eq <실제> <기대> <라벨>
   if [ "$1" = "$2" ]; then pass "$3"; else fail "$3 (기대=[$2] 실제=[$1])"; fi
 }
 
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d)" || { echo "test_review_effort_override.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$TMP" && -d "$TMP" ]] || { echo "test_review_effort_override.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
 

@@ -22,8 +22,8 @@ CASE_N=0
 
 _suite_root_ready() {
   [[ -n "$SUITE_ROOT" && -d "$SUITE_ROOT" ]] && return 0
-  SUITE_ROOT="$(mktemp -d)" || return 1
-  [[ -n "$SUITE_ROOT" && -d "$SUITE_ROOT" ]] || return 1
+  SUITE_ROOT="$(mktemp -d)" || { echo "test_defect_reports.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$SUITE_ROOT" && -d "$SUITE_ROOT" ]] || { echo "test_defect_reports.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   return 0
 }
 
@@ -748,7 +748,8 @@ leftover="$(find "$(dirname "$f")" -name '.rd-defect.*' | wc -l | tr -d ' ')"
 check "임시 파일 잔존 없음" "$leftover" "0"
 
 # --- config 부재에서 set-upstream 은 성공 skip 이다 (파일을 만들지 않는다) ---
-DR9_DIR="$(mktemp -d)"
+DR9_DIR="$(mktemp -d)" || { echo "test_defect_reports.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$DR9_DIR" && -d "$DR9_DIR" ]] || { echo "test_defect_reports.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 mkdir -p "$DR9_DIR/rd-workflow/config" "$DR9_DIR/rd-workflow/scripts"
 cp "$SCRIPT_DIR/defect_reports.sh" "$DR9_DIR/rd-workflow/scripts/"
 cp "$SCRIPT_DIR/sync_template.sh" "$DR9_DIR/rd-workflow/scripts/" 2>/dev/null || true

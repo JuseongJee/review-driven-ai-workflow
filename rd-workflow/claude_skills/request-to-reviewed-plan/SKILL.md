@@ -51,6 +51,8 @@ skill 진입 직후, Step 0 이전에 `REQUEST.md` 상태를 확인한다:
 
 **FR 승격 진입 감지:** `REQUEST.md`의 `Source FR` 필드 또는 사용자 입력에서 source FR이 명시된 경우.
 
+**승격 직후 이 guard 호출은 정상 경로다** — 같은 작업의 재진입에서는 `proceed-readonly` 가 기대 결과이며(순위 2·4 판정), 이는 오판이 아니다. 이 호출을 생략하지 않는다.
+
 승격 진입이 감지되면:
 
 1. source FR의 short-title 추출 → `FR_TITLE` 변수

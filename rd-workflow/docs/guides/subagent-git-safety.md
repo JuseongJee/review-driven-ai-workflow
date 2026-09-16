@@ -2,6 +2,8 @@
 
 subagent-driven-development으로 dispatch한 subagent는 **공유 git 워킹트리**에서 실행된다. subagent가 브랜치를 전환하면 진행 중인 fr branch가 바뀌어 메인 세션의 REQUEST.md/CURRENT_TASK.md/FR items가 baseline 상태로 노출된다. 이 가이드는 그 교란을 막는 단일 출처다.
 
+**worktree 격리가 기본이 되어도 이 문제가 사라지지 않는다.** 각 FR 작업은 서로 다른 worktree 로 격리되지만, **같은 worktree 안에서 동시에 dispatch한 병렬 subagent 들은 여전히 그 worktree 의 git index 를 공유한다** — worktree 격리는 작업(FR) 사이의 교란만 막을 뿐, 한 작업 안의 병렬 구현자 사이의 index 경합까지 해결하지는 않는다(FR `shared-worktree-index-race`). 병렬 구현자에게 커밋을 맡기지 않고(아래 "phase 병렬 dispatch" 참조) orchestrator 가 barrier 후 일괄 커밋하는 규칙은 이 문제 때문에 여전히 필요하다.
+
 ## 1. Subagent Git 안전 문구 (dispatch prompt 삽입용)
 
 subagent를 dispatch할 때 아래 문구를 dispatch prompt에 **그대로 포함**한다:

@@ -54,6 +54,12 @@
 `guides/`
 - Team Overlay, 검증 범위 등 운영 가이드
 
+[`guides/team-overlay-fresh-install.md`](guides/team-overlay-fresh-install.md)
+- 팀 프로젝트에 개인 overlay 설치 (submodule 구조)
+
+[`guides/team-overlay-migration.md`](guides/team-overlay-migration.md)
+- 기존 설치를 submodule 구조로 이관
+
 ## rd-workflow-workspace
 
 `backlog/FUTURE_REQUESTS.md`

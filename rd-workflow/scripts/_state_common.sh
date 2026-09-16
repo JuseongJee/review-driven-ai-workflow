@@ -103,16 +103,15 @@ state_write_fields() {
 # source-fr 값 계약 헬퍼 (task-state-guide.md 'source-fr 계약'의 단일 구현)
 # ---------------------------------------------------------------------------
 
-# source_fr_validate <value> — canonical 쓰기 값 검증 (return 0: 유효, 1: 무효)
-#   허용: "-" 또는 repo-relative backlog item path (rd-workflow-workspace/backlog/items/<파일>.md)
-#   거부: 빈 값, 개행, 절대경로, ".." 세그먼트, items 직하가 아닌 경로, .md 외 확장자
+# _sfr_validate_one <value> — 원소 하나의 canonical 형식 검증 (source_fr_validate 의
+#   기존 단일 값 판정을 그대로 옮긴 것 — 동작 불변). '-'·빈 값은 이 함수의 책임이 아니다
+#   (호출부인 source_fr_validate 가 상위에서 처리한다).
+#   거부: 절대경로, ".." 세그먼트, items 직하가 아닌 경로, .md 외 확장자
 #   legacy slug 는 쓰기 금지 (읽기 호환은 소비자 책임 — pre_commit_archive_gate.sh)
-source_fr_validate() {
+_sfr_validate_one() {
   local v="${1-}"
-  [[ "$v" == "-" ]] && return 0
   [[ -z "$v" ]] && return 1
   case "$v" in
-    *$'\n'*) return 1 ;;
     /*) return 1 ;;
     ../*|*/../*|*/..) return 1 ;;
   esac
@@ -123,6 +122,27 @@ source_fr_validate() {
   local rest="${v#rd-workflow-workspace/backlog/items/}"
   [[ "$rest" == */* ]] && return 1
   return 0
+}
+
+# source_fr_validate <value> — canonical 쓰기 값 검증 (return 0: 유효, 1: 무효)
+#
+# **단일 값 전용입니다 — 직렬화된 목록(`a|b`)을 통과시키지 않습니다.** 호출부 전부가
+# raw 입력 검증(promote `--source-fr` 인자·`guard --source-fr` 인자·`set-source-fr`
+# 입력·복구 안내의 한 줄)이므로, 여기서 `|` 목록을 허용하면 「raw 인자 안의 `|` 목록은
+# 어디서도 불허」(change-spec §2.3) 가 무너진다. 저장값의 역직렬화는 source_fr_split 이
+# 담당하고, 그 원소는 이미 canonical 이라 이 함수로 개별 검증한다.
+#   허용: "-" 또는 repo-relative backlog item path (rd-workflow-workspace/backlog/items/<파일>.md).
+#   거부: 빈 값, 개행, 절대경로, ".." 세그먼트, items 직하가 아닌 경로, .md 외 확장자,
+#   그리고 **직렬화된 목록(`a|b`)** — 파일명에 '|' 가 든 단일 경로는 그 자체로 유효하다
+#   (분리를 시도하지 않으므로 오분리도 없다).
+source_fr_validate() {
+  local v="${1-}"
+  [[ "$v" == "-" ]] && return 0
+  [[ -z "$v" ]] && return 1
+  case "$v" in
+    *$'\n'*) return 1 ;;
+  esac
+  _sfr_validate_one "$v"
 }
 
 # source_fr_request_missing [request_file] — REQUEST 파일 부재 여부.
@@ -220,6 +240,274 @@ source_fr_from_request() {
   ' "$f")"
   if [[ -n "$v" && "$v" != "-" ]]; then
     printf '%s\n' "$v"
+  fi
+  return 0
+}
+
+# source_fr_from_request_list [request_file] — REQUEST.md '## Source FR' 절의
+#   모든 유효행을 출력한다 (첫 행만 읽는 source_fr_from_request 와 달리 전체를 읽는다 —
+#   그 함수의 동작은 바꾸지 않는다, change spec §2.3).
+#   줄 단위 목록 표기(한 줄에 1건, '- ' 접두 허용, 주석 행 무시, 값 '-'·빈 줄 제외)이며,
+#   줄 안의 '|' 는 분리하지 않는다 — raw 항목의 경계는 이 함수가 만드는 "한 줄" 이다.
+#   항상 return 0 (fail-open, 파일/섹션 부재 시 빈 출력).
+source_fr_from_request_list() {
+  local f="${1:-${project_root:-$PWD}/REQUEST.md}"
+  [[ -f "$f" ]] || return 0
+  awk '
+    /^## Source FR/ { in_s = 1; next }
+    in_s && /^## / { exit }
+    in_s && incomment { if (/-->/) incomment = 0; next }
+    in_s && /^[[:space:]]*<!--/ { if ($0 !~ /-->/) incomment = 1; next }
+    in_s {
+      line = $0
+      gsub(/`/, "", line)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (line != "" && line != "-") print line
+    }
+  ' "$f"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# source-fr 복수 표현 — 직렬화·역직렬화·미러·복구 안내 (task-guard-source-fr-contract
+# change spec §2.3·§2.3b·§2.4b). raw 항목의 경계는 "인자 하나" 또는 "REQUEST 의 한 줄"
+# 뿐이며, 이 계층의 어떤 함수도 그 경계 안의 '|' 를 분리하지 않는다 (리뷰 F4 회귀 방지).
+# 단계 분리: ① raw 항목별 정규화(source_fr_resolve, 기존/불변) → ② 정규화된 canonical
+# 목록의 직렬화(source_fr_join)/역직렬화(source_fr_split, 저장 계층 전용).
+# ---------------------------------------------------------------------------
+
+# _sfr_list_contains <needle> <newline-list> — 목록 안에 정확히 일치하는 원소가
+#   있는가. bash 3.2 호환(연관배열 없이) 집합 멤버십은 이 case 매칭으로 구현한다.
+_sfr_list_contains() {
+  local needle="${1-}" hay="${2-}"
+  case $'\n'"${hay}"$'\n' in
+    *$'\n'"${needle}"$'\n'*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# source_fr_resolve_list <raw-lines> [project_root]
+#   개행 구분 입력의 각 줄을 raw 항목 하나로 source_fr_resolve 에 넘겨 정규화한다.
+#   줄 안의 '|' 는 분리하지 않는다 (§2.3 — 괄호 레이블 안의 '|' 가 유효 입력이다).
+#   빈 줄·'-'(값 없음)은 건너뛴다.
+#   하나라도 실패하면 stdout 을 내지 않고 실패 항목을 전부 stderr 에 열거한 뒤 return 1
+#   (첫 실패에서 멈추지 않는다 — 사람이 한 번에 고칠 수 있어야 한다).
+#   성공 시 첫 등장 순서 보존 + 중복 축약된 개행 구분 canonical 목록.
+source_fr_resolve_list() {
+  local input="${1-}" root="${2:-.}"
+  local line resolved rc seen="" fail_out="" any_fail=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$(_sfr_trim "$line")" ]] && continue
+    resolved="$(source_fr_resolve "$line" "$root" 2>&1)"
+    rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+      any_fail=1
+      fail_out="${fail_out:+${fail_out}$'\n'}${resolved}"
+      continue
+    fi
+    [[ -z "$resolved" ]] && continue
+    _sfr_list_contains "$resolved" "$seen" && continue
+    seen="${seen:+${seen}$'\n'}${resolved}"
+  done <<< "$input"
+  if [[ "$any_fail" -eq 1 ]]; then
+    printf '%s\n' "$fail_out" >&2
+    return 1
+  fi
+  [[ -n "$seen" ]] && printf '%s\n' "$seen"
+  return 0
+}
+
+# source_fr_join <canonical-list> — 정규화된 canonical 목록(개행 구분, 이미
+#   source_fr_resolve 를 거친 값이라고 가정)을 task-state 저장 형식(한 줄, '|' 구분)으로
+#   직렬화한다. 저장 계층 전용 — raw 정규화는 이 함수의 책임이 아니다.
+#   중복은 축약하고 첫 등장 순서를 보존한다(대표는 첫 원소). 결과가
+#     - 0개면 '-' (값 없음)
+#     - 1개면 그 값을 그대로 반환한다 ('|' 를 포함해도 거부하지 않는다 — 리뷰 F8.
+#       무조건 거부는 파일명에 '|' 가 있는 기존 단일 값의 재설정·복구 경로를 막는다)
+#     - 2개 이상이면 '|' 를 포함한 원소가 하나라도 있으면 거부한다(되읽을 수 없다).
+source_fr_join() {
+  local input="${1-}" line out="" count=0 has_pipe=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    _sfr_list_contains "$line" "$out" && continue
+    out="${out:+${out}$'\n'}${line}"
+    count=$((count + 1))
+    case "$line" in *"|"*) has_pipe=1 ;; esac
+  done <<< "$input"
+  if [[ "$count" -eq 0 ]]; then
+    printf -- '-\n'
+    return 0
+  fi
+  if [[ "$count" -eq 1 ]]; then
+    printf '%s\n' "$out"
+    return 0
+  fi
+  if [[ "$has_pipe" -eq 1 ]]; then
+    echo "source_fr_join: 2개 이상을 묶을 때는 '|' 를 포함한 항목을 담을 수 없습니다 (되읽을 수 없습니다)." >&2
+    return 1
+  fi
+  local joined="" first=1
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    if [[ "$first" -eq 1 ]]; then joined="$line"; first=0; else joined="${joined}|${line}"; fi
+  done <<< "$out"
+  printf '%s\n' "$joined"
+  return 0
+}
+
+# source_fr_split <stored-value> [project_root] — task-state 저장값을 canonical
+#   목록(개행 구분)으로 역직렬화한다. '-'·빈 값은 아무 것도 출력하지 않는다.
+#   fast path: 저장값 전체가 「계약 형식을 통과하고 + 실존하는」 canonical path 면
+#   원소 1개로 확정한 뒤에만 '|' 분리를 시도한다 — legacy 단일 값 호환. 이 순서가
+#   없으면 파일명에 '|' 를 담은 canonical 경로가 두 항목으로 찢어진다 (§2.3).
+source_fr_split() {
+  local v="${1-}" root="${2:-.}"
+  [[ -z "$v" || "$v" == "-" ]] && return 0
+  if _sfr_validate_one "$v" && [[ -f "$root/$v" ]]; then
+    printf '%s\n' "$v"
+    return 0
+  fi
+  case "$v" in
+    *"|"*)
+      local saved_IFS="$IFS" part
+      IFS='|'
+      set -- $v
+      IFS="$saved_IFS"
+      for part in "$@"; do
+        [[ -n "$part" ]] && printf '%s\n' "$part"
+      done
+      ;;
+    *)
+      printf '%s\n' "$v"
+      ;;
+  esac
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# 미러 helper (change spec §2.3b) — promote.sh 의 자체 미러 경로와
+# _task_source_fr_mirror_write(_task_common.sh) 양쪽이 이 셋만 쓴다. 표현이
+# 갈리면(직렬화 형식이 사람이 보는 자리로 새거나, 순서 차이가 거짓 divergence 가
+# 되거나) 복구 안내가 깨진다.
+# ---------------------------------------------------------------------------
+
+# source_fr_mirror_read <file> — CURRENT_TASK.md 류 미러 파일의 '## Source FR'
+#   절 전체를 목록(개행 구분)으로 읽는다. 절 형식이 REQUEST.md 와 같으므로
+#   source_fr_from_request_list 에 위임한다(중복 구현 금지).
+# 미러의 허용 표기(`- ` 접두·앞뒤 공백)를 벗겨 canonical 목록으로 낸다. raw 추출
+# helper(`source_fr_from_request_list`)는 REQUEST 해석의 항목 경계를 지키기 위해 접두를
+# 남기므로, 그것을 그대로 집합 비교·복구 안내에 쓰면 권위 `…/a.md` 와 미러 `- …/a.md` 가
+# 다른 값으로 읽혀 **정상 상태가 divergence 로 차단**된다 (final diff review F6).
+# 실존 검사는 하지 않는다 — 비교·안내 경로에 새 실패 모드를 만들지 않기 위함이다.
+source_fr_mirror_read() {
+  local line trimmed out=""
+  while IFS= read -r line; do
+    trimmed="$(_sfr_trim "$line")"
+    if [[ "$trimmed" == "- "* ]]; then trimmed="$(_sfr_trim "${trimmed#- }")"; fi
+    [[ -z "$trimmed" ]] && continue
+    out="${out:+${out}$'\n'}${trimmed}"
+  done <<< "$(source_fr_from_request_list "${1-}")"
+  printf '%s' "$out"
+  [[ -n "$out" ]] && printf '\n'
+  return 0
+}
+
+# source_fr_mirror_body <canonical-list> — 미러 섹션 본문으로 쓸 문자열을 만든다.
+#   목록을 줄 단위로(1건당 1줄) 반환하고, 빈 목록이면 sentinel '-' 한 줄을 반환한다.
+#   저장 형식('|' 구분)을 절대 노출하지 않는다 — 사람이 보는 자리다.
+source_fr_mirror_body() {
+  local input="${1-}" line out=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    out="${out:+${out}$'\n'}${line}"
+  done <<< "$input"
+  if [[ -z "$out" ]]; then
+    printf -- '-\n'
+  else
+    printf '%s\n' "$out"
+  fi
+}
+
+# source_fr_mirror_set_equal <list-a> <list-b> — 정규화된 집합 비교 (return 0: 동일).
+#   순서·표기(직렬화 vs 목록) 차이는 동일 판정으로 흡수한다 — 표현이 다르다고
+#   promote rerun 의 idempotent 비교가 거짓 divergence 로 실패하지 않게 한다.
+source_fr_mirror_set_equal() {
+  local a="${1-}" b="${2-}" sa sb
+  sa="$(printf '%s\n' "$a" | sed '/^$/d' | sort -u)"
+  sb="$(printf '%s\n' "$b" | sed '/^$/d' | sort -u)"
+  [[ "$sa" == "$sb" ]]
+}
+
+# ---------------------------------------------------------------------------
+# 복구 안내 문자열 생성 (change spec §2.4b, 리뷰 F7) — 명령별 인자 문법이
+# 달라 두 helper 로 분리한다. 한 helper 가 겸하지 않는다. 둘 다 전부가 값
+# 계약(source_fr_validate)을 통과할 때만 문자열을 내고, 하나라도 실패하면
+# 빈 출력 + return 1 이다(부분 목록 금지 — 안내대로 복구한 사람이 나머지를 잃는다).
+# ---------------------------------------------------------------------------
+
+# source_fr_recovery_cmd_positional <canonical-list> — `rd task set-source-fr` 용.
+#   현행이 위치 인자이므로(§2.4b) 셸 인용된 위치 인자 전체를 만든다
+#   (예: rd task set-source-fr 'a.md' 'b.md'). 목록이 비면 reset 명령('-')을 만든다.
+source_fr_recovery_cmd_positional() {
+  local input="${1-}" line cmd="rd task set-source-fr" any=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    source_fr_validate "$line" || return 1
+    cmd="${cmd} $(printf '%q' "$line")"
+    any=1
+  done <<< "$input"
+  [[ "$any" -eq 0 ]] && cmd="${cmd} -"
+  printf '%s\n' "$cmd"
+  return 0
+}
+
+# source_fr_recovery_cmd_repeat_opt <base-command> <canonical-list> —
+#   promote.sh --source-fr / rd task guard --source-fr 용. 현행이 옵션 반복
+#   지정이므로(§2.4b) <base-command> 뒤에 '--source-fr <값>' 을 목록 개수만큼
+#   반복한다 (예: promote.sh --size large --source-fr 'a.md' --source-fr 'b.md').
+#   목록이 비면 실패한다 — 이 경로는 실제 FR 목록을 복구하는 자리이고, reset 은
+#   source_fr_recovery_cmd_positional 의 몫이다.
+source_fr_recovery_cmd_repeat_opt() {
+  local base="${1-}" input="${2-}" line any=0
+  local cmd="$base"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    source_fr_validate "$line" || return 1
+    cmd="${cmd} --source-fr $(printf '%q' "$line")"
+    any=1
+  done <<< "$input"
+  [[ "$any" -eq 0 ]] && return 1
+  printf '%s\n' "$cmd"
+  return 0
+}
+
+# source_fr_check_direct_arg <raw> [project_root] — **직접 인자 1개** 검증
+#
+# REQUEST 의 자유 표기 해석(`source_fr_resolve_list`)과 구분되는 경로다. CLI 옵션·위치
+# 인자는 이미 canonical 을 요구하므로 레이블·slug 같은 서술 표기를 통과시키지 않고,
+# 검증을 **인자 경계 그대로** 수행한다 — 값들을 개행 목록으로 합친 뒤 줄 단위로 보면
+# **개행이 든 인자 하나가 두 항목으로 승인**된다 (final diff review F4).
+#
+# 실패 사유는 stderr 로 낸다. 호출부는 첫 실패에서 멈추지 말고 전부 열거한 뒤 아무것도
+# 쓰지 않는다 (change-spec §2.4 전부-또는-전무).
+# return 0 유효 ('-' 포함) / 1 무효
+source_fr_check_direct_arg() {
+  local v="${1-}" root="${2:-${project_root:-.}}"
+  if [[ -z "$v" ]]; then
+    echo "source-fr: 빈 값은 지정할 수 없습니다." >&2; return 1
+  fi
+  case "$v" in
+    *"
+"*) echo "source-fr: 인자 하나에 개행을 포함할 수 없습니다 (인자마다 따로 지정하세요): '${v}'" >&2; return 1 ;;
+  esac
+  [[ "$v" == "-" ]] && return 0
+  if ! source_fr_validate "$v"; then
+    echo "source-fr: 값 계약 위반 — '-' 또는 ${_SFR_ITEMS_PREFIX}/<파일>.md 만 허용: '${v}'" >&2
+    return 1
+  fi
+  if [[ ! -f "${root}/${v}" ]]; then
+    echo "source-fr: 파일이 존재하지 않습니다: '${v}'" >&2
+    return 1
   fi
   return 0
 }
@@ -380,15 +668,27 @@ source_fr_resolve() {
 # 이 목록에 항목을 더하는 것은 신뢰 경계를 넓히는 일입니다. `.lifecycle/` 을 통째로 넣지
 # 않고 archive 절차가 실제로 쓰는 3개 항목으로 좁힌 이유가 그것입니다 — 넓은 동적
 # 디렉터리를 제외하면 자동화의 입력이 되는 파일(설정·hook 입력·source 되는 조각)이
-# 나중에 들어와 신뢰 경계가 조용히 넓어집니다. 목록은 spec §2.1 의 9개 항목(디렉터리 5,
-# 파일 4)과 정확히 일치해야 하며, 바꾸려면 테스트 기대값도 함께 고쳐야 합니다.
+# 나중에 들어와 신뢰 경계가 조용히 넓어집니다. 목록은 change-spec §3.1 의 11개 항목(디렉터리 7,
+# 파일 4)과 정확히 일치해야 하며, 바꾸려면 테스트 기대값(`hooks/test_pre_commit_archive_gate.sh` 의
+# `record-paths 4b`)도 함께 고쳐야 합니다.
+#
+# `raw-captures/` 는 선행 spec(2026-09-05-1944 §2.1)이 「입력 원문」이라는 이유로
+# **보호 대상에 남긴** 항목입니다. 2026-09-10 에 뒤집었습니다 — 같은 spec 이 세운 기준이
+# 「archive 절차가 실제로 생성·이동하는 경로로 한정」인데, autopilot §6 3·6단계
+# (`rd task archive-captures`, `/fr archive`)가 정확히 이 디렉터리를 이동시키기 때문입니다.
+# 같은 성격의 `backlog/` 가 이미 제외돼 있는 것과도 어긋났습니다. 되돌리려면 그 절차부터
+# 함께 고쳐야 합니다 — 목록만 되돌리면 캡처가 있는 모든 full 작업의 마감이 다시 막힙니다.
+# `specs/`·`plans/`·`reports/tier-log.md` 는 그 결정 중 **뒤집지 않은** 항목이며 보호 대상으로
+# 남습니다.
 RD_RECORD_PATHS=(
   "rd-workflow-workspace/.lifecycle/task-state"
   "rd-workflow-workspace/.lifecycle/review-seals/"
   "rd-workflow-workspace/.lifecycle/review-skip-audit.log"
   "rd-workflow-workspace/backlog/"
+  "rd-workflow-workspace/raw-captures/"
   "rd-workflow-workspace/reports/completions/"
   "rd-workflow-workspace/reports/reviews/"
+  "rd-workflow-workspace/reports/autopilot/"
   "rd-workflow-workspace/handoffs/review_pipeline/"
   "REQUEST.md"
   "CURRENT_TASK.md"

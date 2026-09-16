@@ -39,7 +39,8 @@ ADAPTER_CLAUDE="$SCRIPT_DIR/adapter_claude.sh"
 # --- sandbox 공통 함수 ---
 make_sandbox() {
   local d
-  d="$(mktemp -d)"
+  d="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$d" && -d "$d" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   mkdir -p "$d/turns"
   echo "$d"
 }
@@ -536,7 +537,8 @@ run_parse_harness() {
   local extra_path="${3:-}"
 
   local harness_dir
-  harness_dir="$(mktemp -d)"
+  harness_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$harness_dir" && -d "$harness_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   # run_review_turn.sh 와 동일 디렉토리에서 실행해야 source 경로가 맞음 — 불필요
   # 함수만 inline으로 실행
 
@@ -593,7 +595,8 @@ run_case7() {
   fi
 
   local sandbox
-  sandbox="$(mktemp -d)"
+  sandbox="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$sandbox" && -d "$sandbox" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   local count_file="$sandbox/jq_count"
   touch "$count_file"
 
@@ -646,7 +649,8 @@ run_case8() {
   fi
 
   local sandbox
-  sandbox="$(mktemp -d)"
+  sandbox="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$sandbox" && -d "$sandbox" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   cat > "$sandbox/review-tools.json" <<'RJSON'
 {
   "default_priority": ["codex", "claude"],
@@ -685,7 +689,8 @@ run_case9() {
   fi
 
   local sandbox
-  sandbox="$(mktemp -d)"
+  sandbox="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$sandbox" && -d "$sandbox" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   # bin 값에 공백·= 포함 (예: 경로 with spaces, model=xxx 형식)
   cat > "$sandbox/review-tools.json" <<'RJSON'
 {
@@ -736,7 +741,8 @@ run_case10() {
   fi
 
   local sandbox
-  sandbox="$(mktemp -d)"
+  sandbox="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$sandbox" && -d "$sandbox" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   # codex: model 필드 아예 없음(missing), claude: model = null
   cat > "$sandbox/review-tools.json" <<'RJSON'
 {
@@ -755,7 +761,8 @@ RJSON
 
   # codex model(missing) 과 claude model(null) 모두 기본값 반환 확인
   local harness_dir
-  harness_dir="$(mktemp -d)"
+  harness_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$harness_dir" && -d "$harness_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   local harness_script="$harness_dir/harness10.sh"
   cat > "$harness_script" <<HARNESS10_BODY
 #!/usr/bin/env bash
@@ -816,7 +823,8 @@ HARNESS10_BODY
 run_case11() {
   # 11a: jq 부재 — PRIORITY 기본값 사용
   local sandbox
-  sandbox="$(mktemp -d)"
+  sandbox="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$sandbox" && -d "$sandbox" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   cat > "$sandbox/review-tools.json" <<'RJSON'
 {"default_priority": ["codex", "claude"], "tools": {}, "overrides": {}}
 RJSON
@@ -832,7 +840,8 @@ FAKE_JQ
   chmod +x "$no_jq_dir/jq"
 
   local harness_dir
-  harness_dir="$(mktemp -d)"
+  harness_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$harness_dir" && -d "$harness_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   local harness_script="$harness_dir/harness11a.sh"
   cat > "$harness_script" <<HARNESS11A_BODY
 #!/usr/bin/env bash
@@ -872,7 +881,8 @@ HARNESS11A_BODY
   local bad_json="$sandbox/bad.json"
   echo 'NOT VALID JSON {{{' > "$bad_json"
 
-  harness_dir="$(mktemp -d)"
+  harness_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$harness_dir" && -d "$harness_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   harness_script="$harness_dir/harness11b.sh"
   cat > "$harness_script" <<HARNESS11B_BODY
 #!/usr/bin/env bash
@@ -924,7 +934,8 @@ run_case12() {
   fi
 
   local sandbox
-  sandbox="$(mktemp -d)"
+  sandbox="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$sandbox" && -d "$sandbox" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
 
   # .tools 없는 축약 config — 기존 구현에서는 "null has no keys" 오류로
   # kv 전체가 폐기되어 priority가 기본값(codex claude)으로 fallback됐음.
@@ -964,7 +975,8 @@ run_case13() {
   fi
 
   local sandbox
-  sandbox="$(mktemp -d)"
+  sandbox="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$sandbox" && -d "$sandbox" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
 
   # .overrides 필드 자체 없음 — (.overrides // {})[$rt] 이 null 로 안전하게 처리되어야 함
   cat > "$sandbox/review-tools.json" <<'RJSON'
@@ -1140,12 +1152,14 @@ run_case16() {
   sess_real="$(cd "$sandbox" && pwd -P)"
 
   # team-overlay 재현: PROJECT_ROOT 안의 symlink 가 세션 실제 위치를 가리킨다
-  link_root="$(mktemp -d)"
+  link_root="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$link_root" && -d "$link_root" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   sess_link="$link_root/sess"
   ln -s "$sess_real" "$sess_link"
 
   # 세션 밖 피해 후보 + 고정명 symlink 사전 배치 (checkout·이전 비정상 실행 상황 재현)
-  victim_dir="$(mktemp -d)"
+  victim_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$victim_dir" && -d "$victim_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   victim="$victim_dir/victim.txt"
   printf 'KEEP\n' > "$victim"
   ln -s "$victim" "$sandbox/.last_message"
@@ -1788,10 +1802,12 @@ run_case26() {
   expected_turn="$sandbox/turns/turn-001-reviewer.md"
   write_session "$sandbox" "Author" "awaiting-author"
 
-  victim_dir="$(mktemp -d)"
+  victim_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$victim_dir" && -d "$victim_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   victim="$victim_dir/sentinel.txt"
   printf 'SENTINEL-KEEP\n' > "$victim"
-  leak_dir="$(mktemp -d)"
+  leak_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$leak_dir" && -d "$leak_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
 
   bin_dir="$sandbox/mock_bin"
   mkdir -p "$bin_dir"
@@ -1902,7 +1918,8 @@ run_case27() {
   expected2="$sandbox2/turns/turn-001-reviewer.md"
   write_session "$sandbox2" "Author" "awaiting-author"
   mock2="$(setup_mock "$sandbox2" "echo leaky; printf 'x' > \"$expected2\"; exit 0")"
-  leak_dir="$(mktemp -d)"
+  leak_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$leak_dir" && -d "$leak_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   ln -sfn "$leak_dir" "$sandbox2/.codex_output.log"
 
   TOOL_BIN="$mock2/codex" SESSION_PATH="$sandbox2" PROMPT_FILE=/dev/null \
@@ -1937,8 +1954,10 @@ run_case28() {
   expected_turn="$sandbox/turns/turn-001-reviewer.md"
   write_session "$sandbox" "Reviewer" "awaiting-reviewer"
   write_checkpoint "$sandbox" "Author"
-  leak_dir="$(mktemp -d)"
-  victim_dir="$(mktemp -d)"
+  leak_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$leak_dir" && -d "$leak_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  victim_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$victim_dir" && -d "$victim_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   victim="$victim_dir/sentinel.txt"
   printf 'SENTINEL-KEEP\n' > "$victim"
 
@@ -2006,7 +2025,8 @@ MOCK_EOF
   sb2="$(make_sandbox)"
   write_session "$sb2" "Reviewer" "awaiting-reviewer"
   write_checkpoint "$sb2" "Author"
-  leak2="$(mktemp -d)"
+  leak2="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$leak2" && -d "$leak2" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   local mock2
   mock2="$(setup_mock "$sb2" 'ln -sfn "$C28E_LEAKDIR" "$SESSION_PATH/.wait_timeout" 2>/dev/null; exec sleep 60')"
 
@@ -2045,7 +2065,8 @@ run_case29() {
   sandbox="$(make_sandbox)"
   expected_turn="$sandbox/turns/turn-001-reviewer.md"
   write_session "$sandbox" "Author" "awaiting-author"
-  out_dir="$(mktemp -d)"
+  out_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$out_dir" && -d "$out_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   outside="$out_dir/outside.txt"
   printf 'OUTSIDE-CONTENT\n' > "$outside"
   sf="$sandbox/.review_wait_status"
@@ -2221,7 +2242,8 @@ run_case31() {
   expected_turn="$sandbox/turns/turn-001-reviewer.md"
   write_session "$sandbox" "Reviewer" "awaiting-reviewer"
   write_checkpoint "$sandbox" "Author"
-  out_dir="$(mktemp -d)"
+  out_dir="$(mktemp -d)" || { echo "test_review_wait.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$out_dir" && -d "$out_dir" ]] || { echo "test_review_wait.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   sentinel="$out_dir/secret.txt"
   printf 'RDLEAK-SENTINEL-9f3a2b\n' > "$sentinel"
   err="$sandbox/err.txt"

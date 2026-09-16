@@ -4,7 +4,9 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
-T="$(mktemp -d)"; T="$(cd "$T" && pwd -P)"; trap 'rm -rf "$T"' EXIT
+T="$(mktemp -d)" || { echo "test_fr_register.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+[[ -n "$T" && -d "$T" ]] || { echo "test_fr_register.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+T="$(cd "$T" && pwd -P)"; trap 'rm -rf "$T"' EXIT
 PASS=0; FAIL=0
 pass() { PASS=$((PASS+1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL+1)); echo "  FAIL: $1" >&2; }
@@ -303,7 +305,7 @@ nres="$(printf '%s\n' "$out" | grep -c '^result=')"
 
 echo "== 디렉터리 생성 경쟁 뒤 신호 rollback: 보조 링크(dst/basename(tmp)) 도 소유권 확인 후 제거 =="
 R="$T/r12"; mk_repo "$R"
-out="$(cd "$R" && bash -c 'source rd-workflow/scripts/_fr_register_common.sh; _frr_wt="$PWD"; _frr_paths=(); _frr_orig_ls=""; _frr_bak="-"; dst="'"$ITEMS/$D-race.md"'"; mkdir -p "$dst"; tmp="$(mktemp "'"$ITEMS"'/.frr-XXXXXX")"; echo x > "$tmp"; _frr_tmp+=("$tmp"); _frr_created+=("$dst"$'"'"'\t'"'"'"$tmp" "$dst/$(basename "$tmp")"$'"'"'\t'"'"'"$tmp"); ln "$tmp" "$dst" ; echo other > "$dst/foreign.txt"; _frr_wt_rollback; _frr_cleanup; ls -A "$dst"' 2>&1)"
+out="$(cd "$R" && bash -c 'source rd-workflow/scripts/_fr_register_common.sh; _frr_wt="$PWD"; _frr_paths=(); _frr_orig_ls=""; _frr_bak="-"; dst="'"$ITEMS/$D-race.md"'"; mkdir -p "$dst"; tmp="$(mktemp "'"$ITEMS"'/.frr-XXXXXX")" || exit 1; [ -n "$tmp" ] || exit 1; echo x > "$tmp"; _frr_tmp+=("$tmp"); _frr_created+=("$dst"$'"'"'\t'"'"'"$tmp" "$dst/$(basename "$tmp")"$'"'"'\t'"'"'"$tmp"); ln "$tmp" "$dst" ; echo other > "$dst/foreign.txt"; _frr_wt_rollback; _frr_cleanup; ls -A "$dst"' 2>&1)"
 [[ "$out" == "foreign.txt" && -d "$R/$ITEMS/$D-race.md" && -z "$(ls "$R/$ITEMS"/.frr-* 2>/dev/null)" ]] && pass "경쟁 보조 링크는 제거, 남의 파일·디렉터리는 보존, 임시 파일 정리" || fail "경쟁 rollback — $out $(ls -A "$R/$ITEMS")"
 ( cd "$R" && rm -rf "$ITEMS/$D-race.md" )
 
