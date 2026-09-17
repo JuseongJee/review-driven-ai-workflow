@@ -45,7 +45,7 @@
 ## 핵심 절차
 
 - **`full`**: `FR 등록 → REQUEST 작성 → REQUEST review → spec/change spec → plan → spec/plan review → 구현 → 검증 → final diff review → REQUEST 아카이브`
-- **`standard`**: `promote.sh --size small → 축약 REQUEST → 구현 → 검증 → 커밋 전 재분류 → final diff review → REQUEST 아카이브`
+- **`standard`**: `promote.sh --size small → 축약 REQUEST → 구현 → 검증 → 커밋 전 재분류 → final diff review → REQUEST 아카이브` (promote 이후는 인계된 세션이 수행 — 기동 실패·비-herdr 는 호출 세션이 계속. `unknown` 은 `resolve-launch` 로 확정하기 전까지 호출 세션도 이어받지 않는다)
 - **`light`**: `구현 → 검증 → 커밋 전 재분류 → 기본 브랜치 커밋 1회 (+ reports/tier-log.md 행)` — REQUEST·리뷰·아카이브 없음. 시작·마감 계약은 `WORKFLOW.md` 위험 등급 절.
 
 ### REQUEST 아카이브
@@ -53,7 +53,7 @@
 - `REQUEST.md`를 `rd-workflow-workspace/backlog/request-archive/YYYY-MM-DD-HHMM-${SHORT_TITLE}.md`로 복사한 뒤 초기 템플릿 상태로 비웁니다.
 - `Source FR`이 `-`가 아니면 아카이브 기록 커밋 단계에서 `bash rd-workflow/scripts/rd task fr-done`을 호출합니다. `fr-done`이 묶은 FR 전부의 `items/` status와 인덱스 행 status를 함께 `done`으로 바꾸고, **인덱스 행 삭제는 `/fr archive`가 그 status를 보고 수행**합니다(연결이 끊기면 `/fr archive`가 0건으로 끝나 FR이 활성으로 남습니다). `fr-done`이 실패해도 발행은 계속하고, 출력을 completion report의 「FR 정리 결과」 절로 옮겨 발행 결과와 분리 보고합니다(재시도 대상은 아카이브된 REQUEST 사본의 `## Source FR`에서 회수, 상세는 `fr/archive.md`).
 - `PROJECT_CONTEXT.md`의 `auto_completion_report: true`면 자동으로, 아니면 "작업 요약 report를 남길까요?" 질문 후 `rd-workflow-workspace/reports/completions/YYYY-MM-DD-HHMM-작업명.md`에 report를 씁니다.
-- **완전 마감 후 `/clear` 안내 (필수)**: 아카이브 완료 + 산출물 손실 없음 확인(remote-mode는 push까지, local-only는 commit·merge까지) 후 마지막 응답에 `/clear` 가능 여부를 반드시 한 줄 명시합니다. 사용자가 추가 FR 등록 의사를 보이면 등록을 먼저 처리한 뒤 안내합니다.
+- **완전 마감 후 `/clear` 안내 (필수)**: 아카이브 완료 + 산출물 손실 없음 확인(remote-mode는 push까지, local-only는 commit·merge까지) 후 마지막 응답에 `/clear` 가능 여부를 반드시 한 줄 명시합니다. 사용자가 추가 FR 등록 의사를 보이면 등록을 먼저 처리한 뒤 안내합니다. **herdr 환경(`HERDR_ENV=1`)이고 이번 아카이브로 worktree 를 정리했다면, 같은 응답에 그 작업의 herdr tab이 이제 사라진 worktree 를 가리키니 직접 닫아 달라는 안내를 함께 포함합니다** (AI 는 자신이 만들지 않은 tab을 닫을 수 없습니다).
 - **큰 작업 lifecycle**: ① fr branch에서 archive content commit(REQUEST.md 비우기, archive 파일 생성, FR done 처리, completion report) — `CURRENT_TASK.md` 미러는 `archive.sh`가 baseline으로 되돌리므로 사람이 하지 않습니다. ② 기본 브랜치로 switch 후 `bash rd-workflow/scripts/lifecycle/archive.sh` 호출 (merge + tag + push + branch/worktree 정리 일괄).
 
 ## 절대 규칙 (모든 skill에 공통 적용)

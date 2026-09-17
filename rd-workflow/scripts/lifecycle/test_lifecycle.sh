@@ -1024,8 +1024,9 @@ read_fix_source_fr() { # read_fix_source_fr <dir> [slug]
 
 FIX1="$TMPDIR_TEST/fix-infer"
 mk_promote_fixture "$FIX1" '`rd-workflow-workspace/backlog/items/2026-01-01-fix.md`'
-( cd "$FIX1" && project_root="$FIX1" bash "$SCRIPT_DIR/promote.sh" --short-title fix-infer --size small --no-worktree >/dev/null 2>&1 )
+_fix1_out="$( cd "$FIX1" && project_root="$FIX1" bash "$SCRIPT_DIR/promote.sh" --short-title fix-infer --size small --no-worktree 2>&1 )"
 assert_eq "$(read_fix_source_fr "$FIX1" fix-infer)" "rd-workflow-workspace/backlog/items/2026-01-01-fix.md" "promote: REQUEST 백틱 path 추론 기록"
+assert_eq "$(printf '%s' "$_fix1_out" | grep -c '다음 기동에 사용할 모델')" "1" "promote: 새 기동 시 모델 표시 줄이 정확히 한 번 나온다"
 
 FIX2="$TMPDIR_TEST/fix-none"
 mk_promote_fixture "$FIX2" "-"
@@ -2997,6 +2998,9 @@ else
   [[ "$reout" == *"새로 기동하지 않습니다"* ]] \
     && pass "F1 근본: unknown 인 작업의 재착수는 세션을 다시 띄우지 않는다 (R5·AC 11)" \
     || fail "F1 근본: 재착수가 기동을 시도했다 — $reout"
+  [[ "$reout" == *"기존 세션의 모델은 확인하지 않습니다"* && "$reout" != *"다음 기동에 사용할 모델"* ]] \
+    && pass "F9: 기동을 건너뛴 재착수는 모델을 적용된 것처럼 표시하지 않는다" \
+    || fail "F9: 건너뛴 재착수인데 모델 표시가 뒤섞임 — $reout"
   # 그래도 herdr 없이 마감이 막히지는 않는다 — 명시 확정 경로가 열려 있다.
   _ae_out="$( cd "$RBREPO" && env -u HERDR_ENV bash rd-workflow/scripts/rd task resolve-launch oldtask --assume-ended 2>&1 )" || _ae_out="RC!=0 $_ae_out"
   _rb_out="$( cd "$RBREPO" && env -u HERDR_ENV bash rd-workflow/scripts/lifecycle/promote_rollback.sh --task oldtask --force 2>&1 )" || _rb_out="RC!=0 $_rb_out"
@@ -3005,6 +3009,9 @@ else
   else
     fail "F1 근본: 명시 확정 경로로도 차단이 풀리지 않았다 — resolve=[$_ae_out] rollback=[$_rb_out]"
   fi
+  [[ "$_ae_out" == *"이어서 진행"* ]] \
+    && pass "resolve-launch(dead 확정)가 호출 세션 거취(이어서 진행) 문구를 출력한다" \
+    || fail "resolve-launch dead 출력에 거취 문구 없음: $_ae_out"
 fi
 # 기본 worktree 의 task-state 를 baseline 으로 되돌린다(이후 케이스 오염 방지).
 sed -i 's|^fr-branch=.*|fr-branch=null|' "$RBREPO/rd-workflow-workspace/.lifecycle/task-state"

@@ -3,16 +3,24 @@
 #   공통 계약은 "worktree 생성 + 기동 명령 제시" 이고, herdr 에서만 실제 기동까지 한다.
 #   자식 세션이 또 세션을 띄우지 않도록 RD_CHILD_SESSION 으로 깊이를 1 로 제한한다.
 
-session_launch_command() {  # <worktree-path> <slug>
-  printf 'cd %q && claude\n' "$1"
+session_launch_command() {  # <worktree-path> <slug> [<model>]
+  local model="${3-}"
+  if [[ $# -lt 3 ]]; then
+    IFS=$'\t' read -r _ model < <(session_launch_model "$1")
+  fi
+  if [[ -n "$model" ]]; then
+    printf 'cd %q && claude --model %q\n' "$1" "$model"
+  else
+    printf 'cd %q && claude\n' "$1"
+  fi
 }
 
-session_launch_status_hint() {  # <launch>
+session_launch_status_hint() {  # <launch> [<slug>]
   case "$1" in
-    ok)      printf '없음\n' ;;
-    failed)  printf '수동 기동: 위 명령\n' ;;
-    unknown) printf '확인: rd task resolve-launch %s\n' "${2:-<slug>}" ;;
-    *)       printf '수동 기동: 위 명령\n' ;;
+    ok)      printf '이 세션은 여기서 멈춥니다 — 이후 단계는 탭 %s 의 세션이 진행합니다.\n' "${2:-<slug>}" ;;
+    failed)  printf '자식 세션이 없습니다 — 이 세션이 이어서 진행하거나 위 명령으로 세션을 여십시오.\n' ;;
+    unknown) printf '호출 세션도 이어받지 않습니다 — 확인: bash rd-workflow/scripts/rd task resolve-launch %s\n' "${2:-<slug>}" ;;
+    *)       printf '자식 세션이 없습니다 — 이 세션이 이어서 진행하거나 위 명령으로 세션을 여십시오.\n' ;;
   esac
 }
 
@@ -133,9 +141,13 @@ session_handoff_request_path() {  # <worktree-path>
   printf '%s/REQUEST.md\n' "$1"
 }
 
-session_launch() {  # <worktree-path> <slug> <request-path> → stdout: launch 상태
+session_launch() {  # <worktree-path> <slug> <request-path> [<model>] → stdout: launch 상태
   local wt="$1" slug="$2" req="$3"
   local timeout="${RD_LAUNCH_TIMEOUT:-5}"
+  local model="${4-}"
+  if [[ $# -lt 4 ]]; then
+    IFS=$'\t' read -r _ model < <(session_launch_model "$wt")
+  fi
 
   # 테스트 seam — 예약(launch-token)·완료-기록 로직을 실제 herdr 없이 태우기 위함이다.
   # 프로덕션 경로에는 영향이 없다(변수가 없으면 이 블록은 그냥 지나간다). 실행 파일
@@ -170,12 +182,12 @@ session_launch() {  # <worktree-path> <slug> <request-path> → stdout: launch �
 
   if [[ -n "${RD_CHILD_SESSION:-}" ]]; then
     printf '세션 기동을 건너뜁니다 — 이미 자식 세션입니다(깊이 1 제한).\n' >&2
-    printf '%s\n' "$(session_launch_command "$wt" "$slug")" >&2
+    printf '%s\n' "$(session_launch_command "$wt" "$slug" "$model")" >&2
     printf 'none\n'; return 0
   fi
   if [[ -z "${HERDR_ENV:-}" ]] || ! command -v herdr >/dev/null 2>&1; then
     printf '자동 기동을 하지 않았습니다. 아래 명령으로 시작하십시오.\n' >&2
-    printf '%s\n' "$(session_launch_command "$wt" "$slug")" >&2
+    printf '%s\n' "$(session_launch_command "$wt" "$slug" "$model")" >&2
     printf 'none\n'; return 0
   fi
   # herdr 경로: tab create(cwd·env·label 을 인자로 직접 전달) → agent start → agent prompt.
@@ -201,7 +213,7 @@ session_launch() {  # <worktree-path> <slug> <request-path> → stdout: launch �
   # stdout 한 줄이므로 exit 로 프로세스를 죽이면 호출부가 빈 값을 색인에 기록한다.
   outfile="$(mktemp)" || {
     printf '자동 기동에 실패했습니다(%s). 아래 명령으로 시작하십시오.\n' "임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2
-    printf '%s\n' "$(session_launch_command "$wt" "$slug")" >&2
+    printf '%s\n' "$(session_launch_command "$wt" "$slug" "$model")" >&2
     printf 'failed\n'; return 0
   }
   _session_launch_run_with_timeout "$timeout" "$outfile" \
@@ -211,7 +223,7 @@ session_launch() {  # <worktree-path> <slug> <request-path> → stdout: launch �
   if [[ $rc -ne 0 ]]; then
     rm -f "$outfile"
     printf '자동 기동에 실패했습니다(tab create, rc=%s). 아래 명령으로 시작하십시오.\n' "$rc" >&2
-    printf '%s\n' "$(session_launch_command "$wt" "$slug")" >&2
+    printf '%s\n' "$(session_launch_command "$wt" "$slug" "$model")" >&2
     printf 'failed\n'; return 0
   fi
   pane_id="$(_session_launch_parse_pane_id "$outfile")"
@@ -222,7 +234,7 @@ session_launch() {  # <worktree-path> <slug> <request-path> → stdout: launch �
     # 대상을 알 수 없다. tab_id 를 건졌으면 그 tab 은 닫아 빈 tab 을 남기지 않는다.
     [[ -n "$tab_id" ]] && _session_launch_close_tab_best_effort "$tab_id"
     printf '자동 기동에 실패했습니다(pane id 를 응답에서 찾지 못했습니다). 아래 명령으로 시작하십시오.\n' >&2
-    printf '%s\n' "$(session_launch_command "$wt" "$slug")" >&2
+    printf '%s\n' "$(session_launch_command "$wt" "$slug" "$model")" >&2
     printf 'failed\n'; return 0
   fi
 
@@ -230,11 +242,16 @@ session_launch() {  # <worktree-path> <slug> <request-path> → stdout: launch �
     # tab 은 이미 만들어졌고 agent 는 아직 안 붙었다 — 위 갈래와 같은 정리를 한다.
     _session_launch_close_tab_best_effort "$tab_id"
     printf '자동 기동에 실패했습니다(%s). 아래 명령으로 시작하십시오.\n' "임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2
-    printf '%s\n' "$(session_launch_command "$wt" "$slug")" >&2
+    printf '%s\n' "$(session_launch_command "$wt" "$slug" "$model")" >&2
     printf 'failed\n'; return 0
   }
-  _session_launch_run_with_timeout "$timeout" "$outfile" \
-    herdr agent start "$agent_name" --kind claude --pane "$pane_id"
+  if [[ -n "$model" ]]; then
+    _session_launch_run_with_timeout "$timeout" "$outfile" \
+      herdr agent start "$agent_name" --kind claude --pane "$pane_id" -- --model "$model"
+  else
+    _session_launch_run_with_timeout "$timeout" "$outfile" \
+      herdr agent start "$agent_name" --kind claude --pane "$pane_id"
+  fi
   rc=$?
   local start_body=""
   start_body="$(cat "$outfile" 2>/dev/null)"
@@ -262,7 +279,7 @@ session_launch() {  # <worktree-path> <slug> <request-path> → stdout: launch �
     # agent 가 붙지 못한 tab 은 빈 셸만 남으므로 최선을 다해 닫는다(worktree 는 건드리지 않는다).
     _session_launch_close_tab_best_effort "$tab_id"
     printf '자동 기동에 실패했습니다(agent start, rc=%s). 아래 명령으로 시작하십시오.\n' "$rc" >&2
-    printf '%s\n' "$(session_launch_command "$wt" "$slug")" >&2
+    printf '%s\n' "$(session_launch_command "$wt" "$slug" "$model")" >&2
     printf 'failed\n'; return 0
   fi
 
@@ -314,4 +331,66 @@ session_probe() {  # <slug> [worktree-path] → stdout: alive|dead|unknown
   fi
 
   printf 'alive\n'; return 0
+}
+
+session_launch_model_valid() {
+  case "$1" in
+    opus|sonnet|haiku|fable) return 0 ;;
+  esac
+  [[ "$1" =~ ^claude-[a-z0-9]+(-[a-z0-9]+)*$ ]] && return 0
+  [[ "$1" =~ ^fable-[a-z0-9]+(-[a-z0-9]+)*$ ]] && return 0
+  return 1
+}
+
+_session_launch_json_get() {  # <file> <key>
+  local file="$1" key="$2"
+  if command -v jq >/dev/null 2>&1; then
+    jq -e -s 'length == 1 and (.[0] | type) == "object"' "$file" >/dev/null 2>&1 || return 1
+    local val
+    val="$(jq -r -s --arg k "$key" \
+      'if (.[0][$k] | type) == "string" then .[0][$k] else "" end' "$file" 2>/dev/null)" \
+      || return 1
+    printf '%s\n' "$val"
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$file" "$key" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+except Exception:
+    sys.exit(1)
+if not isinstance(data, dict):
+    sys.exit(1)
+val = data.get(sys.argv[2])
+print(val if isinstance(val, str) else "")
+PYEOF
+    return $?
+  fi
+  return 1
+}
+
+session_launch_model() {
+  local wt="$1" cfg raw
+  if [[ -n "${RD_SESSION_MODEL:-}" ]]; then
+    if session_launch_model_valid "$RD_SESSION_MODEL"; then
+      printf 'env\t%s\n' "$RD_SESSION_MODEL"; return 0
+    fi
+    printf '세션 모델(RD_SESSION_MODEL=%s)이 허용 범위를 벗어나 미지정으로 둡니다.\n' \
+      "$RD_SESSION_MODEL" >&2
+    printf 'default\t\n'; return 0
+  fi
+  cfg="${wt}/rd-workflow/config/model-strategy.json"
+  [[ -f "$cfg" ]] || { printf 'default\t\n'; return 0; }
+  if ! raw="$(_session_launch_json_get "$cfg" session_model)"; then
+    printf '세션 모델 설정 파일을 읽지 못했습니다(%s) — 미지정으로 둡니다.\n' "$cfg" >&2
+    printf 'default\t\n'; return 0
+  fi
+  [[ -n "$raw" ]] || { printf 'default\t\n'; return 0; }
+  if session_launch_model_valid "$raw"; then
+    printf 'config\t%s\n' "$raw"; return 0
+  fi
+  printf '세션 모델 설정(%s=%s)이 허용 범위를 벗어나 미지정으로 둡니다.\n' "$cfg" "$raw" >&2
+  printf 'default\t\n'; return 0
 }

@@ -683,9 +683,19 @@ LAUNCH_TOKEN=""
 if [[ -n "$_SKIP_LAUNCH_REASON" ]]; then
   echo "promote: ${_SKIP_LAUNCH_REASON} — 새로 기동하지 않습니다." >&2
   echo "  확인: bash rd-workflow/scripts/rd task resolve-launch ${SLUG}" >&2
+  echo "promote: 기존 세션의 모델은 확인하지 않습니다 — 새 기동이 없습니다(${_SKIP_LAUNCH_REASON})."
+  _SESSION_MODEL=""
   tasks_index_upsert "$SLUG" fr-branch="$TARGET_BRANCH" worktree-path="$TARGET_DIR" checkout=yes \
     ${_NW_FLAG:+no-worktree="$_NW_FLAG"}
 else
+  _SESSION_MODEL_SRC="" _SESSION_MODEL=""
+  IFS=$'\t' read -r _SESSION_MODEL_SRC _SESSION_MODEL < <(session_launch_model "$TARGET_DIR")
+  case "$_SESSION_MODEL_SRC" in
+    env)     _SESSION_MODEL_LABEL="RD_SESSION_MODEL" ;;
+    config)  _SESSION_MODEL_LABEL="model-strategy.json" ;;
+    *)       _SESSION_MODEL_LABEL="미지정 — CLI 기본값" ;;
+  esac
+  echo "promote: 다음 기동에 사용할 모델 — ${_SESSION_MODEL:-미지정} (출처: ${_SESSION_MODEL_LABEL})"
   LAUNCH_TOKEN="$(date -u '+%Y-%m-%d-%H%M')-$$"
   tasks_index_upsert "$SLUG" fr-branch="$TARGET_BRANCH" worktree-path="$TARGET_DIR" checkout=yes \
     ${_NW_FLAG:+no-worktree="$_NW_FLAG"} launch=launching launch-token="$LAUNCH_TOKEN"
@@ -703,7 +713,7 @@ fi
 #     결과 기록은 락을 다시 잡아 **token 이 같을 때만** 반영한다.
 if [[ -n "$LAUNCH_TOKEN" ]]; then
   REQUEST_HANDOFF_PATH="${TARGET_DIR}/REQUEST.md"
-  LAUNCH_RESULT="$(session_launch "$TARGET_DIR" "$SLUG" "$REQUEST_HANDOFF_PATH")"
+  LAUNCH_RESULT="$(session_launch "$TARGET_DIR" "$SLUG" "$REQUEST_HANDOFF_PATH" "$_SESSION_MODEL")"
   if tasks_lock_acquire promote "$SLUG"; then
     _cur_token="$(tasks_index_get "$SLUG" launch-token 2>/dev/null)" || _cur_token=""
     if [[ "$_cur_token" == "$LAUNCH_TOKEN" ]]; then

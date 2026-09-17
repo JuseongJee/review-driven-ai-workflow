@@ -432,6 +432,7 @@ task_resolve_launch() {
       tasks_index_upsert "$slug" launch=ok
       tasks_lock_release
       echo "resolve-launch: '${slug}' 세션이 살아 있어 launch=ok 로 확정했습니다."
+      echo "resolve-launch: $(session_launch_status_hint ok "$slug")"
       # 인계 전달 (F4) — 락 **밖**에서 한다. 전달은 herdr 응답을 기다리는 일이라 락 안에
       # 두면 다른 작업의 착수·마감이 그 응답을 기다리게 된다. 실패해도 위 생존 확정은
       # 그대로 유효하므로 return 값을 바꾸지 않고 사실만 구분해 알린다.
@@ -461,6 +462,7 @@ task_resolve_launch() {
       else
         echo "resolve-launch: '${slug}' 세션을 찾을 수 없어 launch=failed 로 확정했습니다." >&2
       fi
+      echo "resolve-launch: $(session_launch_status_hint failed)" >&2
       if [[ -n "$wt" ]]; then
         echo "  수동 기동: $(session_launch_command "$wt" "$slug")" >&2
       fi

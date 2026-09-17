@@ -15,7 +15,7 @@ description: Configure model strategy per workflow stage — interactive wizard 
 
 ## 워크플로 단계 개요 (advisory 안내용)
 
-아래는 각 단계의 추천 모델과 제어 방식을 정리한 참고 테이블이다. **실제 config에 저장되는 것은 `subagent`만**이다.
+아래는 각 단계의 추천 모델과 제어 방식을 정리한 참고 테이블이다. **세션 기동을 뺀 나머지 단계는 advisory 이고, 이 위저드가 직접 쓰는 키는 `subagent` 뿐이다** (`session_model` 은 이 위저드가 만들지 않지만, 이미 있으면 보존한다).
 
 | 키 | 단계 | 제어 | 설명 |
 |----|------|------|------|
@@ -36,11 +36,27 @@ description: Configure model strategy per workflow stage — interactive wizard 
 ```json
 {
   "version": 1,
-  "subagent": "sonnet"
+  "subagent": "sonnet",
+  "session_model": "opus"
 }
 ```
 
 허용 모델 값: `"opus"`, `"sonnet"`, `"haiku"` — Claude Code Agent 도구의 model 파라미터와 동일.
+
+### `session_model` — 세션 기동 전용 (신규)
+
+`subagent` 와 저장 파일은 같지만 **소비 경로가 다르다**. 아래 표로 구분한다.
+
+| 키 | 소비 스크립트 | 적용 방식 | 파일 없음/키 없음 | 허용 범위 밖 |
+|----|--------------|-----------|-------------------|-------------|
+| `subagent` | `implement-reviewed-plan`/`autopilot` SKILL.md 지시 | Agent 도구 `model` 파라미터로 dispatch | 기본값 `sonnet` | (skill 지시가 검증) |
+| `session_model` | `rd-workflow/scripts/lifecycle/session_launch.sh` | `claude` CLI `--model` 플래그(자동·수동 기동 모두) | 조용히 미지정(CLI 기본값) | 경고 후 미지정 |
+
+`session_model` 우선순위: `RD_SESSION_MODEL` 환경변수 > 이 파일의 `session_model` 키 >
+미지정. 부모 세션의 모델을 자동 상속하지 않는다 — 셸에 현재 세션의 실제 모델을 알 수
+있는 수단이 없어(전역 설정은 기본값일 뿐 실제 값이 아님), 잘못 상속하면 조용히 다른
+모델로 뜬다. **이 위저드는 `session_model` 을 만들거나 지우지 않는다** — 설정하려면
+파일을 직접 편집한다.
 
 ## 위저드 흐름
 
@@ -73,12 +89,24 @@ AskUserQuestion으로 묻는다:
 
 ### 4. 설정 저장
 
-`rd-workflow/config/model-strategy.json`에 기록:
+`rd-workflow/config/model-strategy.json` 이 이미 있으면 **그 내용을 읽어 `subagent` 키만
+갱신하고 나머지 키(`session_model` 등)는 그대로 보존한다.** 파일이 없으면 아래 두 키로
+새로 만든다(이 시점엔 `session_model` 이 없는 게 정상이다 — 세션 모델은 이 위저드가
+만들지 않고, 사람이 직접 파일을 편집하거나 향후 별도 위저드 단계에서 다룬다):
 
 ```json
 {
   "version": 1,
   "subagent": "<선택값>"
+}
+```
+
+기존 파일에 `session_model` 이 있는 예:
+```json
+{
+  "version": 1,
+  "subagent": "<새로 고른 값>",
+  "session_model": "opus"
 }
 ```
 
