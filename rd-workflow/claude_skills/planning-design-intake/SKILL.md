@@ -41,6 +41,7 @@ Read these first (Always Read files are already loaded):
   ```
 - `CURRENT_TASK.md ## Short Title` 을 default `-` 로 reset
 - 사용자에게 한 줄 알림: "기존 REQUEST `{old-title}` 을 archive 했습니다 — 캡처 N 건 이동, short-title reset"
+  - 출력이 `건너뜀 — REQUEST.md 가 초기 템플릿 상태입니다` 이면 백업 파일이 없으므로 "archive 했습니다" 로 알리지 않는다 (보존할 내용이 0 이라 스크립트가 건너뛴 정상 경로, exit 0). 대신 "기존 REQUEST 는 빈 템플릿이라 archive 를 건너뛰었습니다 — 캡처 N 건 이동, short-title reset" 으로 알린다.
 - 이후 새 REQUEST 작성 단계 진행 — `## Short Title` 이 `-` 이므로 baseline 분기로 새 short-title 부여
 
 ### 분기 1b: REQUEST.md 존재 + `## Short Title` = `-` 또는 부재 (drift 상태)
@@ -50,6 +51,7 @@ archive key 가 없으므로 캡처 매칭 불가:
   ```bash
   bash rd-workflow/scripts/rd task backup-request --orphan
   ```
+  직전 작업이 정상 아카이브된 직후라면 REQUEST.md 가 초기 템플릿이므로 스크립트가 백업을 건너뛰고 (`건너뜀 — ...`, exit 0) `request-archive/` 에 빈 파일을 만들지 않는다 — 실패가 아니므로 그대로 진행한다.
 - **캡처 archive 는 skip** (short-title 모름)
 - 사용자에게 명시적 경고:
   > 경고: `CURRENT_TASK.md ## Short Title` 이 비어 있어 raw capture archive 매칭을 skip 했습니다.
