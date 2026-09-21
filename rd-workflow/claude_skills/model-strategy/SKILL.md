@@ -50,13 +50,34 @@ description: Configure model strategy per workflow stage — interactive wizard 
 | 키 | 소비 스크립트 | 적용 방식 | 파일 없음/키 없음 | 허용 범위 밖 |
 |----|--------------|-----------|-------------------|-------------|
 | `subagent` | `implement-reviewed-plan`/`autopilot` SKILL.md 지시 | Agent 도구 `model` 파라미터로 dispatch | 기본값 `sonnet` | (skill 지시가 검증) |
-| `session_model` | `rd-workflow/scripts/lifecycle/session_launch.sh` | `claude` CLI `--model` 플래그(자동·수동 기동 모두) | 조용히 미지정(CLI 기본값) | 경고 후 미지정 |
+| `session_model` | `rd-workflow/scripts/lifecycle/session_launch.sh` | `claude` CLI `--model` 플래그(자동·수동 기동 모두) | 현재 세션 모델 상속, 실패 시 미지정(CLI 기본값) | 경고 후 미지정 |
 
 `session_model` 우선순위: `RD_SESSION_MODEL` 환경변수 > 이 파일의 `session_model` 키 >
-미지정. 부모 세션의 모델을 자동 상속하지 않는다 — 셸에 현재 세션의 실제 모델을 알 수
-있는 수단이 없어(전역 설정은 기본값일 뿐 실제 값이 아님), 잘못 상속하면 조용히 다른
-모델로 뜬다. **이 위저드는 `session_model` 을 만들거나 지우지 않는다** — 설정하려면
-파일을 직접 편집한다.
+**현재 세션 모델 상속** > 미지정. 상속은 최하위라, 위 둘 중 하나라도 있으면 그쪽이
+이긴다. **이 위저드는 `session_model` 을 만들거나 지우지 않는다** — 설정하려면 파일을
+직접 편집한다.
+
+#### 상속은 무엇을 읽는가 (2026-09-21)
+
+`session_launch.sh` 가 `CLAUDE_CODE_SESSION_ID` 로 transcript
+(`~/.claude/projects/*/<세션 id>.jsonl`)를 찾아 마지막 유효 `message.model` 을 쓴다.
+설정 파일이 없어도 작업 탭이 부모와 같은 모델로 뜬다 — 이 파일은 사람이 만들어야 하는데
+그 사실이 여기에만 적혀 있어 실제로는 만들어지지 않았고, 그 결과 탭이 조용히 CLI
+기본값으로 뜨는 일이 반복됐다.
+
+2026-09-17 에는 "셸에서 현재 세션의 실제 모델을 알 수 없다(전역 설정은 기본값일 뿐)"는
+이유로 상속을 배제했으나 **2026-09-21 실측이 그 전제를 반증했다** — transcript 의
+`message.model` 은 기본값이 아니라 실제 응답 모델의 기록이고(`/model` 변경도 따라온다),
+subagent 응답은 부모 transcript 에 기록되지 않아(조사한 세션 60건 모두 단일 모델,
+`isSidechain` 0건) 모델이 섞이지 않는다. 같은 배제 판단을 반복하지 않도록 근거를 남긴다.
+
+한계는 셋이다. transcript 포맷·`CLAUDE_CODE_SESSION_ID` 는 CLI 내부 구조라 바뀌면 상속이
+깨지는데, 그때는 **종전과 같은 미지정**으로 떨어진다(조용한 오작동이 아니라 조용한
+원복). `/model` 로 바꾼 직후 새 모델로 아직 응답하지 않았으면 직전 모델을 집는다. 이미
+기동된 세션에는 소급 적용되지 않는다.
+
+상속이 쓰였는지는 `promote.sh` 의 `다음 기동에 사용할 모델 — … (출처: 현재 세션 상속)`
+한 줄로 확인한다.
 
 ## 위저드 흐름
 
