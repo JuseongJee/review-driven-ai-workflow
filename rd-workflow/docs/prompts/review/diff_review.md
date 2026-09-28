@@ -8,6 +8,7 @@
 - 유지보수성 저하
 - 불필요한 복잡성
 - CLAUDE.md 비대화: 변경이 CLAUDE.md를 수정했다면 "이 문장을 삭제해도 실수가 발생하는가?" 원칙을 적용. 12000자 이하 유지 권장 (`check_claudemd_size.sh` 기준)
+- CURRENT_TASK.md 정합: 커밋된 `CURRENT_TASK.md`가 HEAD 기준 현재 단계(Status·Spec·Plan·Next Step)와 일치하는가
 
 출력
 - 잠재적 버그

@@ -694,6 +694,7 @@ autopilot_headless_entry_check() {
     grep -q 'RD_AUTOPILOT_FR' "$skill"           || { echo "  $skill: RD_AUTOPILOT_FR 미참조" >&2; rc=1; }
     grep -q 'RD_AUTOPILOT_OUTCOME_FILE' "$skill"  || { echo "  $skill: RD_AUTOPILOT_OUTCOME_FILE 미참조" >&2; rc=1; }
     grep -q 'queue-empty' "$skill"                || { echo "  $skill: queue-empty 미참조" >&2; rc=1; }
+    grep -q 'queue-blocked' "$skill"              || { echo "  $skill: queue-blocked 미참조" >&2; rc=1; }
     grep -q 'blocked:' "$skill"                   || { echo "  $skill: blocked:<reason> 미참조" >&2; rc=1; }
     grep -q '결과 대기 규율' "$skill"             || { echo "  $skill: 결과 대기 규율 절 미존재" >&2; rc=1; }
     grep -q 'run_in_background' "$skill"          || { echo "  $skill: run_in_background 금지 규율 미참조" >&2; rc=1; }
@@ -701,6 +702,12 @@ autopilot_headless_entry_check() {
     grep -q '600000' "$skill"                     || { echo "  $skill: timeout 최대치(600000ms) 미참조" >&2; rc=1; }
     grep -q 'WAIT_TIMEOUT' "$skill"                || { echo "  $skill: 어댑터 watchdog(WAIT_TIMEOUT) 중첩 타이머 규율 미참조" >&2; rc=1; }
     grep -q '진행 신호' "$skill"                   || { echo "  $skill: 긴 대기 진행 신호 규율 미참조" >&2; rc=1; }
+    # promote 직후 launch 결과 처리 — 무인 실행은 항상 none 이므로 이 세션이 worktree 로
+    # 이동해 이어가야 한다. 이 지시가 빠지면 기본 브랜치 체크아웃에 구현이 쌓인다
+    # (2026-09-24 batch-headless-promote-session-launch). 사람만 읽는 지시라 런타임
+    # 테스트로는 잡히지 않아 앵커로 고정한다.
+    grep -q '세션 기동 결과' "$skill"              || { echo "  $skill: promote 직후 launch 결과 처리 절 미존재" >&2; rc=1; }
+    grep -q 'resolve-launch' "$skill"              || { echo "  $skill: launch unknown 확정(resolve-launch) 지시 미존재" >&2; rc=1; }
   done
   # batch 국면 2 의 exit 40 복구 경로 — 진행 상태·사용자 안내 보존의 핵심이라 앵커로 고정한다.
   # 배포 사본은 필수, _ROOT_FILES 정본은 설치본에 없는 것이 정상이라 선택이다.
@@ -965,6 +972,18 @@ hook_path_reachability_check() {
     _hook_probe_settings "$settings" "$probe_base" || rc=1
   done < <(_hook_settings_targets)
   [[ -n "$probe_base" ]] && rm -rf "$probe_base"
+  return $rc
+}
+
+# 배포된 hook(rd-workflow/scripts/hooks/*.sh, `_`/`test_` 접두 제외)이 루트
+# .claude/settings.json 에 등록됐는지 역방향으로 대조한다(§2.5.2 도달 증명의 반대 방향).
+# 미등록은 신호 전용(exit 0), 검사 자체 실행 오류만 exit 2.
+root_settings_hook_registration_check() {
+  local root
+  root="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+  bash "${SCRIPT_DIR}/check_root_settings_hook_registration.sh" --root "$root"
+  local rc=$?
+  [[ "$rc" -ne 0 ]] && echo "  check_root_settings_hook_registration.sh: 검사 실행 오류 (rc=${rc})" >&2
   return $rc
 }
 
@@ -1276,6 +1295,92 @@ hook_target_existence_check() {
   return $rc
 }
 
+# skill 문서(rd-workflow/claude_skills/**/*.md)가 참조하는 저장소 상대 경로가
+# 빌드된 rd-workflow/ 트리에 실재하는지 확인한다. 경고는 check_skill_reference_existence.sh
+# 가 exit 0으로 신호만 내므로(hard fail 아님), 이 함수는 그 스크립트가 0이 아닌
+# 코드로 끝난 경우(2뿐 아니라 스크립트 부재로 인한 127 등도 포함)에만 self_test
+# 스텝을 실패로 판정한다(F4). find 실패도 파이프 뒤로 흘리지 않고 직접 캡처해
+# "일부라도 찾았으니 성공"으로 조용히 덮이지 않게 한다.
+skill_reference_existence_check() {
+  local rc=0 root md_dir md found=0 skref_rc
+  root="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+  md_dir="${root}/rd-workflow/claude_skills"
+  if [[ ! -d "$md_dir" ]]; then
+    echo "  $md_dir: 디렉터리 부재" >&2
+    return 1
+  fi
+  local find_out find_rc
+  find_out="$(find "$md_dir" -name '*.md' 2>&1)"; find_rc=$?
+  if [[ "$find_rc" -ne 0 ]]; then
+    echo "  $md_dir: find 실패 (rc=${find_rc}): ${find_out}" >&2
+    return 1
+  fi
+  if [[ -z "$find_out" ]]; then
+    echo "  $md_dir: 대상 markdown 0건" >&2
+    return 1
+  fi
+  while IFS= read -r md; do
+    [[ -z "$md" ]] && continue
+    found=$((found + 1))
+    bash "${SCRIPT_DIR}/check_skill_reference_existence.sh" "$md" --root "$root"
+    skref_rc=$?
+    [[ "$skref_rc" -ne 0 ]] && { echo "  $md: 검사 실행 오류 (rc=${skref_rc})" >&2; rc=1; }
+  done <<< "$(printf '%s\n' "$find_out" | sort)"
+  [[ "$found" -gt 0 ]] || { echo "  $md_dir: 대상 markdown 0건" >&2; rc=1; }
+  return $rc
+}
+
+# 활성 FR 상세 파일(rd-workflow-workspace/backlog/items/*.md)의 related files 가
+# 빌드된 rd-workflow/ 트리에 실재하는지 확인한다. skill_reference_existence_check()
+# 와 달리 대상 0건(백로그가 비어 있음)은 정상 상태이므로 실패로 취급하지 않는다
+# (spec D4 — 선례와의 유일한 판정 차이). 디렉터리 부재·find 실패·하위 스크립트의
+# 0이 아닌 종료는 그대로 실패로 잡는다.
+fr_related_files_existence_check() {
+  local rc=0 root items_dir it found=0 rc2
+  root="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+  items_dir="${root}/rd-workflow-workspace/backlog/items"
+  if [[ ! -d "$items_dir" ]]; then
+    echo "  $items_dir: 디렉터리 부재" >&2
+    return 1
+  fi
+  local find_out find_rc
+  find_out="$(find "$items_dir" -maxdepth 1 -name '*.md' 2>&1)"; find_rc=$?
+  if [[ "$find_rc" -ne 0 ]]; then
+    echo "  $items_dir: find 실패 (rc=${find_rc}): ${find_out}" >&2
+    return 1
+  fi
+  while IFS= read -r it; do
+    [[ -z "$it" ]] && continue
+    found=$((found + 1))
+    bash "${SCRIPT_DIR}/check_fr_related_files_existence.sh" "$it" --root "$root"
+    rc2=$?
+    [[ "$rc2" -ne 0 ]] && { echo "  $it: 검사 실행 오류 (rc=${rc2})" >&2; rc=1; }
+  done <<< "$(printf '%s\n' "$find_out" | sort)"
+  return $rc
+}
+
+# FUTURE_REQUESTS.md 인덱스와 items/ 상세 파일의 양방향 정합성을 검사한다. 스크립트가
+# 신호만 내고 항상 exit 0(불일치 건수와 무관)이므로 이 스텝은 검사 자체의 실행 오류
+# (exit 2)만 실패로 잡는다.
+fr_index_detail_consistency_check() {
+  local root
+  root="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+  bash "${SCRIPT_DIR}/check_fr_index_detail_consistency.sh" --root "$root"
+  local rc=$?
+  [[ "$rc" -ne 0 ]] && echo "  check_fr_index_detail_consistency.sh: 검사 실행 오류 (rc=${rc})" >&2
+  return $rc
+}
+
+# items/ 상세 파일의 관계 필드(depends-on·series·relates)와 인덱스 관계 컬럼·요약 앞머리의
+# 무결성을 검사한다. rc=1(위반)은 실패로 잡고, rc=2(검사 실행 오류)는 사유를 덧붙인다.
+fr_relations_validate_check() {
+  local root
+  root="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+  bash "${SCRIPT_DIR}/fr_relations.sh" validate --root "$root"
+  local rc=$?
+  [[ "$rc" -eq 2 ]] && echo "  fr_relations.sh: 검사 실행 오류 (rc=2)" >&2
+  return $rc
+}
 
 # ④ 전용 헬퍼 — 임시 설치본을 세우고 현재 구현과 변형(행 단위 계수) 구현의 판정을 대조한다.
 _hook_p6_regression_fixture() {
@@ -1348,13 +1453,16 @@ P6RPL
 # 통과한 것으로 오인한다. 안전장치 스크립트에서 이 우회 경로는 허용하지 않는다.
 if [[ -n "${RD_SELFTEST_CHECKER_ONLY:-}" ]]; then
   case "$RD_SELFTEST_CHECKER_ONLY" in
-    hook_path_reachability_check|hook_target_existence_check|hook_path_notation_regression_check) ;;
+    hook_path_reachability_check|hook_target_existence_check|hook_path_notation_regression_check|root_settings_hook_registration_check) ;;
     hook_selftest_contract_check|_hook_repo_root) ;;
     # 필수 대상 결손 회귀는 변형을 주입해 판별력을 확인해야 하므로 단독 실행 경로가 필요하다.
     required_target_regression_check) ;;
+    skill_reference_existence_check) ;;
+    fr_related_files_existence_check) ;;
+    fr_index_detail_consistency_check) ;;
     *)
       echo "[self_test] RD_SELFTEST_CHECKER_ONLY 허용값이 아닙니다: ${RD_SELFTEST_CHECKER_ONLY}" >&2
-      echo "  허용: hook_path_reachability_check | hook_target_existence_check | hook_path_notation_regression_check | hook_selftest_contract_check | required_target_regression_check | _hook_repo_root" >&2
+      echo "  허용: hook_path_reachability_check | hook_target_existence_check | hook_path_notation_regression_check | hook_selftest_contract_check | required_target_regression_check | _hook_repo_root | skill_reference_existence_check | fr_related_files_existence_check | fr_index_detail_consistency_check | root_settings_hook_registration_check" >&2
       exit 2
       ;;
   esac
@@ -1419,7 +1527,14 @@ run_step hooks consumer "가드 차단 계측 (test_guard_block_log.sh)" bash "$
 run_step lifecycle consumer "비차단 Status drift 검증 (nonblocking_status_drift_check)" nonblocking_status_drift_check
 run_step lifecycle consumer "LC-19 3자 일치 검증 (TASK/STATE/CLAUDE.md)" canonical_status_triple_drift_check
 run_step lifecycle consumer "task CLI 단위 테스트" bash "${SCRIPT_DIR}/test_task_cli.sh"
+run_step lifecycle consumer "stage_metrics 계측 테스트 (test_stage_metrics.sh)" bash "${SCRIPT_DIR}/test_stage_metrics.sh"
 run_step skills consumer "install_claude_skills 단위 테스트" bash "${SCRIPT_DIR}/test_install_claude_skills.sh"
+run_step skills consumer "skill 참조 경로 실재 (skill_reference_existence_check)" skill_reference_existence_check
+run_step skills consumer "FR related files 실재 (fr_related_files_existence_check)" fr_related_files_existence_check
+run_step skills consumer "FR 인덱스/상세 정합성 (fr_index_detail_consistency_check)" fr_index_detail_consistency_check
+run_step skills consumer "FR 관계 무결성 (fr_relations_validate_check)" fr_relations_validate_check
+run_step skills consumer "FR 관계 헬퍼 테스트 (test_fr_relations.sh)" bash "${SCRIPT_DIR}/test_fr_relations.sh"
+run_step skills consumer "skill 참조 경로 검사 단위 테스트" bash "${SCRIPT_DIR}/test_skill_reference_existence.sh"
 run_step lifecycle consumer "lifecycle 단위 테스트 (test_lifecycle.sh)" bash "${SCRIPT_DIR}/lifecycle/test_lifecycle.sh"
 run_step lifecycle consumer "작업 색인 단위 테스트 (test_tasks_index.sh)" bash "${SCRIPT_DIR}/lifecycle/test_tasks_index.sh"
 run_step lifecycle consumer "세션 기동 단위 테스트 (test_session_launch.sh)" bash "${SCRIPT_DIR}/lifecycle/test_session_launch.sh"
@@ -1506,6 +1621,7 @@ test_publish_remote_state_check() {
 
 
 run_step hooks consumer "hook 경로 도달 증명 (hook_path_reachability_check)" hook_path_reachability_check
+run_step hooks consumer "루트 settings.json hook 등록 (root_settings_hook_registration_check)" root_settings_hook_registration_check
 run_step hooks consumer "hook 대상 실재 (hook_target_existence_check)" hook_target_existence_check
 run_step hooks consumer "차단 계측 규약 (guard_deny_convention_check)" guard_deny_convention_check
 run_step hooks dev-only "reason 인자 판정 회귀 (guard_deny_reason_detection_regression_check)" guard_deny_reason_detection_regression_check

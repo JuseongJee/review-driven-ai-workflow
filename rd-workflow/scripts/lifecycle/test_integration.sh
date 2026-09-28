@@ -66,6 +66,12 @@ out_has() {  # out_has <needle> — stdin 을 읽어 needle 포함 여부 반환
 # 항상 이 디렉터리가 생긴다. git 은 빈 디렉터리를 추적하지 않아, 추적 파일이 하나도 없으면
 # fixture 의 worktree 에만 이 디렉터리가 없는 배포본과 다른 상태가 만들어진다. 스크립트가
 # 읽지 않는 빈 파일을 써서 어느 시나리오의 판정에도 끼어들지 않게 한다.
+#
+# **스크립트 복사는 확장자 글롭이 아니라 디렉터리 단위로 한다.** `hooks/*.sh` 로 거르면
+# hook 이 실행 시점에 읽는 `.awk` 프로그램(`_commit_scan.awk`·`_open_issues.awk`)이 빠진다.
+# 이 누락은 테스트를 깨뜨리지 않아 오래 숨는다 — `.sh` 의존은 `source` 가 즉시 실패시키지만,
+# awk 의존은 `_guard_common.sh` 가 `[[ -f ]]` 로 확인한 뒤 폴백 판정으로 흡수하기 때문이다.
+# 디렉터리를 통째로 옮기면 확장자를 늘릴 때마다 이 목록을 따라 고칠 일이 없어진다.
 setup_repo() {
   local branch="${1:-main}"
   local d
@@ -91,8 +97,8 @@ setup_repo() {
     mkdir -p rd-workflow/scripts/lifecycle rd-workflow/scripts/hooks rd-workflow-workspace/.lifecycle; \
     : > rd-workflow-workspace/.gitkeep; \
     printf '.worktrees/\nrd-workflow-workspace/.lifecycle/loop-state\nrd-workflow-workspace/.lifecycle/.loop-state.*\n' > .gitignore; \
-    cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/lifecycle/*.sh rd-workflow/scripts/lifecycle/; \
-    cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/hooks/*.sh rd-workflow/scripts/hooks/; \
+    cp -R "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/lifecycle/. rd-workflow/scripts/lifecycle/; \
+    cp -R "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/hooks/. rd-workflow/scripts/hooks/; \
     cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/_state_common.sh rd-workflow/scripts/; \
     cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/_task_common.sh rd-workflow/scripts/; \
     cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/rd rd-workflow/scripts/; \
@@ -719,7 +725,7 @@ _tag11="$(cd "$REPO" && git tag --list "fr/*/test-master" | head -1)"
   && pass "master-archive: tag 생성" || fail "master-archive: tag 부재"
 
 # diff review base 판정 (prepare_review_pipeline.sh, change spec §5.2)
-# 전제: setup_repo()가 이미 lifecycle/*.sh(_lifecycle_common.sh 포함)와 _state_common.sh를
+# 전제: setup_repo()가 이미 lifecycle/ 전체(_lifecycle_common.sh 포함)와 _state_common.sh를
 # fixture의 rd-workflow/scripts/ 아래에 복사해 두므로, prepare가 source할 의존성은 충족되어 있다.
 # 여기서는 prepare_review_pipeline.sh 한 파일만 추가 복사하면 된다.
 #
@@ -1564,8 +1570,9 @@ PR6="$(mktemp -d)" || { echo "test_integration.sh: 임시 디렉터리 생성 �
 [[ -n "$PR6" && -d "$PR6" ]] || { echo "test_integration.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 PR6="$(cd "$PR6" && pwd -P)"
 mkdir -p "$PR6/rd-workflow/scripts/lifecycle" "$PR6/rd-workflow/scripts/hooks"
-cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/lifecycle/*.sh "$PR6/rd-workflow/scripts/lifecycle/"
-cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/hooks/*.sh "$PR6/rd-workflow/scripts/hooks/"
+# 복사 방식은 setup_repo() 와 같다 — 확장자 글롭을 쓰지 않고 디렉터리를 통째로 옮긴다.
+cp -R "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/lifecycle/. "$PR6/rd-workflow/scripts/lifecycle/"
+cp -R "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/hooks/. "$PR6/rd-workflow/scripts/hooks/"
 cp "$PROJECT_ROOT"/_ROOT_FILES/rd-workflow/scripts/_state_common.sh "$PR6/rd-workflow/scripts/"
 PR6_FILES_BEFORE="$(find "$PR6" -type f | LC_ALL=C sort)"
 
@@ -2126,7 +2133,14 @@ done
   && pass "e2e: 아카이브 보류 진입 (seal 뒤·기록 커밋 앞)" || fail "e2e: 보류 전이 실패"
 
 # 권위 tree 음성 — 포인터·상태만 먼저 커밋해 **마커만 워킹트리에 남은** 상태를 만듭니다.
-( cd "$REPO" && git add rd-workflow-workspace/.lifecycle/task-state CURRENT_TASK.md \
+# 위 세 번의 set-status 호출이 stage_metrics.tsv 에도 각각 행을 남긴다(2026-09-24
+# stage-transition-timestamps) — 이 파일을 staging 에서 빠뜨리면 뒤이은 `git switch`가
+# "로컬 변경 사항을 덮어씀" 으로 거부한다(존재할 때만 pathspec 에 추가 — promote.sh 의
+# 동일 가드와 같은 이유: best-effort 로그라 아직 없을 수도 있다).
+_e2e_commit_paths=(rd-workflow-workspace/.lifecycle/task-state CURRENT_TASK.md)
+[[ -f "$REPO/rd-workflow-workspace/.lifecycle/stage_metrics.tsv" ]] \
+  && _e2e_commit_paths+=(rd-workflow-workspace/.lifecycle/stage_metrics.tsv)
+( cd "$REPO" && git add "${_e2e_commit_paths[@]}" \
   && git commit -q -m "chore: 리뷰 포인터·상태" )
 _e2e_err="$( cd "$REPO" && git switch -q main \
   && bash rd-workflow/scripts/lifecycle/archive.sh --task e2e --no-remote --force-dirty 2>&1 || true )"

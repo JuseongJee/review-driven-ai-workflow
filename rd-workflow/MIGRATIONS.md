@@ -103,7 +103,7 @@ FR 항목을 가진 모든 기존 프로젝트가 sync 직후 `test_fr_blocked_s
 **실행 절차**:
 1. `bash rd-workflow/scripts/rd task status`를 1회 실행합니다.
 2. exit 0이고 `rd-workflow-workspace/.lifecycle/task-state`가 생성/존재하면 완료입니다. 마이그레이션이 수행되었다면(stderr 안내 출력) tracked 변경(active-fr 삭제·task-state 생성)을 다음 정규 커밋에 포함하라고 사용자에게 안내합니다.
-3. exit 3이면 `CURRENT_TASK.md`의 `## Status`를 canonical 9종 중 하나로 수동 복구한 뒤 재실행합니다. 복구 절차는 `rd-workflow/docs/guides/task-state-guide.md`의 "실패 시 복구"를 참조합니다.
+3. exit 3이면 `CURRENT_TASK.md`의 `## Status`를 canonical 10종 중 하나로 수동 복구한 뒤 재실행합니다. 복구 절차는 `rd-workflow/docs/guides/task-state-guide.md`의 "실패 시 복구"를 참조합니다.
 
 **주의**: 마이그레이션이 만든 변경은 자동 커밋하지 않습니다 ("다음 정규 커밋에 편승" 계약 — LC-20 archive clean 검증은 이 변경이 커밋된 상태를 전제합니다).
 

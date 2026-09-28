@@ -29,7 +29,7 @@
 1. **(권장) 현재 작업을 먼저 마감**: 현재 작업을 archive까지 완료한 뒤 업그레이드합니다.
 2. **mid-task 업그레이드 강행**: 아래 영향을 안내한 뒤 진행합니다.
    - 구버전에서 생성된 review 세션은 `SESSION.md`에 Branch Context `fr-branch`가 없어, 이후 archive precheck가 fail-closed로 차단될 수 있습니다. 이 경우 `bash rd-workflow/scripts/lifecycle/archive.sh --force-skip-review-check "<사유>"`로만 우회할 수 있습니다 (사유 필수, `rd-workflow-workspace/.lifecycle/review-skip-audit.log`에 감사 기록됨).
-   - review 세션 `CHECKPOINT.md`의 `## Open Issues`는 canonical 마커 규약을 따라야 합니다 — 미해결 이슈가 없으면 정확히 `- 없음` 또는 `- None` 한 줄로만 표기합니다 (후행 마침표 1개 허용). 빈 섹션·비정형 표기는 미종결로 판정되어 archive가 차단됩니다.
+   - review 세션 `CHECKPOINT.md`의 `## Open Issues`는 canonical 마커 규약을 따라야 합니다 — 미해결이 없으면 `- 없음` 또는 `- None` 한 줄을 절의 첫 줄에 둡니다 (후행 마침표 1개 허용). 종결 경위는 그 아래에 빈 줄로 띄우고 문단으로 적습니다. 미해결 항목은 리스트 항목으로 적습니다. 빈 섹션·마커 앞 산문·마커에 이어지는 줄은 미종결로 판정되어 archive가 차단됩니다.
    - 구버전 세션에는 `SESSION.md`에 `review-head-oid`가 없어(= legacy 정의) 종결 마커를 만드는 `rd review seal`이 거부합니다. 그 작업을 마감하려면 `bash rd-workflow/scripts/rd review seal --legacy-unverified "<사유>" <세션 경로>`가 유일한 경로이며, **이 마커는 리뷰 당시 트리를 증명하지 않습니다** (상세·트레이드오프: 아래 M011).
 
 ### 1. 버전 확인 및 템플릿 소스 확보
@@ -191,7 +191,7 @@ bash rd-workflow/scripts/sync_template.sh <배포 repo URL>
 **실행 절차**:
 1. `bash rd-workflow/scripts/rd task status`를 1회 실행합니다.
 2. exit 0이고 `rd-workflow-workspace/.lifecycle/task-state`가 생성/존재하면 완료입니다. 마이그레이션이 수행되었다면(stderr 안내 출력) tracked 변경(active-fr 삭제·task-state 생성)을 다음 정규 커밋에 포함하라고 사용자에게 안내합니다.
-3. exit 3이면 `CURRENT_TASK.md`의 `## Status`를 canonical 9종 중 하나로 수동 복구한 뒤 재실행합니다. 복구 절차는 `rd-workflow/docs/guides/task-state-guide.md`의 "실패 시 복구"를 참조합니다.
+3. exit 3이면 `CURRENT_TASK.md`의 `## Status`를 canonical 10종 중 하나로 수동 복구한 뒤 재실행합니다. 복구 절차는 `rd-workflow/docs/guides/task-state-guide.md`의 "실패 시 복구"를 참조합니다.
 
 **주의**: 마이그레이션이 만든 변경은 자동 커밋하지 않습니다 ("다음 정규 커밋에 편승" 계약 — LC-20 archive clean 검증은 이 변경이 커밋된 상태를 전제합니다).
 
