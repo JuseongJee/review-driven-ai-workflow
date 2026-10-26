@@ -2,6 +2,12 @@
 # Temp repo 기반 통합 테스트 — promote / archive / rollback / hook의 git state transition 자동 검증
 set -euo pipefail
 
+# 이 스위트가 만든 임시 경로는 전부 $TMPROOT 아래에 둔다 — EXIT trap 한 곳이 일괄 정리한다.
+# 시나리오가 중간에 실패하거나 rm -rf 를 빠뜨려도 /tmp 에 남지 않는다.
+TMPROOT="$(mktemp -d)" || { echo "test_integration.sh: 임시 루트 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+TMPROOT="$(cd "$TMPROOT" && pwd -P)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
 # herdr pane 안에서 돌면 HERDR_ENV=1 이 하위 프로세스로 그대로 상속되어, 임시 저장소의
 # promote 가 **사용자의 실제 herdr 에 pane 을 만든다**. 이 스위트는 임시 저장소만 건드린다는
 # 전제로 돌므로, 기동 경로는 환경에서 원천 차단한다(2026-09 사고: 테스트가 실제 pane 을 생성).
@@ -75,7 +81,7 @@ out_has() {  # out_has <needle> — stdin 을 읽어 needle 포함 여부 반환
 setup_repo() {
   local branch="${1:-main}"
   local d
-  d="$(mktemp -d)" || { echo "test_integration.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  d="$(mktemp -d "$TMPROOT/repo.XXXXXXXX")" || { echo "test_integration.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   [[ -n "$d" && -d "$d" ]] || { echo "test_integration.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   # macOS: /var is a symlink to /private/var; resolve to canonical path so git worktree paths match
   d="$(cd "$d" && pwd -P)"
@@ -117,10 +123,9 @@ run_promote() {
 
 # bare remote fixture — 신규 archive cleanup 시나리오 공용
 mk_bare() {  # mk_bare <tag> → bare repo 절대경로
-  local b _bm
-  _bm="$(mktemp -d)" || { echo "test_integration.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
-  [[ -n "$_bm" && -d "$_bm" ]] || { echo "test_integration.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
-  b="$(dirname "$_bm")/bare-mirror-$1-$$"
+  local b
+  b="$(mktemp -d "$TMPROOT/bare-mirror-$1.XXXXXXXX")" || { echo "test_integration.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  [[ -n "$b" && -d "$b" ]] || { echo "test_integration.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   git init --bare "$b" -q
   echo "$b"
 }
@@ -330,7 +335,7 @@ CTEOF
 
 SFR_STATE="$REPO/rd-workflow-workspace/.lifecycle/task-state"
 # repo 밖에 snapshot 을 둔다
-SFR_SNAP="$(mktemp -d)" || { echo "test_integration.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+SFR_SNAP="$(mktemp -d "$TMPROOT/snap.XXXXXXXX")" || { echo "test_integration.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$SFR_SNAP" && -d "$SFR_SNAP" ]] || { echo "test_integration.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 before_head="$( cd "$REPO" && git rev-parse HEAD )"
 before_status="$( cd "$REPO" && git status --porcelain )"
@@ -342,9 +347,9 @@ if [[ -f "$SFR_STATE" ]]; then
 fi
 
 # stdout 과 stderr 를 분리 캡처한다 — 교정 안내가 stderr 로 나가는지 검증해야 한다.
-sfr_out="$(mktemp)" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+sfr_out="$(mktemp "$TMPROOT/out.XXXXXXXX")" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$sfr_out" && -f "$sfr_out" ]] || { echo "test_integration.sh: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
-sfr_err="$(mktemp)" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+sfr_err="$(mktemp "$TMPROOT/out.XXXXXXXX")" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$sfr_err" && -f "$sfr_err" ]] || { echo "test_integration.sh: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 set +e
 run_promote "$REPO" --short-title sfr-bad --no-worktree --status "구현 중" \
@@ -387,13 +392,13 @@ rm -rf "$sfr_out" "$sfr_err" "$SFR_SNAP"
 # (2b) --dry-run 도 같은 판정을 낸다.
 #      사전 점검이 성공을 알리고 실제 실행이 실패하면 신호가 반대가 되어 쓸모가 없다.
 #      해석은 read-only 이므로 dry-run 조기 종료보다 먼저 수행할 수 있다.
-DRY_SNAP="$(mktemp -d)" || { echo "test_integration.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+DRY_SNAP="$(mktemp -d "$TMPROOT/snap.XXXXXXXX")" || { echo "test_integration.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$DRY_SNAP" && -d "$DRY_SNAP" ]] || { echo "test_integration.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 cp "$REPO/CURRENT_TASK.md" "$DRY_SNAP/CURRENT_TASK.md"
 dry_before_status="$( cd "$REPO" && git status --porcelain )"
-dry_out="$(mktemp)" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+dry_out="$(mktemp "$TMPROOT/out.XXXXXXXX")" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$dry_out" && -f "$dry_out" ]] || { echo "test_integration.sh: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
-dry_err="$(mktemp)" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+dry_err="$(mktemp "$TMPROOT/out.XXXXXXXX")" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$dry_err" && -f "$dry_err" ]] || { echo "test_integration.sh: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 set +e
 run_promote "$REPO" --short-title sfr-dry --no-worktree --status "구현 중" --dry-run \
@@ -1566,7 +1571,7 @@ assert_eq "$(pr_field "$PR5" source-fr)" "-" "promote: REQUEST 의 '-' 는 FR �
 #
 # 메시지만 확인하면 계약의 절반이다. AC 19 가 rd 와 동일한 fail-closed 라면
 # "파일을 하나도 만들지 않는다" 와 의도한 exit code 도 함께 고정해야 한다.
-PR6="$(mktemp -d)" || { echo "test_integration.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+PR6="$(mktemp -d "$TMPROOT/repo.XXXXXXXX")" || { echo "test_integration.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$PR6" && -d "$PR6" ]] || { echo "test_integration.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 PR6="$(cd "$PR6" && pwd -P)"
 mkdir -p "$PR6/rd-workflow/scripts/lifecycle" "$PR6/rd-workflow/scripts/hooks"
@@ -2095,10 +2100,10 @@ add_review_scripts() {
 # close_session <session-dir> — Status=closed + Open Issues=`- 없음` (정상 종결 형태)
 close_session() {
   local t
-  t="$(mktemp)" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  t="$(mktemp "$TMPROOT/out.XXXXXXXX")" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   [[ -n "$t" && -f "$t" ]] || { echo "test_integration.sh: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   awk '/^## Status$/{print; getline; print "closed"; next} {print}' "$1/SESSION.md" > "$t" && mv "$t" "$1/SESSION.md"
-  t="$(mktemp)" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
+  t="$(mktemp "$TMPROOT/out.XXXXXXXX")" || { echo "test_integration.sh: 임시 파일 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   [[ -n "$t" && -f "$t" ]] || { echo "test_integration.sh: 임시 파일 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; return 1; }
   awk '/^## Open Issues$/{s=1; print; next} s && /^## /{s=0} s && $0=="-"{print "- 없음"; next} {print}' \
     "$1/CHECKPOINT.md" > "$t" && mv "$t" "$1/CHECKPOINT.md"

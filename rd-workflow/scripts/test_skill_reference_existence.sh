@@ -112,7 +112,7 @@ EOF
   # cwd 2: glob이 아무것도 일치하지 않는 빈 디렉터리 — 두 cwd에서 결과가 같아야
   # pathname expansion이 차단됐다고 말할 수 있다(fixture만으로는 cwd가 격리되지
   # 않는다는 것이 Turn 004의 핵심 지적이었다).
-  empty_cwd="$(mktemp -d)"
+  empty_cwd="$(mktemp -d)" || { fail "glob cwd 테스트: empty cwd mktemp 실패"; rm -rf "$fx"; return; }
   cd "$empty_cwd" || { fail "glob cwd 테스트: empty cwd 실패"; rm -rf "$fx" "$empty_cwd"; return; }
   out="$(bash "$TARGET" "${fx}/skill.md" --root "$fx" 2>&1)"; rc=$?
   cd "$saved_cwd" || true
@@ -206,6 +206,29 @@ EOF
 
 test_channel_separation
 
+test_optional_example_file_not_warned() {
+  local fx out rc
+  fx="$(_mk_fixture_root)"
+  mkdir -p "${fx}/rd-workflow/config"
+  : > "${fx}/rd-workflow/config/opt.json.example"
+  cat > "${fx}/skill.md" <<'EOF'
+`rd-workflow/config/opt.json`
+`rd-workflow/config/gone.json`
+EOF
+  out="$(bash "$TARGET" "${fx}/skill.md" --root "$fx" 2>&1)"; rc=$?
+  if [[ "$rc" -eq 0 ]] \
+     && ! printf '%s' "$out" | grep -q "참조 경로 없음 — rd-workflow/config/opt.json" \
+     && printf '%s' "$out" | grep -q "참조 경로 없음 — rd-workflow/config/gone.json" \
+     && printf '%s' "$out" | grep -q "참조 2건 중 경고 1건 (선택 파일 1건)"; then
+    pass "선택 파일 케이스: X.example 존재 시 경고 없이 선택 파일로 집계"
+  else
+    fail "선택 파일 케이스: rc=$rc out=$out"
+  fi
+  rm -rf "$fx"
+}
+
+test_optional_example_file_not_warned
+
 test_exec_error_missing_input_file() {
   local fx rc
   fx="$(_mk_fixture_root)"
@@ -241,7 +264,7 @@ test_exec_error_unreadable_input_file() {
 
 test_exec_error_missing_root_tree() {
   local fx rc
-  fx="$(mktemp -d)"
+  fx="$(mktemp -d)" || { fail "입력 오류(루트 트리 부재): mktemp 실패"; return; }
   echo "내용" > "${fx}/skill.md"
   bash "$TARGET" "${fx}/skill.md" --root "$fx" >/dev/null 2>&1
   rc=$?
@@ -317,7 +340,7 @@ test_selftest_find_partial_failure_detected() {
   fi
 
   # 실험군 — PATH 맨 앞에 "유효 경로 1개 출력 후 exit 1"하는 find 스텁을 둔다.
-  stub_dir="$(mktemp -d)"
+  stub_dir="$(mktemp -d)" || { fail "find 스텁 테스트: stub_dir mktemp 실패"; rm -rf "$fx"; return; }
   cat > "${stub_dir}/find" <<STUBEOF
 #!/usr/bin/env bash
 echo "${fx}/rd-workflow/claude_skills/dummy/SKILL.md"

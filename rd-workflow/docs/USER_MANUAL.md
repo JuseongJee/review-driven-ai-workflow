@@ -469,7 +469,7 @@ UI 작업 시 디자인 레퍼런스 대비 검증 게이트.
 |---------|------|
 | `rd-workflow/scripts/install_claude_skills.sh` | 스킬을 Claude Code에 설치 (link/copy) |
 | `rd-workflow/scripts/sync_template.sh` | 배포 repo에서 최신 템플릿 동기화 |
-| `rd-workflow/scripts/check_claudemd_size.sh` | CLAUDE.md 12000자 초과 차단 (`CLAUDEMD_CHAR_LIMIT` 로 조정) |
+| `rd-workflow/scripts/check_claudemd_size.sh` | CLAUDE.md·rules 합계 각각 12000자 초과 차단 (`CLAUDEMD_CHAR_LIMIT` 로 조정) |
 | `rd-workflow/scripts/adapter_codex.sh` | Codex 리뷰 어댑터 |
 | `rd-workflow/scripts/adapter_claude.sh` | Claude 리뷰 어댑터 (self-review) |
 
@@ -479,7 +479,8 @@ UI 작업 시 디자인 레퍼런스 대비 검증 게이트.
 
 ```
 프로젝트 루트/
-├── CLAUDE.md                    # AI 행동 규칙 (절대 규칙, 워크플로 우선순위)
+├── CLAUDE.md                    # 프로젝트 규칙 + rd-workflow 규칙 목차
+├── .claude/rules/rd-workflow/   # AI 행동 규칙 (절대 규칙, 워크플로 우선순위)
 ├── PROJECT_CONTEXT.md           # 프로젝트 메타데이터
 ├── REQUEST.md                   # 현재 작업 요구사항
 ├── CURRENT_TASK.md              # 진행 상태 추적

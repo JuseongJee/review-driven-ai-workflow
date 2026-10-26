@@ -3,7 +3,10 @@
 ## 루트 문서
 
 `CLAUDE.md`
-- 작업 원칙과 기본 행동 규칙
+- 프로젝트 고유 규칙과 rd-workflow 규칙 목차
+
+`.claude/rules/rd-workflow/`
+- rd-workflow 규칙 (core·task-tracking·writing-style·efficiency·commit)
 
 `PROJECT_CONTEXT.md`
 - 프로젝트 이해, 제약, 실행 명령
@@ -59,6 +62,9 @@
 
 [`guides/team-overlay-migration.md`](guides/team-overlay-migration.md)
 - 기존 설치를 submodule 구조로 이관
+
+[`guides/mutation-check.md`](guides/mutation-check.md)
+- 변이 확인 규약 — 새 부정 명제·회귀 단언이 대상 훼손 시 실제로 실패하는지 확인하는 절차와 결과표
 
 ## rd-workflow-workspace
 

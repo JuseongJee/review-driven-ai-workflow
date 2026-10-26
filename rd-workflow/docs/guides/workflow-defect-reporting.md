@@ -11,7 +11,7 @@ rd-workflow 워크플로 템플릿을 사용하는 소비 프로젝트에서, �
 
 다음 중 하나에 해당하면 **rd-workflow 인프라 결함**입니다:
 
-- rd-workflow 산출물 문서(`rd-workflow/docs/`, 배포된 `CLAUDE.md`·`PROJECT_CONTEXT.md` 템플릿 등)의 오류·모순·누락
+- rd-workflow 산출물 문서(`rd-workflow/docs/`, `.claude/rules/rd-workflow/` 규칙, 배포된 `CLAUDE.md`·`PROJECT_CONTEXT.md` 템플릿 등)의 오류·모순·누락
 - `rd-workflow/scripts/` 스크립트의 버그·오동작 — 단 `{test,lint,typecheck,build}.sh` 는 소비 프로젝트가 자기 검증 명령으로 교체하도록 배포되는 파일이므로, **`TEMPLATE_STUB` 마커(파일 2행)가 남아 있는 템플릿 원본일 때만** 인프라입니다.
 - `rd-workflow/claude_skills/` skill 지침의 결함
 

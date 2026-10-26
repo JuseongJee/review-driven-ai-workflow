@@ -20,7 +20,7 @@ fail() { FAIL=1; echo "FAIL: $1"; }
 TMPROOT="$(mktemp -d)" || { echo "test_stage_metrics.sh: 임시 루트 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$TMPROOT" && -d "$TMPROOT" ]] || { echo "test_stage_metrics.sh: 임시 루트 경로 검증 실패" >&2; exit 1; }
 trap 'rm -rf "$TMPROOT"' EXIT
-new_tmp() { mktemp -d "$TMPROOT/fixture.XXXXXXXX"; }
+new_tmp() { mktemp -d "$TMPROOT/fixture.XXXXXXXX"; } # mktemp-scan: custom-handler — 값 반환 헬퍼, 호출부가 || 로 검사
 
 # 이 스위트 안에서 archive_publish_content_check·emit_current_task_baseline·
 # state_stage_metrics_report 를 직접(subshell 없이) 호출하는 케이스가 있어 한 번만

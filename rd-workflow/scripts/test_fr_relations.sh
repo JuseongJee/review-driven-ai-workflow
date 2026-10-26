@@ -14,7 +14,11 @@ trap cleanup EXIT
 reset_fx() {
   # 케이스마다 mktemp 를 부르면 fork 비용이 쌓인다. 디렉터리는 한 번만 만들고
   # 내용(주입 마커 포함)을 전부 지워 같은 격리를 유지한다.
-  if [ -z "$fx" ]; then fx="$(mktemp -d)"; else rm -rf "${fx:?}"/* "${fx:?}"/.rows; fi
+  if [ -z "$fx" ]; then
+    fx="$(mktemp -d)" || { echo "test_fr_relations.sh: 임시 디렉터리 생성 실패" >&2; exit 1; }
+  else
+    rm -rf "${fx:?}"/* "${fx:?}"/.rows
+  fi
   ITEMS="${fx}/rd-workflow-workspace/backlog/items"
   INDEX="${fx}/rd-workflow-workspace/backlog/FUTURE_REQUESTS.md"
   mkdir -p "$ITEMS"

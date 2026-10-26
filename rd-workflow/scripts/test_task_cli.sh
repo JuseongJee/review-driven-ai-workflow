@@ -78,7 +78,7 @@ mk_fr_items() {
 TMPROOT="$(mktemp -d)" || { echo "test_task_cli.sh: 임시 루트 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$TMPROOT" && -d "$TMPROOT" ]] || { echo "test_task_cli.sh: 임시 루트 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 trap 'rm -rf "$TMPROOT"' EXIT
-new_tmp() { mktemp -d "$TMPROOT/fixture.XXXXXXXX"; }
+new_tmp() { mktemp -d "$TMPROOT/fixture.XXXXXXXX"; } # mktemp-scan: custom-handler — 값 반환 헬퍼, 호출부가 || 로 검사
 TMP="$(new_tmp)" || { echo "test_task_cli.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$TMP" && -d "$TMP" ]] || { echo "test_task_cli.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 export project_root="$TMP"

@@ -738,7 +738,7 @@ t_out "from_request: 주석 뒤 값 추출" "rd-workflow-workspace/backlog/items
 # source-fr 복수 표현 — resolve_list / join / split / 미러 집합 비교
 # final diff review F6 — 미러의 허용 표기('- ' 접두) 를 정규화하지 않으면 권위와
 # 같은 FR 인데도 다른 값으로 읽혀 정상 상태가 divergence 로 차단된다.
-_f6_dir="$(mktemp -d)" || { echo "test_state_common.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
+_f6_dir="$(mktemp -d "$TMP/f6.XXXXXXXX")" || { echo "test_state_common.sh: 임시 디렉터리 생성 실패 (mktemp rc≠0, TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 [[ -n "$_f6_dir" && -d "$_f6_dir" ]] || { echo "test_state_common.sh: 임시 디렉터리 경로 검증 실패 (TMPDIR='${TMPDIR:-}')" >&2; exit 1; }
 printf '## Source FR\n- rd-workflow-workspace/backlog/items/2026-01-01-a.md\n-   rd-workflow-workspace/backlog/items/2026-02-02-b.md\n' > "$_f6_dir/mirror.md"
 _f6_read="$(source_fr_mirror_read "$_f6_dir/mirror.md")"

@@ -37,7 +37,7 @@ subagent dispatch 후 워킹트리가 교란된 것으로 의심되면:
 
 아래 dispatch 지점은 subagent dispatch 시 1번의 Subagent Git 안전 문구를 dispatch prompt에 포함한다.
 
-- `CLAUDE.md` 실행 모드 규칙 (subagent-driven-development 기본 dispatch)
+- `.claude/rules/rd-workflow/core.md` 실행 모드 규칙 (subagent-driven-development 기본 dispatch)
 - `rd-workflow/claude_skills/autopilot/SKILL.md` (§4 자율 구현)
 - `rd-workflow/claude_skills/implement-reviewed-plan/SKILL.md`
 - `rd-workflow/claude_skills/comprehensive-audit/SKILL.md` (Phase 2 Explore dispatch)

@@ -1141,7 +1141,7 @@ _assert_status_comment_block() { # <file> <desc>
   if awk '
     BEGIN{state=0}
     /^## Status$/{state=1; next}
-    state==1 && /^<!-- 허용 상태값 8종은 CLAUDE.md의 Task Tracking 섹션 참조. 변경은 rd task set-status 경유 -->$/{state=2; next}
+    state==1 && /^<!-- 허용 상태값 8종은 \.claude\/rules\/rd-workflow\/task-tracking\.md 참조\. 변경은 rd task set-status 경유 -->$/{state=2; next}
     state==1 {next}
     state==2 && /^$/{state=3; next}
     state==3 && /^## Request$/{found=1}
@@ -2023,7 +2023,7 @@ oi_case 1 "open-issues-unresolved:- 없음。" "- 없음。" \
 # (af) 판정 프로그램 부재 → 미종결(1) + parser-missing 사유.
 # 「미해결 이슈가 있음」과 구별해야 한다 — 이 파일을 빠뜨린 fixture 에서 판정이 조용히
 # 미종결로 떨어지면, 「미종결이면 통과」인 archive gate 가 검사 없이 지나간다.
-PM_DIR="$(mktemp -d)"
+PM_DIR="$(mktemp -d)" || { echo "test_lifecycle.sh: 임시 디렉터리 생성 실패" >&2; exit 1; }
 mkdir -p "$PM_DIR/hooks" "$PM_DIR/sess"
 cp "$REPO_ROOT/rd-workflow/scripts/hooks/_guard_common.sh" "$PM_DIR/hooks/"
 cp "$REPO_ROOT/rd-workflow/scripts/_state_common.sh" "$PM_DIR/"

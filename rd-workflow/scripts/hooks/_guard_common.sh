@@ -585,7 +585,7 @@ is_shared_state_file() {
 # --- Stop hook 전용 헬퍼 ---
 
 # is_nonblocking_status <status>
-# 비차단 집합 단일 출처. CLAUDE.md 'CURRENT_TASK.md 허용 상태값' 참조.
+# 비차단 집합 단일 출처. .claude/rules/rd-workflow/task-tracking.md 의 '허용 상태값' 참조.
 # 인자가 빈값 / '대기 중' / '완료'면 return 0 (비차단=통과 대상), 아니면 return 1 (진행 중=차단 대상).
 is_nonblocking_status() {
   local s="$1"

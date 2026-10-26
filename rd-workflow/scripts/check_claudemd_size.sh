@@ -19,10 +19,17 @@ if [[ -n "${CLAUDEMD_LINE_LIMIT:-}" ]]; then
   echo "[claudemd-guard] 경고: CLAUDEMD_LINE_LIMIT 는 더 이상 쓰이지 않습니다 — 글자 수 제한은 CLAUDEMD_CHAR_LIMIT 로 지정합니다 (현재 제한 ${limit}자)" >&2
 fi
 
-# 검사 대상은 둘입니다.
+# 검사 대상은 파일 둘과 rules 폴더 둘입니다.
 #
 #   REQUIRED  <root>/CLAUDE.md              — 이 프로젝트가 실제로 쓰는 파일
 #   OPTIONAL  <root>/_ROOT_FILES/CLAUDE.md  — 배포될 템플릿 정본 (이 저장소에만 존재)
+#   REQUIRED  <root>/.claude/rules/rd-workflow/*.md              — 템플릿 소유 규칙 (합계로 측정)
+#   OPTIONAL  <root>/_ROOT_FILES/.claude/rules/rd-workflow/*.md  — 위 규칙의 배포 정본
+#
+# **rules 를 합계로 거는 이유 (spec D7)**: 한도의 목적은 "매 세션 컨텍스트에 실리는 분량" 관리인데,
+# 분리 뒤에는 그 분량이 프로젝트 CLAUDE.md 와 템플릿 rules 두 곳에 나뉩니다. 파일별 한도만 두면
+# 파일을 늘리는 것만으로 총량이 늘어납니다. 합계가 한도 이하이면 어느 파일도 한도를 넘지 않습니다.
+# rules 폴더가 없거나 `.md` 가 0개이면 REQUIRED 는 rc=1 입니다 (0건 통과 방지).
 #
 # **정본을 함께 재는 이유**: 이 검사기는 원래 `<root>/CLAUDE.md` 만 봤습니다. 그런데 이
 # 저장소에서 배포되는 것은 `_ROOT_FILES/CLAUDE.md` 이므로, 정본이 제한을 넘겨도 dev
@@ -73,8 +80,42 @@ _measure() {
   return 0
 }
 
+# rules 폴더 합계 측정. 파일별 글자 수를 한 줄씩 출력하고 합계가 한도를 넘으면 rc=1.
+_measure_rules() {
+  local kind="$1" dir="$2" label="$3" f n total=0 count=0
+  if [[ -d "$dir" ]]; then
+    for f in "$dir"/*.md; do
+      [[ -f "$f" ]] || continue
+      n="$(LC_ALL=en_US.UTF-8 wc -m < "$f" | tr -d '[:space:]')"
+      echo "[claudemd-guard] ${label}: $(basename "$f") ${n}자"
+      total=$((total + n))
+      count=$((count + 1))
+    done
+  fi
+  if [[ "$count" -eq 0 ]]; then
+    if [[ "$kind" == "REQUIRED" ]]; then
+      echo "[claudemd-guard] ${label}: rules 파일 없음 — ${dir}" >&2
+      _add_reason "${label} 부재 또는 .md 0개 (REQUIRED): ${dir}"
+      rc=1
+    else
+      echo "[claudemd-guard] ${label}: 없음 (선택 대상 — 이 형상에서는 정상)"
+    fi
+    return 0
+  fi
+  if [[ "$total" -gt "$limit" ]]; then
+    echo "[claudemd-guard] ${label}: 합계 ${total}자 (${count}개) — 초과 (제한 ${limit}자)" >&2
+    _add_reason "${label} 합계 ${total}자 > 제한 ${limit}자: ${dir}"
+    rc=1
+  else
+    echo "[claudemd-guard] ${label}: 합계 ${total}자 (${count}개, 제한 ${limit}자 이내)"
+  fi
+  return 0
+}
+
 _measure REQUIRED "${project_root}/CLAUDE.md"               "프로젝트 CLAUDE.md"
 _measure OPTIONAL "${project_root}/_ROOT_FILES/CLAUDE.md"   "배포 정본 CLAUDE.md"
+_measure_rules REQUIRED "${project_root}/.claude/rules/rd-workflow"             "프로젝트 rules"
+_measure_rules OPTIONAL "${project_root}/_ROOT_FILES/.claude/rules/rd-workflow" "배포 정본 rules"
 
 if [[ "$rc" -ne 0 ]]; then
   echo "[claudemd-guard] 실패 이유:" >&2

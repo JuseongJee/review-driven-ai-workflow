@@ -148,7 +148,7 @@ test_exec_error_missing_input_file() {
 
 test_exec_error_missing_root_tree() {
   local fx rc
-  fx="$(mktemp -d)"
+  fx="$(mktemp -d)" || { fail "입력 오류(루트 트리 부재): mktemp 실패"; return; }
   echo "- related files: x" > "${fx}/item.md"
   bash "$TARGET" "${fx}/item.md" --root "$fx" >/dev/null 2>&1
   rc=$?

@@ -291,7 +291,8 @@ test_pipefail_sigpipe_large_commands() {
 # 11. 입력 오류
 test_input_error_no_hooks_dir() {
   local fx rc
-  fx="$(mktemp -d)"; _track_fx "$fx"
+  fx="$(mktemp -d)" || { fail "입력 오류(hooks 디렉터리 부재): mktemp 실패"; return; }
+  _track_fx "$fx"
   mkdir -p "${fx}/.claude"
   printf '{}' > "${fx}/.claude/settings.json"
   bash "$TARGET" --root "$fx" >/dev/null 2>&1; rc=$?

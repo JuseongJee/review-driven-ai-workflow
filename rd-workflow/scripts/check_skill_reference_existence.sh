@@ -15,6 +15,12 @@
 # 저장소 루트를 정확히 가리킨다 — 정본(_ROOT_FILES/)에서 직접 실행하면 다른 트리를
 # 가리키므로, 정본 단계의 통합 스캔에는 이 스크립트를 기본값으로 쓰지 않는다.
 #
+# 선택 파일(.example) 규칙: 참조 경로 X 가 없어도 X.example 이 있으면 경고하지 않고
+# "선택 파일"로 따로 센다(요약 줄 끝 `(선택 파일 N건)`, 0건이면 생략). 사용자가 복사해
+# 만들 때만 생기는 설정 파일(config/*.json.example 관례)은 배포 트리에 원본이 없는 것이
+# 정상이다. 하드코딩 allowlist 는 선택 파일이 늘 때마다 사람이 목록을 고쳐야 해서 두지
+# 않고, 이 저장소의 기존 .example 관례를 그대로 판정 기준으로 삼는다(spec D9).
+#
 # 종료 코드: 0 = 정상 실행(경고 유무 무관 — 경고는 신호일 뿐 hard fail 아님)
 #            2 = 검사 자체가 성립하지 않음(입력 파일 부재·읽기 불가, 인자 오류,
 #                --root 트리에 `rd-workflow/` 없음)
@@ -127,16 +133,25 @@ _skref_main() {
 
   TOTAL=0
   WARN=0
+  OPTIONAL=0
   while IFS=$'\t' read -r lineno tok; do
     [[ -z "$tok" ]] && continue
     TOTAL=$((TOTAL + 1))
-    if [[ ! -e "${ROOT}/${tok}" ]]; then
+    if [[ -e "${ROOT}/${tok}" ]]; then
+      :
+    elif [[ -e "${ROOT}/${tok}.example" ]]; then
+      OPTIONAL=$((OPTIONAL + 1))
+    else
       WARN=$((WARN + 1))
       echo "${MD_FILE}:${lineno}: 참조 경로 없음 — ${tok}" >&2
     fi
   done < <(_skref_extract_paths "$MD_FILE")
 
-  echo "${MD_FILE}: 참조 ${TOTAL}건 중 경고 ${WARN}건"
+  if [[ "$OPTIONAL" -gt 0 ]]; then
+    echo "${MD_FILE}: 참조 ${TOTAL}건 중 경고 ${WARN}건 (선택 파일 ${OPTIONAL}건)"
+  else
+    echo "${MD_FILE}: 참조 ${TOTAL}건 중 경고 ${WARN}건"
+  fi
   exit 0
 }
 

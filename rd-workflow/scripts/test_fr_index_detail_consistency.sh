@@ -260,7 +260,8 @@ test_escaped_pipe_masks_missing_cell() {
 # 10. 입력 오류 3종
 test_exec_error_missing_index() {
   local fx rc
-  fx="$(mktemp -d)"; _FX_ROOTS+=("$fx")
+  fx="$(mktemp -d)" || { fail "입력 오류(인덱스 부재): mktemp 실패"; return; }
+  _FX_ROOTS+=("$fx")
   mkdir -p "${fx}/rd-workflow-workspace/backlog/items"
   bash "$TARGET" --root "$fx" >/dev/null 2>&1; rc=$?
   [[ "$rc" -eq 2 ]] && pass "입력 오류: FUTURE_REQUESTS.md 부재 → exit 2" || fail "입력 오류(인덱스 부재): rc=$rc"
@@ -268,7 +269,8 @@ test_exec_error_missing_index() {
 
 test_exec_error_missing_items_dir() {
   local fx rc
-  fx="$(mktemp -d)"; _FX_ROOTS+=("$fx")
+  fx="$(mktemp -d)" || { fail "입력 오류(items 부재): mktemp 실패"; return; }
+  _FX_ROOTS+=("$fx")
   mkdir -p "${fx}/rd-workflow-workspace/backlog"
   : > "${fx}/rd-workflow-workspace/backlog/FUTURE_REQUESTS.md"
   bash "$TARGET" --root "$fx" >/dev/null 2>&1; rc=$?

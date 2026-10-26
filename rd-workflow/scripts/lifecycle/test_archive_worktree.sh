@@ -124,7 +124,7 @@ fi
 if awk '
   BEGIN{state=0}
   /^## Status$/{state=1; next}
-  state==1 && /^<!-- 허용 상태값 8종은 CLAUDE.md의 Task Tracking 섹션 참조. 변경은 rd task set-status 경유 -->$/{state=2; next}
+  state==1 && /^<!-- 허용 상태값 8종은 \.claude\/rules\/rd-workflow\/task-tracking\.md 참조\. 변경은 rd task set-status 경유 -->$/{state=2; next}
   state==1 {next}
   state==2 && /^$/{state=3; next}
   state==3 && /^## Request$/{found=1}

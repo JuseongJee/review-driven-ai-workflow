@@ -2675,10 +2675,10 @@ run_case36c() {
   bash -c 'trap "" TERM; exec sleep 60' &
   leader_pid=$!
 
-  timer_dir="$(mktemp -d)"
+  timer_dir="$(mktemp -d)" || { fail "케이스 36c: 타이머 디렉터리 mktemp 실패"; kill "$leader_pid" 2>/dev/null; return; }
   mkfifo "$timer_dir/timer"
   exec 9<> "$timer_dir/timer"
-  marker_file="$(mktemp)"
+  marker_file="$(mktemp)" || { fail "케이스 36c: 마커 파일 mktemp 실패"; kill "$leader_pid" 2>/dev/null; rm -rf "$timer_dir"; return; }
   exec 7>> "$marker_file"
 
   (
@@ -2736,10 +2736,10 @@ run_case37() {
 
   sleep 60 &
   dummy_pid=$!
-  timer_dir="$(mktemp -d)"
+  timer_dir="$(mktemp -d)" || { fail "케이스 37: 타이머 디렉터리 mktemp 실패"; kill "$dummy_pid" 2>/dev/null; return; }
   mkfifo "$timer_dir/timer"
   exec 9<> "$timer_dir/timer"
-  marker_file="$(mktemp)"
+  marker_file="$(mktemp)" || { fail "케이스 37: 마커 파일 mktemp 실패"; kill "$dummy_pid" 2>/dev/null; rm -rf "$timer_dir"; return; }
   exec 7>> "$marker_file"
   exec 6< "$marker_file"
 
@@ -2912,7 +2912,7 @@ run_case40() {
   long300="$(printf 'A%.0s' $(seq 1 300))"
 
   # ① 훅 미설정 + 300자 입력 → rw_display_line 이 원문 그대로 (codex 불변 조건)
-  harness="$(mktemp)"
+  harness="$(mktemp)" || { fail "케이스 40 ①: 하니스 mktemp 실패"; return; }
   cat > "$harness" <<HARNESS_EOF
 #!/usr/bin/env bash
 source "$SCRIPT_DIR/review_wait.sh"
@@ -2930,7 +2930,7 @@ HARNESS_EOF
 
   # ② claude 미분류 300자 입력 → claude_format_line 결과가 200자 이하이고 끝이 …
   claude_fmt_src="$(sed -n '/^claude_format_line() {/,/^}/p' "$ADAPTER_CLAUDE")"
-  harness="$(mktemp)"
+  harness="$(mktemp)" || { fail "케이스 40 ②: 하니스 mktemp 실패"; return; }
   {
     echo '#!/usr/bin/env bash'
     printf '%s\n' "$claude_fmt_src"
@@ -2951,7 +2951,7 @@ HARNESS_EOF
   fi
 
   # ③ tool_use 줄 → assistant: tool_use Grep
-  harness="$(mktemp)"
+  harness="$(mktemp)" || { fail "케이스 40 ③: 하니스 mktemp 실패"; return; }
   {
     echo '#!/usr/bin/env bash'
     printf '%s\n' "$claude_fmt_src"

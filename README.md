@@ -5,7 +5,7 @@ AI가 구현만 하는 게 아니라, 매 단계마다 review를 거쳐서 품�
 
 ## 전제 조건
 
-- [Claude Code](https://claude.ai/code) 설치 및 로그인
+- [Claude Code](https://claude.ai/code) 설치 및 로그인 (2.1.310 이상 — 그 미만은 `.claude/rules/` 하위 폴더 로드를 보장하지 않습니다)
 - [Superpowers](https://github.com/anthropics/claude-code-superpowers) 플러그인 설치
 
 ## 빠른 시작
@@ -144,7 +144,8 @@ promote → 축약 REQUEST → 구현 → 검증 → 재분류 → diff review �
 ## 구조
 
 ```
-CLAUDE.md              ← AI 행동 규칙 (사용자가 편집할 일 거의 없음)
+CLAUDE.md              ← 프로젝트 규칙 (프로젝트 소유 — sync 가 덮어쓰지 않음)
+.claude/rules/rd-workflow/ ← rd-workflow 워크플로 규칙 (템플릿 소유 — sync 가 덮어씀)
 PROJECT_CONTEXT.md     ← 프로젝트 기술 컨텍스트 (처음에 한 번 채움)
 REQUEST.md             ← 현재 작업 요청
 CURRENT_TASK.md        ← 작업 진행 상태 (AI가 자동 업데이트)
@@ -164,7 +165,7 @@ rd-workflow-workspace/ ← 작업 산출물 (specs, plans, reports, backlog)
 
 CLAUDE.md에 규칙을 쓰면 모델이 무시할 수 있습니다. 이 템플릿은 세 레이어를 겹쳐서 제어력을 높입니다:
 
-- **선언적 규칙** (CLAUDE.md) — 기본 행동 지침
+- **선언적 규칙** (`.claude/rules/rd-workflow/` 와 프로젝트 `CLAUDE.md`) — 기본 행동 지침
 - **Skill 주입** (Superpowers) — 도구 호출로 절차를 강제 로드
 - **코드 강제** (Hooks, 쉘 스크립트) — 검증을 물리적으로 건너뛸 수 없게
 
@@ -180,7 +181,7 @@ CLAUDE.md에 규칙을 쓰면 모델이 무시할 수 있습니다. 이 템플�
 - **Cross-review** — 다른 모델(Codex, Gemini CLI, Claude Code 등)로 교차 리뷰하여 품질 확보
 - **Skill 라우팅** — 작업 유형에 따라 적절한 skill을 자동 선택
 
-사용자가 직접 다룰 필요는 없습니다. 상세가 궁금하면 `CLAUDE.md`를 참조하세요.
+사용자가 직접 다룰 필요는 없습니다. 상세가 궁금하면 `.claude/rules/rd-workflow/` 를 참조하세요. 프로젝트 고유 규칙은 `CLAUDE.md` 의 `## 프로젝트 규칙` 에 적습니다.
 
 ## 상세 문서
 
