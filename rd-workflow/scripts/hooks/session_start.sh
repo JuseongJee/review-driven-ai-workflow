@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# SessionStart 훅 입력(JSON)을 읽는다. 닫히지 않는 stdin 에서도 1초 뒤 진행한다.
+# read 는 EOF·시간 초과에서 비 0 을 돌려주므로 `|| true` 가 필요하다(set -e).
+hook_input=""
+[[ -t 0 ]] || IFS= read -r -t 1 -d '' hook_input || true
+
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd "${script_dir}/../../.." && pwd)"
 source "${script_dir}/_guard_common.sh"
@@ -13,6 +18,8 @@ source "${script_dir}/../lifecycle/_tasks_index.sh"
 # 기동 상태 표시 문구의 단일 출처(`task_launch_label`) — 함수 정의만 있는 파일이라
 # source 자체는 아무 동작도 하지 않습니다(herdr 를 부르지 않습니다).
 source "${script_dir}/../lifecycle/session_launch.sh"
+# 압축 뒤 autopilot 규칙 재독 안내(함수 정의만, source 시 동작 없음)
+source "${script_dir}/_compact_hint.sh"
 
 task_file="${project_root}/CURRENT_TASK.md"
 
@@ -151,6 +158,8 @@ else
   echo "  Status: ${status}"
   echo "  Next Step: ${next_step}"
 fi
+
+compact_hint_emit "$hook_input" "$status" "$(state_read_field short-title)" "$project_root"
 
 # --- diff-review 누락 경고 (Layer 2) ---
 

@@ -66,6 +66,9 @@
 [`guides/mutation-check.md`](guides/mutation-check.md)
 - 변이 확인 규약 — 새 부정 명제·회귀 단언이 대상 훼손 시 실제로 실패하는지 확인하는 절차와 결과표
 
+[`guides/promote-handoff.md`](guides/promote-handoff.md)
+- promote 인계 파일 형식 — `--handoff` 로 호출 세션의 확정 결정을 새 세션에 전달
+
 ## rd-workflow-workspace
 
 `backlog/FUTURE_REQUESTS.md`

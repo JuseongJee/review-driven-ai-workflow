@@ -13,6 +13,15 @@ subagent를 dispatch할 때 아래 문구를 dispatch prompt에 **그대로 포�
 
 git 전환 금지는 **advisory**입니다 — LLM이 무시할 수 있고, 그 부분의 구조적 차단은 2번(worktree 격리)만 보장합니다. 반면 **공유 진행 상태 금지는 advisory가 아닙니다** — `implementation_gate.sh` 가 hook 입력 **최상위**의 subagent 전용 필드(`agent_type`, 없으면 `agent_id`) 존재와 대상 3종을 판정해 `exit 2` 로 차단합니다. `tool_input` 하위의 동명 필드는 판별에 쓰지 않습니다. 단 이 차단은 `Edit`·`Write` 도구 경유에 한합니다 — `Bash` 로 직접 쓰는 경로는 이 hook 의 matcher 밖이라 발동하지 않으며, 그 경우 위 dispatch 문구가 최종 방어선입니다.
 
+## 1-2. 진행 기록 문구 (dispatch prompt 삽입용)
+
+다단계이거나 파괴적 상태를 만드는 task 를 dispatch 할 때는 보고서 경로를 지정하고, 아래 문구를 dispatch prompt 에 **그대로 포함**한다 (`<보고서 경로>` 만 치환):
+
+> 이 task 의 보고서는 `<보고서 경로>` 입니다. 각 Step(또는 각 커밋)을 끝낼 때마다 그 직후에 보고서에 그 Step 의 명령과 실제 출력을 이어 쓰십시오(append). 끝에 한 번에 쓰지 않습니다.
+> 워킹트리에 의도적으로 비정상 상태(변이 주입·임시 파일·되돌려야 할 편집)를 만드는 Step 은 **만들기 직전에** 그 사실과 복구 명령을 보고서에 먼저 적으십시오. 만든 뒤에 적으면 그 사이에 종료됐을 때 아무도 모릅니다. 상태를 되돌린 직후 되돌렸다고 적으십시오.
+
+짧은 단일 Step task 는 보고서 경로를 지정하지 않아도 되므로 이 문구를 생략할 수 있다.
+
 ## 2. worktree 격리 권장 (선택)
 
 `isolation: "worktree"`(Claude Code Agent 도구의 파라미터)로 격리한 subagent는 공유 워킹트리와 물리적으로 분리되어 git 전환 교란을 구조적으로 차단한다. 단, 격리 worktree는 **commit된 branch 상태만** 복제하므로 메인 워킹트리의 unstaged/uncommitted 변경과 미추적 파일은 보이지 않는다.
@@ -35,7 +44,7 @@ subagent dispatch 후 워킹트리가 교란된 것으로 의심되면:
 
 ## 4. 적용 대상 (본 repo 통제 dispatch 지점)
 
-아래 dispatch 지점은 subagent dispatch 시 1번의 Subagent Git 안전 문구를 dispatch prompt에 포함한다.
+아래 dispatch 지점은 subagent dispatch 시 1번의 Subagent Git 안전 문구를 dispatch prompt에 포함한다. 각 dispatch 지점은 1-2 의 진행 기록 문구도 포함한다.
 
 - `.claude/rules/rd-workflow/core.md` 실행 모드 규칙 (subagent-driven-development 기본 dispatch)
 - `rd-workflow/claude_skills/autopilot/SKILL.md` (§4 자율 구현)

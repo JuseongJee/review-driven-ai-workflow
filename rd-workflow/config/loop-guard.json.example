@@ -1,5 +1,6 @@
 {
   "enabled": true,
+  "wall_minutes": 240,
   "thresholds": {
     "rollback": 3,
     "verify_fail": 3,
