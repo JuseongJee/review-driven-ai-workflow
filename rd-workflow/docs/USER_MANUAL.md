@@ -349,6 +349,7 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
   "design_reference_format": "url+screenshot",
   "fr_github": false,
   "default_branch": "",
+  "review_input_warn_lines": 8000,
   "default_execution_mode": "semi-auto"
 }
 ```
@@ -361,6 +362,7 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 | `fr_github` | FR-GitHub Issues 연동 | `true` / `false` |
 | `defect_report_upstream` | rd-workflow 인프라 결함 보고서를 보낼 대상 저장소. `owner/repo`(github.com) 또는 `host/owner/repo`. 업그레이드 시 배포 URL에서 자동으로 채워지며, **이미 값이 있으면 덮어쓰지 않습니다**. 정본 저장소로 직접 보내려면 여기에 미리 적어 두면 업그레이드 후에도 유지됩니다 | `""` (미설정 — 전달 보류) |
 | `default_branch` | lifecycle·diff review 기준 기본 브랜치. 빈 값이면 자동 검출 (origin/HEAD → main/master 유일 매치). 검출 실패·모호 시 이 키 설정을 안내하는 에러 출력 | `""` / `"main"` / `"trunk"` |
+| `review_input_warn_lines` | diff review 준비 때 변경 행 수(추가+삭제)가 이 값을 넘으면 경고. 세션 생성은 막지 않음. `0` 은 끔, 정수가 아니면 기본값 | `8000` / `0` |
 | `default_execution_mode` | 기본 실행 모드. **기본값은 `"semi-auto"`** — 배포본의 `workflow.json` 이 이 값을 담고 있고, 파일이나 키가 없어도 `semi-auto` 로 판정합니다. **단계마다 확인받는 종전 동작으로 되돌리려면 이 키에 `"manual"` 을 적습니다.** 값을 판정할 수 없으면(파싱 실패·허용되지 않는 값 등) `manual` 로 떨어지며 경고가 표시됩니다. 세션 지시("이번엔 수동으로")가 이 값보다 우선합니다. 상세 판정 규칙은 `rd-workflow/docs/flows/AUTONOMY.md` | `"semi-auto"`(기본) / `"manual"` |
 
 ### 7.2 review-tools.json
