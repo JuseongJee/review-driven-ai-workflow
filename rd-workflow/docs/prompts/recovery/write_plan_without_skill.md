@@ -16,3 +16,4 @@ REQUEST.md, PROJECT_CONTEXT.md, 최신 spec 문서를 읽고 구현 plan을 작�
 - phase·파일 목록·review flag 규약은 `rd-workflow/docs/guides/plan-parallel-phases.md`를 따른다. phase 미표현 시 순차 실행으로 degrade한다
 - 구현 파일은 건드리지 않는다
 - `CURRENT_TASK.md`에 plan 경로와 다음 단계를 적는다
+- plan 의 코드는 구현자가 혼자 정할 수 없는 결정만 담는다. 테스트는 이름과 단언을 코드로 쓰고, 구현은 시그니처·파일·spec 값으로 쓴다. 함수 본문은 시그니처와 테스트로 정해지지 않는 알고리즘이나 spec 이 고정한 문구일 때만 쓴다
