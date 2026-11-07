@@ -113,7 +113,7 @@ _task_set_summary() {
     [[ -z "$stage" ]] && stage="(알 수 없음)"
 
     launch_raw="$(tasks_index_get "$slug" launch 2>/dev/null)" || launch_raw=""
-    # 표시 문구는 `rd task list` 와 **같은 함수**에서 받습니다 (final diff review F8).
+    # 표시 문구는 `rd task list` 와 **같은 함수**에서 받습니다.
     # 예전에는 여기에 자체 case 문이 있어 `unknown`·빈 값이 「자동 기동 미수행」으로
     # 떨어졌는데, 그 둘은 "세션이 없다" 가 아니라 "확인되지 않았다" 입니다 — 신뢰 승인
     # 대기나 start 타임아웃으로 **살아 있는** 세션을 없다고 안내하던 자리였습니다.

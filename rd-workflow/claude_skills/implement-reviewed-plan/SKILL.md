@@ -15,6 +15,7 @@ Typical user request:
 Read these first (Always Read files are already loaded):
 - latest spec from `rd-workflow-workspace/specs/base/` or `rd-workflow-workspace/specs/changes/`
 - latest plan from `rd-workflow-workspace/plans/`
+- `rd-workflow-workspace/review-standards.md` (주석 밖 내용이 있을 때만 — final diff review 리뷰어가 같은 표준으로 검토한다)
 
 Execution rules:
 - 이 skill 은 `CURRENT_TASK.md` 의 `## Short Title` 을 read-only 로 사용한다 (변경 / 삭제 금지). short-title 은 작업 시작 시점 (`/fr add`, `planning-design-intake`, 또는 `promote.sh` 승격) 에 1회 부여되고 archive 까지 immutable 이다.
@@ -41,7 +42,15 @@ Execution rules:
 - `subagent-driven-development` 선택 시 worktree가 가능하면 `using-git-worktrees`와 함께 사용한다.
 - subagent dispatch 시 `rd-workflow/docs/guides/subagent-git-safety.md`의 Subagent Git 안전 문구를 dispatch prompt에 포함한다 (공유 워킹트리 git 전환 금지, read-only git만 허용).
 - 다단계·파괴적 상태 task 는 `rd-workflow/docs/guides/subagent-git-safety.md` 1-2 의 진행 기록 문구와 보고서 경로를 함께 dispatch prompt에 넣는다.
-- **변이 확인**: plan 의 task 에 `변이:` 줄이 있으면 dispatch prompt 에 그 줄을 그대로 넣고, 구현자가 `rd-workflow/docs/guides/mutation-check.md` 「절차」대로 주입·원복해 결과표 행(실제 출력 포함)을 결과로 반환하게 한다. 출력 없는 "확인했다" 는 받지 않는다. task review 는 `검증됨` 행이 유효 증거 4조건을 지키는지 점검하고, `생존` 행은 그 task 의 결함으로 되돌린다. 필수 대상 단언을 만들거나 바꾸는 task 인데 `변이:` 줄이 없으면 구현 전에 plan 결함으로 보고한다.
+- **리뷰 표준**: `rd-workflow-workspace/review-standards.md` 에 주석 밖 내용이 있으면 subagent dispatch prompt 에 아래 문구를 그대로 넣는다. 파일 내용은 붙이지 않는다. 파일이 없거나 주석뿐이면 넣지 않는다.
+  > 이 프로젝트의 리뷰 표준 `rd-workflow-workspace/review-standards.md` 를 구현 전에 읽고 따르십시오. final diff review 리뷰어가 같은 표준으로 이 변경을 검토합니다.
+- **변이 확인**: plan 의 task 에 `변이:` 줄이 있으면 dispatch prompt 에 그 줄을 그대로 넣고, 구현자가 `rd-workflow/docs/guides/mutation-check.md` 「절차」대로 주입·원복해 결과표 행(실제 출력 포함)을 결과로 반환하게 한다. 출력 없는 "확인했다" 는 받지 않는다. 무효 분류는 가이드 「유효 증거 4조건」 절의 닫힌 목록 사유로만 하고 무효 실행도 `무효(사유)` 행으로 결과표에 남기라고 dispatch prompt 에 적는다. 결과표 기준은 `git rev-parse --short HEAD` 출력의 실제 값으로 적고 명령 문자열을 남기지 않으라고도 적는다. task review 는 `검증됨` 행이 유효 증거 4조건을 지키는지 점검하고, `생존` 행은 그 task 의 결함으로 되돌린다. `무효(사유)` 행도 점검해, 사유가 목록 밖이거나 적힌 사유가 실제로 성립하지 않으면 그 task 의 결함으로 되돌린다. 필수 대상 단언을 만들거나 바꾸는 task 인데 `변이:` 줄이 없으면 구현 전에 plan 결함으로 보고한다.
+- **리뷰 대기 중 다음 Task 준비**: Task N 의 task review 결과를 기다리는 동안 controller 는 Task N+1 에 대해 다음만 한다. ① superpowers `task-brief` 로 브리프를 추출한다. ② 브리프가 가리키는 파일·함수·fixture 가 실재하는지 읽어서 확인한다. ③ 브리프가 앞선 Task 의 결과(바뀐 인터페이스·이름)와 모순되는지 확인한다. ④ `변이:` 줄이 필요한 Task 인데 빠졌는지 확인한다(위 「변이 확인」). 발견은 superpowers 작업 폴더의 ledger 에 적는다. 리뷰가 도는 동안에는 Task N+1 의 구현 dispatch 를 하지 않고 git 추적 파일(plan·spec·코드·테스트)을 편집하지 않는다. task reviewer 가 작업 트리에서 실험할 수 있어서, 같은 시간에 controller 가 같은 파일을 고치면 서로 덮어쓴다. 쓰는 파일은 작업 폴더의 ledger·브리프·리포트뿐이다. 다음 중 하나면 미리 뽑은 브리프를 버리고 리뷰 처리 뒤 다시 추출한다: 리뷰 결과로 plan 을 고쳤다 / Task N 의 수정 라운드가 Task N+1 이 기대던 인터페이스·파일 경로를 바꿨다. 사전 점검이 plan 결함을 찾으면 Task N 리뷰 결과를 처리한 뒤 superpowers 규칙대로 Ruling 으로 처리하고, 결과물이 plan 과 달라지면 아래 「Ruling 회수」 대상이 된다.
+- **Ruling 회수**: 구현 중 결과물이 reviewed spec·plan 의 문구와 달라진 Ruling 은 superpowers 작업 폴더가 지워지기 전에 spec 으로 옮긴다. `subagent-driven-development` 와 `executing-plans` 둘 다 같은 규칙이다. 두 skill 이 같은 작업 폴더·ledger 형식을 쓰기 때문이다 (superpowers 7.0.0 기준).
+  - 시점: Finish 단계에서 ledger(`<workspace>/progress.md`)의 `Ruling:` 줄을 모아 「Rulings I made」 목록을 만든 직후, 작업 폴더를 지우기 전이다. 작업 폴더가 이미 지워졌으면 최종 메시지의 「Rulings I made」 를 출처로 쓴다.
+  - 옮길 대상: 동작·인터페이스·파일 범위·테스트 구성·AC 해석이 spec·plan 과 달라진 Ruling 이다. 코드를 plan 대로 둔 Ruling(「code stands」 로 parked 된 지적), 관찰(파일이 커진다 등), 미뤄 둔 minor 지적은 옮기지 않는다.
+  - 쓰는 곳: spec 본문의 원래 결정 문구는 고치지 않는다. spec 끝의 `## 구현 중 변경` 절(없으면 만든다)에 Ruling 하나당 한 항목을 덧붙인다. 형식은 `- <무엇을 바꿨는지> — <왜> — plan Task <N>` 이다. 옮길 Ruling 이 없으면 절을 만들지 않는다.
+  - 범위: 범위·요구사항이 바뀌는 발견은 이 단계가 아니라 `AUTONOMY.md` 중단 조건 3 으로 멈춘다. 이 단계는 spec 에 항목을 보탤 뿐 범위를 바꾸지 않는다. 회수한 변경은 final diff review 의 diff 에 들어가 원래 결정과 함께 검토되고, spec/plan review 종결 기록의 해시 비교는 구현 착수 때만 하므로 착수 증거를 깨지 않는다.
 - **model-strategy 적용**: `rd-workflow/config/model-strategy.json`이 존재하면 `subagent` 값을 읽어 subagent dispatch 시 Agent 도구의 `model` 파라미터로 전달한다. 파일 미존재/JSON 파싱 실패/키 누락/허용되지 않은 값(`opus`, `sonnet`, `haiku` 외) → 기본값 `"sonnet"`을 사용한다. 설정 형식 상세는 `/model-strategy` skill 참조.
 - Update `CURRENT_TASK.md`.
 - Run `bash rd-workflow/scripts/test.sh`, `bash rd-workflow/scripts/lint.sh`, `bash rd-workflow/scripts/typecheck.sh`, and `bash rd-workflow/scripts/build.sh`.
@@ -63,7 +72,7 @@ Final output:
 
 ```bash
 bash -s <<'RD_SKILL_COMPAT'
-RD_SKILL_BASE=2026-11-01-202303 RD_SKILL_NAME=implement-reviewed-plan
+RD_SKILL_BASE=2026-11-04-203832 RD_SKILL_NAME=implement-reviewed-plan
 vf="rd-workflow/VERSION"
 if [ ! -f "$vf" ] && [ -f "_ROOT_FILES/rd-workflow/VERSION" ]; then exit 0; fi
 v=""; [ -f "$vf" ] && v="$(cat "$vf")"; v="${v#lite-}"

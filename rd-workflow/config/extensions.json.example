@@ -1,7 +1,9 @@
 {
   "extensions": {
     "verify": {
-      "installed_at": "2026-04-09T12:00:00Z"
+      "installed_at": "2026-04-09T12:00:00Z",
+      "preset": "react-web",
+      "seen_verifiers": ["axe", "lighthouse", "playwright"]
     },
     "design-review": {
       "installed_at": "2026-04-09T12:00:00Z"

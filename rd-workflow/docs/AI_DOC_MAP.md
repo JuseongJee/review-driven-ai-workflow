@@ -6,7 +6,7 @@
 - 프로젝트 고유 규칙과 rd-workflow 규칙 목차
 
 `.claude/rules/rd-workflow/`
-- rd-workflow 규칙 (core·task-tracking·writing-style·efficiency·commit)
+- rd-workflow 규칙 (core·task-tracking·writing-style·efficiency·commit·judgment)
 
 `PROJECT_CONTEXT.md`
 - 프로젝트 이해, 제약, 실행 명령

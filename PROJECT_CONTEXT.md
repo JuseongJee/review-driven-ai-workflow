@@ -26,6 +26,18 @@ Web / macOS / iOS / backend / library / script
 ## Typecheck
 실제 typecheck 명령
 
+## Run
+<!-- 앱을 로컬에서 띄우는 방법. 에이전트가 시제품 확인·런타임 검증에 씁니다.
+     적을 것: 실행 명령, 필요한 런타임·컨테이너, 필요한 환경 변수 이름과 발급처, 띄운 뒤 접속 주소.
+     비밀 값(토큰·비밀번호)은 적지 않습니다. 변수 이름과 발급처만 적습니다.
+     앱이 없는 프로젝트(라이브러리·스크립트)는 "해당 없음" 한 줄을 적습니다. -->
+-
+
+## Feature Entry Paths
+<!-- 기능별로 어디서 들어가 확인하는지. 한 줄에 기능 하나: `기능 — URL·entry ID·명령 — 테스트 계정 이름`.
+     계정의 비밀번호는 적지 않습니다. -->
+-
+
 ## Template Source
 - template_repo: (배포 repo URL, 예: https://github.com/user/repo)
 

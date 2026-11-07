@@ -1,6 +1,7 @@
 붙어 있는 메타데이터(`session slug`, `review type`, `review target`, `review goal`)와 `rd-workflow/docs/flows/FILE_BASED_REVIEW_PIPELINE.md`를 읽고 review 세션을 수동으로 시작해줘.
 
 이 프롬프트는 `prepare_review_pipeline.sh`를 쓸 수 없을 때만 사용합니다.
+수동으로 쓴 리뷰어 턴은 실행 기록을 남기지 않습니다. 수동으로만 리뷰한 final diff 세션은 `rd review seal` 이 거부하며, 발행은 `archive.sh --force-skip-review-check <사유>`(audit 기록)로 합니다.
 
 절차:
 1. `bash rd-workflow/scripts/init_review_pipeline.sh "<session-slug>" "<review-type>" "<review-target>" "<review-goal>"`로 세션을 만듭니다. 안 되면 같은 구조를 직접 만듭니다

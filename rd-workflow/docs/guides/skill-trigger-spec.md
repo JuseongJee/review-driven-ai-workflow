@@ -56,7 +56,7 @@ REQUEST review → spec/plan 작성 → spec/plan review까지 끌고 갑니다.
 
 ### small-task-implement
 
-`standard` 등급 변경을 바로 구현합니다. 등급은 `WORKFLOW.md` 위험 등급 절의 신호표로 판정하며 하향은 사용자만 합니다.
+`standard` 등급 변경을 바로 구현합니다. 등급은 `WORKFLOW.md` 위험 등급 절의 신호표로 판정하며 하향 규칙도 그 절을 따릅니다.
 
 - **should-trigger**
   - "standard 로 보고 바로 구현해줘"

@@ -85,3 +85,4 @@ kill switch → small-task → review type override → tool 기본 → 미전�
 |------|------|--------------|----------|
 | `extensions.{name}.installed_at` | 설치 시각 | ISO 8601 (`"2026-04-09T12:00:00Z"`) | 필수 — 설치 시 자동 기록 |
 | `extensions.verify.preset` | verify 프리셋 이름 | `"react-web"`, `"api"`, `"cli"`, `"ios"`, `"macos"` | 미설정 시 프리셋 없이 verify 실행 |
+| `extensions.verify.seen_verifiers` | 이 프로젝트가 현재 프리셋에서 받은 적 있는 verifier 이름 (`/tpl update` 가 지운 verifier 를 다시 넣지 않는 데 씀) | 문자열 배열, 이름순 (`["axe", "lighthouse", "playwright"]`) | 직접 고치지 않음 — 프리셋 설치·변경과 `/tpl update` 가 기록. 없으면 다음 `/tpl update` 가 빠진 verifier 마다 묻고 만듦. 지운 verifier 를 다시 받으려면 그 이름만 빼고 `/tpl update` 실행 (`sync_template.md` 8.6) |

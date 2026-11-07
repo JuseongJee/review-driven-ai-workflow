@@ -7,6 +7,7 @@
         { "name": "accessibility", "description": "WCAG 2.1 AA 기준을 충족하는가", "weight": "high" }
       ],
       "evaluate": "위 criteria를 기준으로 각 항목을 1-5점으로 채점하고, 3점 미만인 항목의 구체적 개선사항을 제시하라.",
+      "requires_env": ["URL"],
       "adapter": "rd-workflow/extensions/verify/verifiers/lighthouse.sh"
     },
     "playwright": {

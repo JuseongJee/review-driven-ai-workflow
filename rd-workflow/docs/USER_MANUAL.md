@@ -118,7 +118,7 @@ example 값으로 덮여 사라집니다. 그래서 **경로가 없을 때만** 
 | **`standard` 표준** | 국소 동작 변경, 인터페이스 불변, 파일 ≤ 3 | promote → 축약 REQUEST → 구현 → 검증 → 재분류 → final diff review → 아카이브 |
 | **`full` 전면** | 새 기능, 인터페이스·데이터 모델 변경, 워크플로 인프라 동작 변경, 되돌리기 어려운 효과 | FR 등록 → REQUEST → review → spec/plan → review → 구현 → 검증 → final diff review → 아카이브 |
 
-> 작업을 요청하면 AI 가 `WORKFLOW.md` 위험 등급 절의 신호표로 등급을 판정해 시작 보고를 낸 뒤 `light`·`standard` 는 바로 진행하고, `full` 만 FR 에 등록하고 지시를 기다립니다. 등급 하향은 사용자만 할 수 있습니다.
+> 작업을 요청하면 AI 가 `WORKFLOW.md` 위험 등급 절의 신호표로 등급을 판정해 시작 보고를 낸 뒤 `light`·`standard` 는 바로 진행하고, `full` 만 FR 에 등록하고 지시를 기다립니다. 등급 하향은 AI 도 할 수 있고 근거를 감사 기록에 남깁니다. 되돌리기 어려운 효과가 있는 작업은 `full` 로 고정됩니다.
 
 ### 3.2 핵심 문서 4종
 

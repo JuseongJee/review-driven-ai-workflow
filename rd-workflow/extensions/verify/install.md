@@ -17,6 +17,11 @@ verify.sh, verifiers/, verification.json.example은 `rd-workflow/extensions/veri
 - `rd-workflow/claude_skills/verify/SKILL.md` 존재
 - `rd-workflow/claude_skills/verify/rules.md` 존재
 - `bash rd-workflow/extensions/verify/verify.sh --help` 실행 가능
+- `bash rd-workflow/extensions/verify/verify.sh --check` 실행 (설정 점검, 아무것도 실행하거나 기록하지 않음)
+  - 출력의 `미완료`·`확인 필요` 목록을 사용자에게 그대로 보여 줍니다.
+  - 종료 코드 0은 미완료 0건, 2는 미완료 1건 이상입니다. 마지막 줄은 `verify-check: status=<complete|incomplete|absent> incomplete=<N> attention=<M>` 입니다.
+  - 종료 코드 3(설정 없음)은 프리셋을 아직 고르지 않은 정상 상태입니다. 설치 실패로 보고하지 않습니다.
+  - 종료 코드 1은 점검 불가(JSON 오류·파서 부재)입니다. 출력의 원인을 보여 줍니다.
 
 ## 업데이트 (템플릿 동기화 시)
 
@@ -58,10 +63,22 @@ cp rd-workflow/extensions/verify/presets/react-web/verification.json rd-workflow
 
 설치 완료 후 `rd-workflow/config/extensions.json`을 갱신합니다:
 - `extensions.verify.preset`에 선택한 preset 이름을 기록 (예: `react-web`)
+- `extensions.verify.seen_verifiers`를 그 preset 의 verifier 이름 목록(이름순)으로 덮어씀
+
+마지막으로 설정을 점검합니다:
+
+```bash
+bash rd-workflow/extensions/verify/verify.sh --check
+```
+
+- 출력의 `미완료`·`확인 필요` 목록을 사용자에게 그대로 보여 줍니다.
+- 남은 `TODO` 를 채우고, `requires_env` 에 적힌 환경 변수(예: `URL`)를 설정하라고 안내합니다.
+- 종료 코드 2는 미완료 1건 이상입니다. 목록을 해소한 뒤 다시 실행합니다.
+- verifier 는 설정 파일에 적힌 순서로 실행합니다. `--skip` 으로 일부를 빼도 남은 verifier 의 순서는 같습니다. 순서를 바꾸려면 `verification.json` 의 항목 순서를 바꿉니다.
 
 각 프리셋의 README.md에 도구 설치 및 커스터마이징 가이드가 있습니다.
 
 ## 프리셋 변경
 
 프리셋 선택 절차를 다시 실행하면 verification.json을 덮어씁니다 (.bak 정책 유지).
-`extensions.verify.preset`을 새 값으로 갱신합니다.
+`extensions.verify.preset`을 새 값으로 갱신하고, `extensions.verify.seen_verifiers`도 새 preset 의 verifier 이름 목록(이름순)으로 덮어씁니다. 그래서 이전 프리셋의 verifier 이름이 「사용자가 지운 verifier」 기록으로 남지 않습니다.

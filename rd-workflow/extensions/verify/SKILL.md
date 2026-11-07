@@ -29,6 +29,26 @@ Read these first (Always Read files are already loaded):
 
 ## 실행 순서
 
+### 0. 설정 점검
+
+verifier 를 제시하기 전에 설정을 점검한다. 이 명령은 adapter 와 `run` 을 실행하지 않고 `.verification/` 에 아무것도 쓰지 않는다.
+
+```bash
+bash rd-workflow/extensions/verify/verify.sh --check
+```
+
+종료 코드: 0 미완료 0건 / 2 미완료 1건 이상 / 3 설정 없음 / 1 점검 불가. 마지막 줄은 `verify-check: status=<complete|incomplete|absent> incomplete=<N> attention=<M>` 이다.
+
+- 미완료와 확인 필요 목록을 사용자에게 그대로 제시한다.
+- 미완료의 뜻을 알린다. 환경 변수 미설정과 실행 대상 0개는 일반 실행이 그 verifier 를 건너뛴다. 채점 기준의 `TODO` 는 경고만 하고 실행하지만 채점 기준이 모호해진다.
+- 확인 필요는 추론으로 찾은 항목이다. 실행은 막지 않는다.
+- 사용자에게 채울지, 그대로 진행할지 묻는다. 종료 코드 3 이면 진입 조건대로 skip 한다.
+- `설정 완료`(`status=complete`)는 도구 설치와 adapter 구현까지 보장하지 않는다. `xcuitest`·`xcuitest-macos` adapter 는 프로젝트에 맞게 구현해야 한다.
+
+verifier 의 선택 필드 `requires_env`(문자열 배열)는 사용자가 필수라고 선언한 환경 변수다. 값이 unset 이거나 빈 문자열이면 그 verifier 는 미완료가 되어 일반 실행에서 건너뛴다. 이 필드가 없는 기존 설정은 그대로 동작한다. 제공 프리셋 `api`·`cli`·`react-web` 에 들어 있다.
+
+`requires_env` 의 `URL` 같은 실행 주소와 앱을 띄우는 명령은 `PROJECT_CONTEXT.md` 의 `## Run` 절에서 찾는다. 그 절이 비어 있으면 추측하지 않고 사용자에게 묻는다.
+
 ### 1. verifier 목록 확인
 
 `rd-workflow/config/verification.json`에서 verifier 목록을 읽고 사용자에게 제시한다:
@@ -92,6 +112,7 @@ Reviewer가 "이의 없음"을 명시하면 루프 종료.
 - 사용자에게 수동 확인 체크리스트로 제시
 - 사용자 확인 후 진행
 - 수동 확인 항목이 하나라도 미확인인 동안은 `Verify=in-progress` 유지
+- 고친 기능을 어디서 확인할지(URL·entry ID·명령·테스트 계정 이름)는 `PROJECT_CONTEXT.md` 의 `## Feature Entry Paths` 절에서 찾는다. 그 절에 없으면 사용자에게 묻고, 답을 그 절에 적자고 제안한다.
 
 ## 상태 관리
 
