@@ -131,12 +131,14 @@ command -v gemini &>/dev/null && echo "gemini: 설치됨" || echo "gemini: 없�
 1. design-review — UI 디자인 레퍼런스 확인 + AI 체크리스트
 2. verify — 런타임 검증 루프 + 플랫폼별 검증 프리셋 (react-web, api, cli, ios (macOS 전용), macos (macOS 전용))
 
-설치할 확장을 선택하세요 (예: 1,2 또는 건너뛰기):
+설치할 확장을 선택하세요 (예: 1,2 또는 건너뛰기). 건너뛴 확장은 /tpl update 에서 다시 묻지 않습니다. 나중에 쓰려면 "<이름> extension 설치해줘" 로 요청하세요:
 ```
 
 사용자가 선택하면:
 1. 해당 extension의 `install.md`를 읽고 안내에 따라 설치
 2. 설치 확인 항목 체크
+
+선택과 무관하게(건너뛰기 포함) 안내한 extension 이름을 — 설치를 골랐지만 실패한 extension 은 빼고 — `rd-workflow/config/extensions.json` 최상위 `seen_extensions` 에 이름순으로 기록합니다. 파일이 없으면 `{"extensions": {}}` 로 만든 뒤 기록합니다. 그래야 `/tpl update` 가 여기서 건너뛴 extension 을 다시 묻지 않습니다 (`sync_template.md` 8.4).
 
 ### 9. 완료 보고
 
@@ -147,4 +149,5 @@ command -v gemini &>/dev/null && echo "gemini: 설치됨" || echo "gemini: 없�
 - PROJECT_CONTEXT.md 요약 (채워진 항목 / 빈 항목)
 - 검증 스크립트 실행 결과
 - Skill 설치 결과
+- 확장 기능 설치 결과 — 설치한 extension, 건너뛴 extension(「/tpl update 에서 다시 묻지 않습니다. 설치하려면 『<이름> extension 설치해줘』, 다시 질문을 받으려면 `extensions.json` 의 `seen_extensions` 에서 이름을 빼고 `/tpl update`」), 설치 실패한 extension(원인과 「다음 `/tpl update` 에서 다시 묻습니다」)
 - 다음 단계 안내: "WORKING_WITH_AI.md를 열어두고 작업하면 됩니다"

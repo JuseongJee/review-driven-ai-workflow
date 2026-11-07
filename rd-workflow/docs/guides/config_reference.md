@@ -79,10 +79,11 @@ kill switch → small-task → review type override → tool 기본 → 미전�
 
 ## extensions.json
 
-설치된 확장 기능의 메타데이터를 기록합니다. `extensions` 객체 아래 확장 이름별 하위 객체.
+설치된 확장 기능의 메타데이터를 기록합니다. `extensions` 객체 아래 확장 이름별 하위 객체와, 최상위의 안내 이력 `seen_extensions`.
 
 | 경로 | 의미 | 허용값 / 예시 | 기본 동작 |
 |------|------|--------------|----------|
 | `extensions.{name}.installed_at` | 설치 시각 | ISO 8601 (`"2026-04-09T12:00:00Z"`) | 필수 — 설치 시 자동 기록 |
 | `extensions.verify.preset` | verify 프리셋 이름 | `"react-web"`, `"api"`, `"cli"`, `"ios"`, `"macos"` | 미설정 시 프리셋 없이 verify 실행 |
 | `extensions.verify.seen_verifiers` | 이 프로젝트가 현재 프리셋에서 받은 적 있는 verifier 이름 (`/tpl update` 가 지운 verifier 를 다시 넣지 않는 데 씀) | 문자열 배열, 이름순 (`["axe", "lighthouse", "playwright"]`) | 직접 고치지 않음 — 프리셋 설치·변경과 `/tpl update` 가 기록. 없으면 다음 `/tpl update` 가 빠진 verifier 마다 묻고 만듦. 지운 verifier 를 다시 받으려면 그 이름만 빼고 `/tpl update` 실행 (`sync_template.md` 8.6) |
+| `seen_extensions` | 설치 여부를 안내한 적 있는 extension 이름 — 설치·거절 모두 포함 (`/tpl update` 가 거절한 extension 을 다시 묻지 않는 데 씀) | 문자열 배열, 이름순 (`["design-review", "verify"]`) | 직접 고치지 않음 — setup 의 확장 안내와 `/tpl update` 가 기록. 목록에 없는 extension 만 묻습니다. manifest 는 있는데 이 키가 없으면 다음 `/tpl update` 가 묻지 않고 지금 있는 extension 으로 채웁니다. 거절한 extension 을 설치하려면 「<이름> extension 설치해줘」 로 요청하고, update 에서 다시 질문을 받으려면 그 이름만 빼고 `/tpl update` 실행 (`sync_template.md` 8.4·8.7) |
