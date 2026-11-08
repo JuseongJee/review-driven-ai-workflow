@@ -276,6 +276,7 @@ Notion/Confluence 등에 기획서가 있을 때:
 | `/fr add 내용` | FR 등록 |
 | `/fr list` | 활성 항목 목록 (우선순위 순) |
 | `/fr pri` | AI가 우선순위 평가 후 즉시 반영 |
+| `/fr groom [제목들]` | idea 항목을 문답으로 검증해 validated·parked·dropped 로 정리 (제목 없으면 idea 전부) |
 | `/fr archive` | done/dropped 항목 인덱스에서 일괄 삭제 |
 | `/fr park <제목>` | 항목을 parked로 이동 (재평가 조건 입력) |
 | `/fr status <제목> <상태>` | 항목 상태 변경 (모든 전이 방향 지원) |
