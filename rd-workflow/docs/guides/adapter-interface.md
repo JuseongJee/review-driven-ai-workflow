@@ -41,7 +41,7 @@ review pipeline(`run_review_turn.sh`)이 리뷰 도구를 실행할 때 사용�
 | 128 초과 (예: `129`=HUP, `130`=INT, `137`=KILL, `143`=TERM 등) | 외부 신호 종료 | **같은 코드를 그대로 전달.** 도구 결함이 아님을 알림. 열거가 아니라 부등식(POSIX `128+n` 규약)으로 판정하므로 열거에 없는 신호(예: OOM killer가 보내는 SIGKILL)도 같은 분기로 잡힙니다. **재실행 안내는 조건부이며 cleanup을 보장하는 신호에서만 허용됩니다.** 어댑터가 cleanup(= 도구 process group 종료)을 보장하는 것은 명시적으로 트랩한 `129`(HUP)·`130`(INT)·`143`(TERM) 뿐입니다. 이 셋에서만, 부모가 `EXPECTED_TURN_FILE` 부재 + `SESSION.md`의 `Current Owner=Reviewer` / `Status=awaiting-reviewer`를 **다시 읽어 확인한 경우에** "재실행하면 이어집니다"를 말합니다. `137`(SIGKILL, 트랩 불가)·`131`(QUIT) 등 **cleanup 미보장 신호에서는 어댑터만 죽고 별도 process group의 도구와 자손이 계속 실행·수정할 수 있으므로**(그 상태에서도 위 세션 조건은 그대로 참입니다) 재실행을 안내하지 않고, 잔존 process group 가능성과 "프로세스 종료를 확인하기 전에 재실행 금지"를 알립니다. 그 밖의 경우에는 실제 상태(턴 파일 존재 여부·두 필드 값)와 수동 확인 필요성을 알리며, 확인 범위(두 필드 + 턴 파일)도 함께 밝힙니다 |
 | 그 밖의 non-zero | 실행 실패 | `1`로 매핑하고 즉시 중단 (다음 도구로 fallback 하지 않음) |
 
-`turn_metrics.tsv`의 `status`는 `0→ok / 124→timeout / 그 외→fail`의 coarse tri-state로 **스키마가 불변**입니다. 신호 종료도 `fail`로 기록되며, 원인을 사용자에게 설명하는 책임은 위 메시지 층에 있습니다.
+`turn_metrics.tsv`의 `status`는 `0→ok / 124→timeout / 그 외→fail`의 coarse tri-state로 **스키마가 불변**입니다. 새 파일은 `status` 뒤에 관측한 실제 모델 `model` 열과 리뷰 도구 토큰 `tokens` 열을 더 둡니다(12열). `status` 는 그대로 10번째 열이고 값의 뜻도 같습니다. 신호 종료도 `fail`로 기록되며, 원인을 사용자에게 설명하는 책임은 위 메시지 층에 있습니다.
 
 바이너리 미설치(`command -v` 실패)는 어댑터가 아닌 `run_review_turn.sh`에서 먼저 감지하여 건너뜀.
 

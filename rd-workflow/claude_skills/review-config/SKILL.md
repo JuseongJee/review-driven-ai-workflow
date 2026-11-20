@@ -1,7 +1,7 @@
 ---
 name: review-config
 description: >
-  Configure review tools (priority, model, binary path).
+  Configure review tools (priority, binary path) and reviewer model·effort (models.json).
   Use when the user says "/review-config", "리뷰 도구 설정", "review tool 설정", or wants to change review pipeline tool configuration.
 user-invocable: true
 ---
@@ -14,6 +14,7 @@ Typical user requests:
 - "리뷰 도구 설정해줘" → setup 실행
 - "리뷰에 gemini 추가해줘" → setup 실행
 - "리뷰 모델 바꿔줘" → setup 실행
+- "codex effort high 로 바꿔줘" → [한 칸만 바꾸기](#set)
 
 ## rd-workflow 버전 대조
 
@@ -25,7 +26,7 @@ Typical user requests:
 
 ```bash
 bash -s <<'RD_SKILL_COMPAT'
-RD_SKILL_BASE=2026-11-01-202303 RD_SKILL_NAME=review-config
+RD_SKILL_BASE=2026-11-08-092219 RD_SKILL_NAME=review-config
 vf="rd-workflow/VERSION"
 if [ ! -f "$vf" ] && [ -f "_ROOT_FILES/rd-workflow/VERSION" ]; then exit 0; fi
 v=""; [ -f "$vf" ] && v="$(cat "$vf")"; v="${v#lite-}"
@@ -43,6 +44,7 @@ RD_SKILL_COMPAT
 첫 번째 인자를 파싱한다:
 
 - `setup` → [대화형 설정](#setup) 섹션으로
+- 사용자가 모델·effort 칸 하나와 값을 함께 말함 → [모델·effort 한 칸만 바꾸기](#set) 섹션으로
 - 인자 없음 또는 그 외 → [상태 출력](#status) 섹션으로
 
 ### 사용법 출력
@@ -61,6 +63,11 @@ RD_SKILL_COMPAT
 
 ## 상태 출력 {#status}
 
+설정은 두 파일로 나뉜다.
+
+- `rd-workflow/config/review-tools.json`: 도구 우선순위, `bin`, Claude self-review 정책, 리뷰 종류별 priority, `tools.gemini.model`.
+- `rd-workflow/config/models.json`: Claude·Codex 리뷰어의 모델·effort. 이 skill 은 모델·effort 를 `model_select.sh show review` 출력 한 곳에서만 보인다.
+
 아래 순서로 실행한다:
 
 ### 1. 설치된 도구 감지
@@ -73,12 +80,30 @@ command -v gemini &>/dev/null && echo "gemini: ✓" || echo "gemini: ✗"
 command -v claude &>/dev/null && echo "claude: ✓" || echo "claude: ✗"
 ```
 
-### 2. 현재 설정 출력
+### 2. review-tools.json 출력
 
-`rd-workflow/config/review-tools.json` 파일이 있으면 내용을 읽어서 출력한다.
-없으면 "설정 파일 없음. `/review-config setup`으로 생성하세요."를 출력한다.
+리뷰 실행기와 같은 파일을 읽는다. 환경 변수 `REVIEW_TOOLS_CONFIG` 가 있으면 그 경로, 없으면 `rd-workflow/config/review-tools.json` 이다. 프로젝트 루트에서 아래로 경로를 정하고, 출력 첫 줄에 그 경로를 보인다.
 
-### 3. 출력 형식
+```bash
+echo "${REVIEW_TOOLS_CONFIG:-rd-workflow/config/review-tools.json}"
+```
+
+그 파일이 있으면 읽어서 이 파일이 맡는 항목만 출력한다: `default_priority`, `tools.<도구>.bin`, `tools.claude.self_review_policy`·`self_review_warning`, `overrides.<종류>.priority`, `tools.gemini.model`.
+없으면 "review-tools.json 없음(<경로>). `/review-config setup`으로 생성하세요."를 출력한다.
+
+옛 모델·effort 키(`tools.claude.model`, `tools.codex.reasoning_effort`, `tools.codex.small_task_reasoning_effort`, `overrides.<종류>.tools.codex.reasoning_effort`)는 이 절에 보이지 않는다. 그 값은 3단계 표에 `review-tools.json (옛 키)` 출처로 나온다.
+
+### 3. 모델·effort 출력
+
+프로젝트 루트에서 아래를 실행하고 출력을 그대로 보인다. 칸마다 `값 — 출처`(`models.json` / `review-tools.json (옛 키)` / `미설정`)가 나오고, 마지막 줄이 kill switch 상태다.
+
+```bash
+bash rd-workflow/scripts/model_select.sh show review
+```
+
+`미설정` 칸은 리뷰 턴이 값을 넘기지 않는다는 뜻이다(Codex: `~/.codex/config.toml`, Claude: CLI 기본값). 환경 변수 `RD_REVIEW_*_MODEL`·`RD_REVIEW_*_EFFORT` 덮어쓰기는 이 표에 보이지 않고 리뷰 턴의 실행 줄에 보인다.
+
+### 4. 출력 형식
 
 ```
 리뷰 도구 상태:
@@ -86,36 +111,43 @@ command -v claude &>/dev/null && echo "claude: ✓" || echo "claude: ✗"
   gemini: ✗ 미설치
   claude: ✓ 설치됨
 
-현재 설정 (rd-workflow/config/review-tools.json):
+review-tools.json (rd-workflow/config/review-tools.json):
   priority: codex → claude
-  codex:  bin=기본, reasoning_effort=없음(전역 따름), small_task=medium
-  claude: bin=기본, model=없음
+  codex:  bin=기본
+  claude: bin=기본, self_review_policy=block
+  diff-review priority: codex
 
-codex reasoning effort:
-  기본값:       없음 (전역 ~/.codex/config.toml 을 따름)
-  small-task:   medium
-  리뷰 타입별:  request-review=medium
-  kill switch:  RD_REVIEW_EFFORT_OVERRIDE=미설정 (적용 중)
+모델·effort (model_select.sh show review):
+  <show review 출력 그대로>
 
 설정을 변경하려면: /review-config setup
 ```
-
-effort 표시 규칙:
-
-- `tools.codex.reasoning_effort` / `tools.codex.small_task_reasoning_effort` /
-  `overrides.{타입}.tools.codex.reasoning_effort` 를 각각 읽어 표시한다.
-  **키가 없으면 "없음(전역 따름)"으로 표시한다** — 임의의 기본값을 지어내지 않는다.
-- `RD_REVIEW_EFFORT_OVERRIDE` 환경변수를 확인해 `0`이면 "무력화됨", 그 외 값이면 "인식 불가 값(미적용)",
-  미설정이면 "적용 중"으로 표시한다.
-- codex 에는 `model` 항목을 표시하지 않는다 (모델은 전역 설정이 단일 진실 원천).
 
 종료.
 
 ---
 
+## 모델·effort 한 칸만 바꾸기 {#set}
+
+사용자가 칸 하나만 바꾸라고 하면(예: "codex effort high 로 바꿔줘") setup 을 거치지 않고 `model_select.sh set <칸> <값>` 으로 `models.json` 에 쓴다. 옛 `review-tools.json` 키를 새로 쓰지 않는다.
+
+- 칸: `review.codex.model`·`review.codex.effort`·`review.codex.small_task_effort`·`review.codex.review_types.<종류>.effort`·`review.claude.model`·`review.claude.effort`
+- 값: `null` 은 칸 비우기(옛 설정을 따름), `default` 는 넘기지 않음(CLI 기본값). 그 밖의 값은 아래 setup 의 선택지 값이다.
+
+예 (Codex effort 기본값을 `high` 로):
+
+```bash
+# rd:review-config-write
+bash rd-workflow/scripts/model_select.sh set review.codex.effort high
+```
+
+rc 가 0 이 아니면 출력의 경고를 그대로 보이고 멈춘다. 성공하면 상태 출력의 3단계 명령으로 결과를 보인다.
+
+---
+
 ## 대화형 설정 {#setup}
 
-아래 순서로 실행한다. AskUserQuestion 도구를 사용하여 대화형으로 진행한다.
+아래 순서로 실행한다. AskUserQuestion 도구를 사용하여 대화형으로 진행한다. 답은 모두 저장 목록에 모았다가 마지막에 한 번에 저장한다.
 
 ### 1. 도구 감지
 
@@ -124,7 +156,7 @@ Bash로 codex, gemini, claude 설치 여부를 확인한다 (상태 출력과 �
 
 ### 2. 기존 설정 확인
 
-`rd-workflow/config/review-tools.json` 파일이 있으면 읽어서 현재 설정을 파악한다.
+상태 출력의 2·3단계를 실행해 현재 값을 파악한다. 질문마다 현재 값을 함께 보인다.
 
 ### 3. 사용할 도구 선택
 
@@ -142,97 +174,82 @@ AskUserQuestion으로 사용할 도구를 물어본다 (multiSelect):
 - `gemini → codex → claude` — gemini 우선
 - `codex → claude` — gemini 건너뜀
 
-도구가 1개면 이 단계를 건너뛴다.
+도구가 1개면 묻지 않고 그 도구 하나를 우선순위로 쓴다.
 
-### 5. 모델 설정
+정한 순서는 도구 수와 상관없이 늘 저장 목록에 `legacy default_priority [...]` 한 줄로 쓴다(예: Claude 만 고르면 `legacy default_priority ["claude"]`). 이 줄을 빼면 리뷰 실행기는 `review-tools.json` 의 기존 값이나 기본값 `codex → claude` 를 쓴다.
 
-model을 지원하는 도구(gemini, claude)에 대해 AskUserQuestion으로 모델을 물어본다.
-각 도구마다 하나씩 질문한다.
+### 5. 모델·effort 질문
 
-claude 선택지 예시:
-- `기본값 (model 미지정)` (Recommended)
-- `claude-sonnet-4-20250514`
-- `claude-opus-4-20250514`
+선택한 도구마다 아래 칸을 하나씩 묻는다. Claude·Codex 칸에는 항상 아래 두 선택지를 둔다.
 
-gemini 선택지 예시:
-- `기본값 (model 미지정)` (Recommended)
-- `gemini-2.5-pro`
-- `gemini-2.5-flash`
+| 선택지 | 저장 값 | 뜻 |
+|---|---|---|
+| `CLI 기본값 (넘기지 않음)` | `default` | 이 칸에서 값을 넘기지 않는다. 옛 `review-tools.json` 키로 내려가지 않는다 |
+| `옛 설정을 따름(이 칸 비우기)` | `null` | `models.json` 칸을 비운다. 옛 `review-tools.json` 키가 있으면 그 값을, 없으면 CLI 기본값을 쓴다 |
 
-사용자가 "Other"를 선택하면 입력값을 그대로 model로 사용한다.
+질문과 그 밖의 선택지:
 
-### 5b. codex reasoning effort 설정
+- Claude 모델 (`review.claude.model`): `opus`·`sonnet`·`haiku`·`fable`. 별칭을 권한다. "Other"로 `claude-…` 고정 이름을 받으면 그대로 쓰되 「고정 이름은 낡을 수 있음」 을 알린다.
+- Claude effort (`review.claude.effort`): `low`·`medium`·`high`·`xhigh`·`max`.
+- Codex 모델 (`review.codex.model`): 계열 이름(예: `sol`). `~/.codex/models_cache.json` 에서 그 계열의 최신 모델을 고른다. "Other"로 `gpt-6.2-sol` 같은 고정 이름도 받는다.
+- Codex effort 기본값 (`review.codex.effort`): `medium`·`high`·`xhigh`·`max`·`ultra`·`highest`. 모델이 지원하지 않는 단계는 리뷰 턴이 바로 아래 지원 단계로 낮추고 경고한다.
+- Codex small-task effort (`review.codex.small_task_effort`, `standard` 등급 리뷰 — 세션 `execution-path: small-task`): `medium` (Recommended)·`high`.
+  **`low`·`minimal`·`lowest` 는 선택지로 제시하지 않는다.** `standard` 는 REQUEST review·spec/plan review 를 생략해 final diff review 가 유일한 게이트이므로 `medium` 이 허용 하한이다. 사용자가 "Other"로 `low` 이하를 입력하면 "파이프라인이 경고 후 값을 전달하지 않는다(보정하지 않음)"고 알리고 그대로 기록하지 않는다.
+- Codex 리뷰 종류별 effort (`review.codex.review_types.<종류>.effort`): 사용자가 원할 때만 종류(`request-review`·`spec-plan-review`·`diff-review`·`project-context-review`)를 골라 Codex effort 기본값과 같은 선택지로 묻는다.
+- Gemini 모델 (`tools.gemini.model`, `review-tools.json`): `기본값 (model 미지정)` (Recommended) → JSON `null`, 또는 `gemini-2.5-pro`·`gemini-2.5-flash`.
 
-codex가 선택된 경우에만 AskUserQuestion으로 추론 깊이를 물어본다.
-**codex의 모델은 묻지 않는다** — 모델은 전역 `~/.codex/config.toml`이 단일 진실 원천이다.
+### 6. 저장 목록 만들기
 
-선택지:
-- `기본값 (전역 설정을 따름)` (Recommended) — 키를 쓰지 않음. 현행 동작과 완전히 동일
-- `medium`
-- `high`
-- `xhigh`
+답마다 저장 목록 파일에 한 줄을 더한다. 한 줄 형식은 `<종류> <경로> <값>` 이다.
 
-허용값 집합은 **모델에 따라 다르다**(예: `gpt-5.5`는 `max`·`ultra` 미지원). 사용자가 "Other"로
-직접 입력하면 그 값을 그대로 쓰되, "이 값을 지원하지 않는 모델로 되돌리면 codex가 설정을 거부한다"고 알린다.
+- `<종류>` 가 `models` 면 `<경로>` 는 위의 `models.json` 칸이고 `<값>` 은 저장 값(`default`·`null`·`sonnet` 등) 그대로다.
+- `<종류>` 가 `legacy` 면 `<경로>` 는 `review-tools.json` 의 `default_priority`·`tools.<도구>.bin`·`tools.claude.self_review_policy`·`tools.gemini.model`·`overrides.<종류>.priority` 중 하나이고 `<값>` 은 JSON 값이다.
+- `<값>` 은 둘째 칸 뒤의 나머지 전부다. 따옴표를 해석하지 않으므로 JSON 문자열은 `"gemini-2.5-pro"` 처럼, 배열은 `["codex","claude"]` 처럼 그대로 적는다. 셸 인용(`'…'`)을 넣지 않는다.
+- 옛 모델·effort 키는 목록에 넣지 않는다(쓰지도 지우지도 않는다). `apply` 도 그 경로를 거부한다.
 
-이어서 `standard` 등급(REQUEST `## Risk Tier` 최종 등급 standard — 세션 `execution-path: small-task`) 리뷰용 값을 물어본다:
-- `medium` (Recommended) — `standard` 등급 리뷰의 추론 깊이를 낮춰 지연을 줄임
-- `기본값 (키를 쓰지 않음)` — `standard` 에서도 위 설정을 그대로 따름
+목록 줄의 예:
 
-**`low`·`minimal`은 선택지로 제시하지 않는다.** `standard` 는 REQUEST review·spec/plan review를 생략해
-final diff review가 유일한 게이트이므로 `medium`이 허용 하한이다. 사용자가 "Other"로 `low` 이하를 입력하면
-"파이프라인이 경고 후 값을 전달하지 않는다(보정하지 않음)"고 알리고 그대로 기록하지 않는다.
-
-### 6. config 파일 생성
-
-수집한 정보로 `rd-workflow/config/review-tools.json`을 생성한다.
-
-구조:
-```json
-{
-  "default_priority": ["선택된 순서"],
-  "tools": {
-    "도구명": {
-      "bin": null,
-      "model": null 또는 "선택된 모델"
-    },
-    "codex": {
-      "bin": null,
-      "reasoning_effort": null 또는 "선택된 값",
-      "small_task_reasoning_effort": "medium" 또는 키 생략
-    }
-  },
-  "overrides": {
-    "diff-review": {
-      "priority": ["codex"]
-    }
-  }
-}
+```text
+legacy default_priority ["codex","claude"]
+legacy overrides.diff-review.priority ["codex"]
+legacy tools.gemini.model "gemini-2.5-pro"
+models review.claude.model sonnet
+models review.codex.small_task_effort medium
 ```
 
-규칙:
-- `bin`은 항상 `null` (사용자가 커스텀 경로를 원하면 직접 편집)
-- `model`은 "기본값"을 선택했으면 `null`, 아니면 선택된 값
-- claude 도구에는 `"self_review_warning": true` 항상 포함
-- `overrides`의 `diff-review`는 항상 `["codex"]` 유지
-- codex에는 `model` 필드를 포함하지 않음
-- codex effort는 "기본값"을 선택했으면 `null`(= 전달하지 않음), 아니면 선택된 값
-- **JSON은 주석을 지원하지 않으므로 파일 안에 설명을 넣지 않는다.** 근거는 `config_reference.md`에 있다
-- 생성 후 `jq empty rd-workflow/config/review-tools.json` 으로 유효성을 확인한다
+Claude 모델 질문에서 「CLI 기본값 (넘기지 않음)」 과 「옛 설정을 따름(이 칸 비우기)」 을 골랐을 때는 아래 블록의 표지 다음 줄 가운데 하나만 목록에 쓴다. 한 칸에는 한 줄만 쓴다. 다른 칸도 같은 방식으로 `default`·`null` 을 쓴다.
 
-### 7. 결과 출력
+```text
+# rd:review-config-default-choice
+models review.claude.model default
+# rd:review-config-legacy-choice
+models review.claude.model null
+```
 
-생성된 config를 보여주고 완료 메시지를 출력한다:
+`# rd:` 로 시작하는 줄은 문서 표지이며 목록 파일에 쓰지 않는다. `apply` 는 이 줄을 받으면 그 자리에서 멈춘다.
+
+목록 파일은 `mktemp` 로 만들고 그 경로를 `list` 변수에 둔다.
+
+### 7. 한 번에 저장
+
+프로젝트 루트에서 아래를 실행한다. `apply` 는 줄을 순서대로 쓰고 첫 실패에서 멈춘다. 완료 메시지는 rc 0 일 때만 나온다.
+
+```bash
+# rd:review-config-apply
+bash rd-workflow/scripts/model_select.sh apply "$list" && echo "✓ 리뷰 설정 저장 완료"
+```
+
+- `review-tools.json` 이 없으면 `{"default_priority":["codex","claude"]}` 에서 시작해 목록의 칸만 넣는다. 있으면 목록의 칸만 바꾸고 나머지는 그대로 둔다.
+- `models.json` 이 없으면 `{"version":1}` 에서 시작한다. 예시 파일을 복사하지 않는다.
+- 실패하면 출력의 `반영됨:`·`실패:`·`미적용:` 줄과 마지막 `다시 실행: …` 줄을 그대로 보인다. 사용자는 원인을 고친 뒤 그 줄을 붙여 넣어 남은 저장을 이어 간다. 완료라고 말하지 않는다.
+
+### 8. 결과 출력
+
+저장이 끝나면 상태 출력의 2·3단계를 다시 실행해 결과를 보인다. 2단계 출력에 `overrides.<종류>.priority` 가 있으면 「<종류> 리뷰는 이 우선순위 대신 <그 값> 을 씁니다」 를 종류마다 한 줄로 알린다. 그다음 아래를 덧붙인다:
 
 ```
-✓ rd-workflow/config/review-tools.json 생성 완료
-
-priority: codex → gemini → claude
-  codex:  reasoning_effort=없음(전역 따름), small_task=medium
-  gemini: model=gemini-2.5-pro
-  claude: model=기본값 (self-review fallback)
-
-effort를 즉시 무력화하려면: RD_REVIEW_EFFORT_OVERRIDE=0
+Codex effort 를 즉시 무력화하려면: RD_REVIEW_EFFORT_OVERRIDE=0
+이번 실행만 바꾸려면: RD_REVIEW_CODEX_MODEL·RD_REVIEW_CODEX_EFFORT·RD_REVIEW_CLAUDE_MODEL·RD_REVIEW_CLAUDE_EFFORT
 설정을 다시 바꾸려면: /review-config setup
 ```
 

@@ -76,11 +76,12 @@ AI가 `rd-workflow/docs/guides/setup_with_claude.md` 절차를 따릅니다:
   cp rd-workflow/config/workflow.json.example rd-workflow/config/workflow.json
 
 cp rd-workflow/config/review-tools.json.example rd-workflow/config/review-tools.json
+cp rd-workflow/config/models.json.example rd-workflow/config/models.json
 ```
 
 `workflow.json` 을 무조건 복사하면 배포본이 담고 있는 기본값(기본 실행 모드 `semi-auto`)과 이미 적어 둔 설정이
 example 값으로 덮여 사라집니다. 그래서 **경로가 없을 때만** 복사합니다 — 끊어진 symlink 도 「사용자가 설정을 두려 한 흔적」이므로
-`-L` 까지 함께 확인해 덮지 않습니다. `review-tools.json` 은 배포본에 실체 파일이 없으므로 종전대로 복사합니다.
+`-L` 까지 함께 확인해 덮지 않습니다. `review-tools.json`·`models.json` 은 배포본에 실체 파일이 없으므로 종전대로 복사합니다.
 
 상세 설정은 [7. 설정 파일](#7-설정-파일) 참조.
 
@@ -280,9 +281,8 @@ Notion/Confluence 등에 기획서가 있을 때:
 | `/fr archive` | done/dropped 항목 인덱스에서 일괄 삭제 |
 | `/fr park <제목>` | 항목을 parked로 이동 (재평가 조건 입력) |
 | `/fr status <제목> <상태>` | 항목 상태 변경 (모든 전이 방향 지원) |
-| `/fr pull` | GitHub Issues → 로컬 FR 가져오기 |
-| `/fr push [제목]` | 로컬 FR → GitHub Issue 내보내기 |
-| `/fr sync` | 연결된 항목 status 양방향 동기화 |
+| `/fr take` | 팀 저장소 Issue 를 골라 선점하고 FR 을 만들어 착수 |
+| `/fr push [제목]` | 내 FR 을 팀 저장소 Issue 로 넘김 (FR 은 handed-off 로 닫힘) |
 
 ---
 
@@ -351,7 +351,13 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
   "fr_github": false,
   "default_branch": "",
   "review_input_warn_lines": 8000,
-  "default_execution_mode": "semi-auto"
+  "default_execution_mode": "semi-auto",
+  "team_publish": {
+    "mode": "pr",
+    "base": "",
+    "branch_prefix": "",
+    "light": "pr"
+  }
 }
 ```
 
@@ -365,33 +371,55 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 | `default_branch` | lifecycle·diff review 기준 기본 브랜치. 빈 값이면 자동 검출 (origin/HEAD → main/master 유일 매치). 검출 실패·모호 시 이 키 설정을 안내하는 에러 출력 | `""` / `"main"` / `"trunk"` |
 | `review_input_warn_lines` | diff review 준비 때 변경 행 수(추가+삭제)가 이 값을 넘으면 경고. 세션 생성은 막지 않음. `0` 은 끔, 정수가 아니면 기본값 | `8000` / `0` |
 | `default_execution_mode` | 기본 실행 모드. **기본값은 `"semi-auto"`** — 배포본의 `workflow.json` 이 이 값을 담고 있고, 파일이나 키가 없어도 `semi-auto` 로 판정합니다. **단계마다 확인받는 종전 동작으로 되돌리려면 이 키에 `"manual"` 을 적습니다.** 값을 판정할 수 없으면(파싱 실패·허용되지 않는 값 등) `manual` 로 떨어지며 경고가 표시됩니다. 세션 지시("이번엔 수동으로")가 이 값보다 우선합니다. 상세 판정 규칙은 `rd-workflow/docs/flows/AUTONOMY.md` | `"semi-auto"`(기본) / `"manual"` |
+| `team_publish` | overlay 작업의 팀 저장소 반영 방식. `mode`: `pr`(기본 — 팀 브랜치 push + PR, merge 뒤 발행) / `push`(대상 브랜치에 직접 push, 사용자 승인 뒤 `--approve-push`) / `manual`(반영하지 않음, 종전 방식). `base`: PR·push 대상 브랜치(빈 값이면 GitHub 기본 브랜치). `branch_prefix`: 팀 브랜치 접두어. `light`: `pr`(반영 대상 submodule 을 바꾼 `light` 를 `standard` 로 상향) / `merge`. `submodules.<경로>` 로 submodule 별 덮어쓰기. 키가 없으면 기본값으로 동작하고 첫 실행 때 안내합니다. 이전 방식으로 두려면 `mode` 를 `manual` 로 적습니다. 흐름은 `rd-workflow/docs/flows/WORKFLOW.md` 「`PR 검토 중` — 팀 저장소 반영」 | `"pr"`(기본) / `"push"` / `"manual"` |
 
-### 7.2 review-tools.json
+### 7.2 review-tools.json · models.json
 
-리뷰 도구 우선순위와 모델·추론 깊이 설정. `/review-config setup` 스킬로 대화형 설정 가능.
+리뷰 설정은 두 파일로 나뉩니다. `/review-config setup` 스킬로 두 파일을 함께 대화형으로 설정할 수 있습니다.
+
+- `review-tools.json`: 리뷰 도구 우선순위, 실행 파일 경로(`bin`), Claude self-review 정책, 리뷰 종류별 우선순위, Gemini 모델.
+- `models.json`: Claude·Codex 리뷰어의 모델과 추론 깊이(effort).
 
 ```json
 {
   "default_priority": ["codex", "claude"],
   "tools": {
-    "codex": { "bin": "codex", "reasoning_effort": null, "small_task_reasoning_effort": "medium" },
-    "claude": { "bin": "claude", "model": "opus" }
+    "codex": { "bin": "codex" },
+    "claude": { "bin": "claude", "self_review_policy": "block" }
   },
   "overrides": {
-    "request-review": { "tools": { "codex": { "reasoning_effort": "medium" } } }
+    "diff-review": { "priority": ["codex"] }
   }
 }
 ```
 
-**codex 에는 `model` 을 두지 않습니다.** 모델은 전역 `~/.codex/config.toml` 이 단일 진실 원천이며,
-여기서 조절하는 것은 추론 깊이(`reasoning_effort`)뿐입니다. 설정을 두 곳에 두면 어느 쪽이 적용됐는지
-알 수 없게 되므로 의도적으로 뺀 필드입니다.
+`models.json` 은 `rd-workflow/config/models.json.example` 을 복사해 만듭니다. 아래는 복사한 뒤 Claude 리뷰 모델을 `sonnet` 으로 고친 예입니다. 예시 파일의 `review.claude.model` 값은 `null` 입니다.
 
-- 키가 없으면 **아무것도 전달하지 않고** 전역 설정을 그대로 따릅니다 (이 기능 도입 전과 동일한 동작).
-- 우선순위: `RD_REVIEW_EFFORT_OVERRIDE` kill switch → small-task → 리뷰 타입 override → tool 기본 → 미전달.
-- `RD_REVIEW_EFFORT_OVERRIDE=0` 이면 설정을 남긴 채 즉시 무력화합니다.
-- 적용 결과는 턴 완료 시 `effort override: <상태>` 로 표시됩니다.
-- 키·허용값·하한 규칙은 `rd-workflow/docs/guides/config_reference.md` 를 참조하십시오.
+```json
+{
+  "version": 1,
+  "review": {
+    "codex": {
+      "model": null,
+      "effort": null,
+      "small_task_effort": "medium",
+      "review_types": { "request-review": { "effort": "medium" } }
+    },
+    "claude": { "model": "sonnet", "effort": null }
+  }
+}
+```
+
+- 값이 `null` 이거나 칸이 없으면 그 칸은 비어 있습니다. 비어 있는 칸은 다음 출처로 넘어가고, 끝까지 비어 있으면 아무것도 넘기지 않습니다. 이때 도구 자체 설정(Codex: `~/.codex/config.toml`, Claude: CLI 기본값)을 씁니다.
+- `default` 는 「이 칸에서 넘기지 않음」 입니다. 아래 출처나 옛 키로 내려가지 않습니다.
+- Codex 모델은 계열 이름(`sol` 처럼 소문자만)을 쓰면 `~/.codex/models_cache.json` 에서 그 계열의 최신 모델을 고릅니다. `gpt-6.2-sol` 처럼 고정 이름도 받지만 낡을 수 있다는 경고를 냅니다.
+- effort 는 단계 이름(`low`·`medium`·`high`·`xhigh`·`max`·`ultra`)과 상대어(`lowest`·`highest`)를 받습니다. 모델이 지원하지 않는 단계는 바로 아래 지원 단계로 낮추고 경고합니다.
+- 우선순위(Codex effort): `RD_REVIEW_EFFORT_OVERRIDE` kill switch → `RD_REVIEW_CODEX_EFFORT` → small-task → 리뷰 종류별 → 도구 기본 → 미전달.
+- `RD_REVIEW_EFFORT_OVERRIDE=0` 이면 설정을 남긴 채 Codex effort 를 즉시 무력화합니다.
+- 한 번만 바꾸려면 환경 변수 `RD_REVIEW_CODEX_MODEL`·`RD_REVIEW_CODEX_EFFORT`·`RD_REVIEW_CLAUDE_MODEL`·`RD_REVIEW_CLAUDE_EFFORT` 를 씁니다.
+- 지금 값과 출처는 `bash rd-workflow/scripts/model_select.sh show review` 로 확인합니다. 리뷰 턴은 도구마다 실행 줄 `리뷰 도구: <도구> / 모델 요청: <값> (source: …) / effort 시도: <값> (source: …)` 을 냅니다.
+- 옛 키(`review-tools.json` 의 `tools.claude.model`·`tools.codex.reasoning_effort`·`tools.codex.small_task_reasoning_effort`·`overrides.<종류>.tools.codex.reasoning_effort`)도 아직 읽습니다. 옛 키를 쓰면 리뷰 턴이 `models.json` 으로 옮기라고 안내합니다. 옛 키를 새로 쓰지 마십시오.
+- 칸·허용값·하한 규칙은 `rd-workflow/docs/guides/config_reference.md` 를 참조하십시오.
 
 ### 7.3 model-strategy.json
 
@@ -493,6 +521,7 @@ UI 작업 시 디자인 레퍼런스 대비 검증 게이트.
     ├── config/                  # 설정 파일
     │   ├── workflow.json            # 워크플로 설정
     │   ├── review-tools.json        # 리뷰 도구 설정
+    │   ├── models.json              # 리뷰어 모델·effort 설정
     │   ├── model-strategy.json      # 모델 전략
     │   ├── verification.json        # 런타임 검증 도구
     │   └── extensions.json          # 확장 기능 상태

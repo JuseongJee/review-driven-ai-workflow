@@ -104,7 +104,7 @@ command -v codex &>/dev/null && echo "codex: 설치됨" || echo "codex: 없음"
 command -v gemini &>/dev/null && echo "gemini: 설치됨" || echo "gemini: 없음"
 ```
 
-**하나 이상 설치된 경우:** "리뷰 도구가 감지되었습니다. `/review-config setup`으로 우선순위를 설정할 수 있습니다." 안내 후 다음 단계로 진행.
+**하나 이상 설치된 경우:** "리뷰 도구가 감지되었습니다. `/review-config setup`으로 우선순위와 리뷰어의 모델·effort 를 설정할 수 있습니다." 안내 후 다음 단계로 진행. 우선순위는 `rd-workflow/config/review-tools.json` 에, 모델·effort 는 `rd-workflow/config/models.json` 에 저장합니다. 지금 값과 출처는 `bash rd-workflow/scripts/model_select.sh show review` 로 확인합니다.
 
 **모두 없는 경우:** 아래 메시지를 출력합니다.
 

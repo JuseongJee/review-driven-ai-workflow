@@ -18,7 +18,7 @@ Read these first (Always Read files are already loaded):
 - `rd-workflow-workspace/review-standards.md` (주석 밖 내용이 있을 때만 — final diff review 리뷰어가 같은 표준으로 검토한다)
 
 Execution rules:
-- 이 skill 은 `CURRENT_TASK.md` 의 `## Short Title` 을 read-only 로 사용한다 (변경 / 삭제 금지). short-title 은 작업 시작 시점 (`/fr add`, `planning-design-intake`, 또는 `promote.sh` 승격) 에 1회 부여되고 archive 까지 immutable 이다.
+- 이 skill 은 `CURRENT_TASK.md` 의 `## Short Title` 을 read-only 로 사용한다 (변경 / 삭제 금지). short-title 은 작업 시작 시점 (`planning-design-intake` 또는 `promote.sh` 승격) 에 1회 부여되고 archive 까지 immutable 이다.
 - If there is no credible reviewed spec / plan yet, stop and recommend `/request-to-reviewed-plan`.
 - **착수 전 Status 확인**: 구현을 시작하기 전에 `bash rd-workflow/scripts/rd task status` 로 현재 Status 를 읽고 아래 표대로 처리한다. 전이표가 `대기 중 → 구현 중` 직행을 허용해도 그것을 spec/plan review 를 건너뛴 근거로 쓰지 않는다. 전이는 리뷰가 실제로 끝났다는 증거가 있을 때만 기록하며, `--force` 로 우회하지 않는다. 이 전이들은 되돌릴 수 있는 로컬 작업이므로 묻지 않고 진행한다. **구현을 새로 시작하는 모든 경로(`구현 대기` 포함)는 어떤 전이·구현보다 먼저 아래 증거를 검사한다.**
 
@@ -72,7 +72,7 @@ Final output:
 
 ```bash
 bash -s <<'RD_SKILL_COMPAT'
-RD_SKILL_BASE=2026-11-04-203832 RD_SKILL_NAME=implement-reviewed-plan
+RD_SKILL_BASE=2026-11-08-092219 RD_SKILL_NAME=implement-reviewed-plan
 vf="rd-workflow/VERSION"
 if [ ! -f "$vf" ] && [ -f "_ROOT_FILES/rd-workflow/VERSION" ]; then exit 0; fi
 v=""; [ -f "$vf" ] && v="$(cat "$vf")"; v="${v#lite-}"
