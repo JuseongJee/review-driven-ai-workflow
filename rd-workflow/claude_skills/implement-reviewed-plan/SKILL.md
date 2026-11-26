@@ -51,7 +51,13 @@ Execution rules:
   - 옮길 대상: 동작·인터페이스·파일 범위·테스트 구성·AC 해석이 spec·plan 과 달라진 Ruling 이다. 코드를 plan 대로 둔 Ruling(「code stands」 로 parked 된 지적), 관찰(파일이 커진다 등), 미뤄 둔 minor 지적은 옮기지 않는다.
   - 쓰는 곳: spec 본문의 원래 결정 문구는 고치지 않는다. spec 끝의 `## 구현 중 변경` 절(없으면 만든다)에 Ruling 하나당 한 항목을 덧붙인다. 형식은 `- <무엇을 바꿨는지> — <왜> — plan Task <N>` 이다. 옮길 Ruling 이 없으면 절을 만들지 않는다.
   - 범위: 범위·요구사항이 바뀌는 발견은 이 단계가 아니라 `AUTONOMY.md` 중단 조건 3 으로 멈춘다. 이 단계는 spec 에 항목을 보탤 뿐 범위를 바꾸지 않는다. 회수한 변경은 final diff review 의 diff 에 들어가 원래 결정과 함께 검토되고, spec/plan review 종결 기록의 해시 비교는 구현 착수 때만 하므로 착수 증거를 깨지 않는다.
-- **model-strategy 적용**: `rd-workflow/config/model-strategy.json`이 존재하면 `subagent` 값을 읽어 subagent dispatch 시 Agent 도구의 `model` 파라미터로 전달한다. 파일 미존재/JSON 파싱 실패/키 누락/허용되지 않은 값(`opus`, `sonnet`, `haiku` 외) → 기본값 `"sonnet"`을 사용한다. 설정 형식 상세는 `/model-strategy` skill 참조.
+- **subagent 모델·effort**: 첫 subagent dispatch 전에 `bash rd-workflow/scripts/model_select.sh subagent` 를 한 번 실행하고, 이 skill 이 하는 모든 subagent dispatch(구현자·task reviewer)에 아래대로 Agent 도구 인자를 넘긴다.
+  - `model=` 줄에 값이 있으면 `model` 인자로 넘긴다. 비어 있으면 `model` 인자를 넘기지 않는다.
+  - `effort=` 줄에 값이 있으면 `effort` 인자로 넘긴다. 이 값은 사용자가 `rd-workflow/config/models.json` 의 `subagent.claude.effort` 에 명시한 effort 다. 비어 있으면 `effort` 인자를 넘기지 않는다.
+  - 명령이 없거나 실패하면 `model` 은 `sonnet` 으로 넘기고 `effort` 는 넘기지 않는다.
+  - 사용자가 이 세션에서 모델·effort 를 말로 정하면 그 지시가 이 항목보다 앞선다.
+  - 화면 표시는 hook(`rd-workflow/scripts/hooks/subagent_dispatch_display.sh`)이 맡는다. Status 가 `구현 중` 일 때 Agent 호출마다 넘긴 값과 설정·경고를 한 줄로 보인다. 응답 텍스트로 따로 옮겨 적지 않는다.
+  - 칸과 해석 순서는 `rd-workflow/docs/guides/config_reference.md` 「구현 subagent 칸」, 바꾸는 방법은 `/model-strategy` 다.
 - Update `CURRENT_TASK.md`.
 - Run `bash rd-workflow/scripts/test.sh`, `bash rd-workflow/scripts/lint.sh`, `bash rd-workflow/scripts/typecheck.sh`, and `bash rd-workflow/scripts/build.sh`.
 - **구현 완료 후 커밋 전 재분류를 거쳐 `/final-diff-review`로 넘긴다 (`standard`·`full` 필수). 이 단계를 건너뛰고 merge하거나 작업을 종료하지 않는다.**
@@ -72,7 +78,7 @@ Final output:
 
 ```bash
 bash -s <<'RD_SKILL_COMPAT'
-RD_SKILL_BASE=2026-11-08-092219 RD_SKILL_NAME=implement-reviewed-plan
+RD_SKILL_BASE=2026-11-21-001711 RD_SKILL_NAME=implement-reviewed-plan
 vf="rd-workflow/VERSION"
 if [ ! -f "$vf" ] && [ -f "_ROOT_FILES/rd-workflow/VERSION" ]; then exit 0; fi
 v=""; [ -f "$vf" ] && v="$(cat "$vf")"; v="${v#lite-}"

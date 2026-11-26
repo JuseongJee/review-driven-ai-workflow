@@ -277,7 +277,8 @@ Notion/Confluence 등에 기획서가 있을 때:
 | `/fr add 내용` | FR 등록 |
 | `/fr list` | 활성 항목 목록 (우선순위 순) |
 | `/fr pri` | AI가 우선순위 평가 후 즉시 반영 |
-| `/fr groom [제목들]` | idea 항목을 문답으로 검증해 validated·parked·dropped 로 정리 (제목 없으면 idea 전부) |
+| `/fr groom [제목들]` | idea 항목을 검증해 validated·parked·dropped 로 정리 (제목 없으면 idea 전부). `fr-groom` skill 을 부르며, 이 경로에서는 effort 만 높아집니다 |
+| `/fr-groom [제목들]` | 위와 같은 groom 을 skill 에 정한 모델·effort(기본 Fable·high)로 돌립니다. 대상 FR 전부의 판정 권장표를 한 번에 보이고, 한 번의 답으로 기록·상태 반영까지 합니다 |
 | `/fr archive` | done/dropped 항목 인덱스에서 일괄 삭제 |
 | `/fr park <제목>` | 항목을 parked로 이동 (재평가 조건 입력) |
 | `/fr status <제목> <상태>` | 항목 상태 변경 (모든 전이 방향 지원) |
@@ -377,7 +378,7 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 
 리뷰 설정은 두 파일로 나뉩니다. `/review-config setup` 스킬로 두 파일을 함께 대화형으로 설정할 수 있습니다.
 
-- `review-tools.json`: 리뷰 도구 우선순위, 실행 파일 경로(`bin`), Claude self-review 정책, 리뷰 종류별 우선순위, Gemini 모델.
+- `review-tools.json`: 리뷰 도구 우선순위, 실행 파일 경로(`bin`), Claude self-review 정책, 리뷰 종류별 우선순위.
 - `models.json`: Claude·Codex 리뷰어의 모델과 추론 깊이(effort).
 
 ```json
@@ -412,27 +413,27 @@ Author 턴 작성 → Reviewer 턴 실행 (외부 AI)
 
 - 값이 `null` 이거나 칸이 없으면 그 칸은 비어 있습니다. 비어 있는 칸은 다음 출처로 넘어가고, 끝까지 비어 있으면 아무것도 넘기지 않습니다. 이때 도구 자체 설정(Codex: `~/.codex/config.toml`, Claude: CLI 기본값)을 씁니다.
 - `default` 는 「이 칸에서 넘기지 않음」 입니다. 아래 출처나 옛 키로 내려가지 않습니다.
-- Codex 모델은 계열 이름(`sol` 처럼 소문자만)을 쓰면 `~/.codex/models_cache.json` 에서 그 계열의 최신 모델을 고릅니다. `gpt-6.2-sol` 처럼 고정 이름도 받지만 낡을 수 있다는 경고를 냅니다.
+- Codex 모델은 계열 이름(`sol` 처럼 소문자만)을 쓰면 `~/.codex/models_cache.json` 에서 그 계열의 최신 모델을 고릅니다. `gpt-6.2-sol` 처럼 고정 이름도 받습니다. 리뷰 세션을 만들 때 그 계열에 더 새 모델이 있으면 알리고, 이번만 옛 모델로 진행할지 옛 모델을 계속 쓰고 기록할지 고르게 합니다(`model_select.sh keep-codex-model`). `config.toml` 의 모델도 같은 알림을 받습니다.
 - effort 는 단계 이름(`low`·`medium`·`high`·`xhigh`·`max`·`ultra`)과 상대어(`lowest`·`highest`)를 받습니다. 모델이 지원하지 않는 단계는 바로 아래 지원 단계로 낮추고 경고합니다.
 - 우선순위(Codex effort): `RD_REVIEW_EFFORT_OVERRIDE` kill switch → `RD_REVIEW_CODEX_EFFORT` → small-task → 리뷰 종류별 → 도구 기본 → 미전달.
 - `RD_REVIEW_EFFORT_OVERRIDE=0` 이면 설정을 남긴 채 Codex effort 를 즉시 무력화합니다.
 - 한 번만 바꾸려면 환경 변수 `RD_REVIEW_CODEX_MODEL`·`RD_REVIEW_CODEX_EFFORT`·`RD_REVIEW_CLAUDE_MODEL`·`RD_REVIEW_CLAUDE_EFFORT` 를 씁니다.
 - 지금 값과 출처는 `bash rd-workflow/scripts/model_select.sh show review` 로 확인합니다. 리뷰 턴은 도구마다 실행 줄 `리뷰 도구: <도구> / 모델 요청: <값> (source: …) / effort 시도: <값> (source: …)` 을 냅니다.
 - 옛 키(`review-tools.json` 의 `tools.claude.model`·`tools.codex.reasoning_effort`·`tools.codex.small_task_reasoning_effort`·`overrides.<종류>.tools.codex.reasoning_effort`)도 아직 읽습니다. 옛 키를 쓰면 리뷰 턴이 `models.json` 으로 옮기라고 안내합니다. 옛 키를 새로 쓰지 마십시오.
+- 세션 칸 `session.claude.model`·`session.claude.effort` 는 promote 가 띄우는 작업 세션의 모델과 effort 입니다. 예시 파일의 두 값은 `null` 입니다.
+- 세션 칸이 비어 있으면 모델은 먼저 `model-strategy.json` 의 `session_model`(옛 키)을 보고, 그것도 없으면 부모 세션을 따라갑니다. effort 는 바로 부모 세션을 따라갑니다.
+- 바꾸려면 `models.json` 의 세션 칸을 고칩니다. 한 번만 바꾸려면 환경 변수 `RD_SESSION_MODEL`·`RD_SESSION_EFFORT` 를 씁니다.
+- 값을 넘기지 않으려면 `default` 를 적습니다. 이때는 부모 세션도 따라가지 않고 CLI 기본값으로 뜹니다.
+- 구현 subagent 칸 `subagent.claude.model`·`subagent.claude.effort` 는 implement-reviewed-plan·autopilot 이 subagent 를 띄울 때 Agent 도구에 넘기는 모델과 effort 입니다. 예시 파일의 두 값은 `null` 입니다.
+- 비어 있으면 모델은 옛 키 `model-strategy.json` 의 `subagent` 를 보고, 그것도 없으면 `sonnet` 입니다. effort 는 넘기지 않습니다.
+- 지금 값과 출처는 `bash rd-workflow/scripts/model_select.sh subagent` 로 확인합니다. 바꾸려면 `/model-strategy` 를 실행하거나 `models.json` 의 칸을 고칩니다.
 - 칸·허용값·하한 규칙은 `rd-workflow/docs/guides/config_reference.md` 를 참조하십시오.
 
-### 7.3 model-strategy.json
+### 7.3 model-strategy.json (옛 파일 — 읽기만)
 
-워크플로 단계별 AI 모델 설정. `"model strategy 설정해줘"` 또는 `/model-strategy` 스킬로 대화형 위저드 실행 가능.
+`rd-workflow/config/model-strategy.json` 의 `subagent`·`session_model` 은 옛 키입니다. 새 설정이 비어 있을 때만 읽고, 읽으면 `models.json` 으로 옮기라고 안내합니다. 새로 쓰지 마십시오.
 
-```json
-{
-  "version": 1,
-  "subagent": "sonnet"
-}
-```
-
-subagent 구현 시 사용할 모델. 허용 값: `opus`, `sonnet`, `haiku`.
+워크플로 단계별 AI 모델 추천을 보고 구현 subagent 의 모델·effort 를 고르려면 `"model strategy 설정해줘"` 또는 `/model-strategy` 스킬로 대화형 위저드를 실행합니다. 위저드는 선택을 `models.json` 의 `subagent.claude.model`·`subagent.claude.effort` 에 씁니다.
 
 ### 7.4 verification.json
 
@@ -521,8 +522,8 @@ UI 작업 시 디자인 레퍼런스 대비 검증 게이트.
     ├── config/                  # 설정 파일
     │   ├── workflow.json            # 워크플로 설정
     │   ├── review-tools.json        # 리뷰 도구 설정
-    │   ├── models.json              # 리뷰어 모델·effort 설정
-    │   ├── model-strategy.json      # 모델 전략
+    │   ├── models.json              # 모델·effort 설정(리뷰·작업 세션·구현 subagent)
+    │   ├── model-strategy.json      # 옛 모델 전략(읽기만)
     │   ├── verification.json        # 런타임 검증 도구
     │   └── extensions.json          # 확장 기능 상태
     │

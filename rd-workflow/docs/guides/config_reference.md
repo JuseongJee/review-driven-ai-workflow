@@ -11,16 +11,15 @@
 
 | 경로 | 의미 | 허용값 / 예시 | 기본 동작 |
 |------|------|--------------|----------|
-| `default_priority` | 리뷰 도구 시도 순서 | `["codex", "gemini", "claude"]` 등 도구 이름 배열 | 첫 번째 사용 가능한 도구 사용 |
+| `default_priority` | 리뷰 도구 시도 순서 | `["codex", "claude"]` 등 도구 이름 배열 | 첫 번째 사용 가능한 도구 사용. `rd-workflow/scripts/adapter_{tool}.sh` 가 없는 도구는 「어댑터 없음, 건너뜀」 을 출력하고 건너뜀 |
 
 ### tools 객체
 
-각 도구의 실행 바이너리와 도구별 정책을 지정합니다. 키는 도구 이름(`gemini`, `codex`, `claude`).
+각 도구의 실행 바이너리와 도구별 정책을 지정합니다. 키는 도구 이름(`codex`, `claude`).
 
 | 경로 | 의미 | 허용값 / 예시 | 기본 동작 |
 |------|------|--------------|----------|
-| `tools.{tool}.bin` | 도구 실행 바이너리 경로 | `"/usr/local/bin/gemini"`, `null` | `null`이면 PATH에서 자동 탐색 |
-| `tools.gemini.model` | gemini에서 사용할 모델 | `"gemini-2.5-pro"`, `null` | `null`이면 도구 기본 모델 |
+| `tools.{tool}.bin` | 도구 실행 바이너리 경로 | `"/usr/local/bin/codex"`, `null` | `null`이면 PATH에서 자동 탐색 |
 | `tools.claude.self_review_warning` | Claude self-review 시 경고 표시 여부 | `true`, `false` | `true` — 경고 표시 |
 | `tools.claude.self_review_policy` | Claude self-review 정책 | `"block"`, `"warn"`, `"off"` | `block` — 차단 |
 
@@ -30,7 +29,7 @@
 
 | 경로 | 의미 | 허용값 / 예시 | 기본 동작 |
 |------|------|--------------|----------|
-| `overrides.{type}.priority` | 해당 리뷰 타입의 도구 우선순위 | `["codex"]` 등 도구 이름 배열 | 미설정 시 `default_priority` 사용 |
+| `overrides.{type}.priority` | 해당 리뷰 타입의 도구 우선순위 | `["codex"]` 등 도구 이름 배열, `null` | 미설정·`null` 이면 `default_priority` 사용 |
 
 ### 옛 모델·effort 키
 
@@ -63,9 +62,9 @@
 - `null` 이나 칸 없음은 「비어 있음」 입니다. 다음 단계로 넘어갑니다.
 - `default` 는 「이 칸에서 넘기지 않음」 입니다. 아래 단계나 옛 키로 내려가지 않습니다.
 - 허용값 밖의 값(숫자·빈 문자열·`Opus` 처럼 대문자가 섞인 이름 등)은 경고하고 비어 있는 것으로 봅니다.
-- 고정 이름은 「고정됨, 낡을 수 있음」 경고를 냅니다. 계열 이름을 쓰면 새 모델이 나와도 고칠 필요가 없습니다.
+- Claude 고정 이름은 리뷰 턴마다 「고정됨, 낡을 수 있음」 경고를 냅니다. Codex 고정 이름은 계열 최신이 아니면 리뷰 세션을 만들 때 한 번 알립니다(아래 「낡은 Codex 모델 알림」). 계열 이름을 쓰면 새 모델이 나와도 고칠 필요가 없습니다.
 - 파일이 JSON 객체 하나가 아니면 `⚠️  models.json 을 읽지 못했습니다(<경로>) — 이 파일을 무시하고 옛 설정으로 진행합니다.` 를 내고 파일 전체를 무시합니다.
-- 다른 최상위 키(`review` 밖)는 읽지도 바꾸지도 않습니다.
+- 리뷰 턴은 `review` 밖의 최상위 키를 읽지 않습니다. 작업 세션 칸 `session` 은 아래 「작업 세션 칸」 절에서 설명합니다.
 - jq 가 없으면 `models.json`·`review-tools.json`·`RD_REVIEW_*` 를 모두 쓰지 않고 모델·effort 를 넘기지 않습니다.
 
 ### Codex 계열 해석
@@ -73,6 +72,46 @@
 - 계열 이름은 `<Codex 홈>/models_cache.json` 에서 `visibility` 가 `list` 이고 이름이 `gpt-<버전>-<계열>` 인 모델 중 버전이 가장 높은 것으로 바꿉니다. Codex 홈은 `${CODEX_HOME:-$HOME/.codex}` 입니다.
 - 버전은 `.` 로 나눈 정수로 비교합니다(`6.10` > `6.2` > `6`). 같은 버전이 둘이면 `priority` 가 작은 쪽을 고릅니다.
 - 캐시가 없거나 그 계열이 없으면 경고하고 `-m` 없이 실행합니다. 실행 줄은 `모델 요청: none (source: unresolved · …) — CLI 기본값으로 실행` 입니다.
+
+### 낡은 Codex 모델 알림
+
+리뷰 세션을 만들 때, 이번 리뷰를 Codex 가 맡고 Codex 모델이 계열 최신이 아니면 한 번 알립니다. 리뷰 턴마다 알리지 않습니다.
+
+리뷰 도구 판정: 리뷰 턴과 같은 규칙으로 첫 실행 가능 도구를 정합니다. `review-tools.json` 의 `overrides.<리뷰 종류>.priority`(없으면 `default_priority`, 둘 다 없으면 `codex claude`) 순서로 어댑터 파일과 실행 파일이 있는 첫 도구입니다. 그 도구가 Codex 가 아니면 알리지 않습니다.
+
+판정 대상은 Codex 가 이번 리뷰에서 쓸 모델입니다.
+
+| 모델을 정하는 곳 | 판정 대상 | 알림 |
+| --- | --- | --- |
+| 환경 변수 `RD_REVIEW_CODEX_MODEL` 또는 `models.json` 의 `review.codex.model` 이 고정 이름 | 그 고정 이름 | 계열 최신보다 낮으면 알림 |
+| 두 곳이 비어 있음·`default`·계열 이름을 모델 목록에서 찾지 못함(`-m` 을 넘기지 않음) | `<Codex 홈>/config.toml` 의 `model` | 계열 최신보다 낮으면 알림 |
+| 두 곳이 계열 이름이고 최신 모델로 해석됨 | 판정 안 함 | 없음(계열 이름은 항상 최신으로 바뀜) |
+
+판정하지 않는 경우입니다.
+
+- 모델 값이 계열 이름이고 최신 모델로 해석됩니다.
+- `<Codex 홈>/config.toml` 에 `model` 이 없습니다.
+- 모델을 `config.toml` 에서 읽는 경우, 프로젝트 `.codex/config.toml` 이 `model` 이나 `profile` 을 정합니다. 프로젝트 폴더부터 `.git` 이 있는 가장 가까운 폴더(없으면 프로젝트 폴더 하나)까지 올라가며 봅니다. Codex 가 그 값을 홈 설정보다 앞세우기 때문입니다.
+- 모델을 `config.toml` 에서 읽는 경우, 홈 `config.toml` 에 `profile` 이 있습니다.
+- 모델을 `config.toml` 에서 읽는 경우, 모델 목록 캐시(`<Codex 홈>/models_cache.json`)가 없거나 읽지 못하거나 그 계열이 없으면 아무것도 알리지 않습니다.
+- 환경 변수·`models.json` 의 고정 이름은 같은 캐시 문제로 최신 여부를 확인하지 못하면, 확인하지 못했다는 「고정됨, 낡을 수 있음」 한 줄만 냅니다.
+- jq 가 없습니다.
+
+알림은 두 선택지를 보입니다.
+
+- 선택 1: 이번만 옛 모델로 진행합니다. 다음 리뷰 세션에서 다시 알립니다.
+- 선택 2: 옛 모델을 계속 쓰기로 기록합니다. 아래 명령을 씁니다.
+
+```
+bash rd-workflow/scripts/model_select.sh keep-codex-model <현재 모델> <새 모델>
+```
+
+- 두 값은 같은 계열의 서로 다른 고정 이름(`gpt-<버전>-<계열>`)이어야 합니다. 아니면 기록하지 않고 exit 1 입니다.
+- 기록 파일은 `<상태 폴더>/rd-workflow/codex-model-keep.tsv` 입니다. 상태 폴더는 `XDG_STATE_HOME` 이 `/` 로 시작하면 그 값이고, 아니면 `$HOME/.local/state` 입니다. 한 줄이 `<현재 모델>\t<새 모델>` 입니다. 사용자 단위 파일이라 프로젝트마다 다시 기록하지 않아도 됩니다.
+- 기록한 `<새 모델>` 은 다시 알리지 않습니다. 같은 계열에 더 새 모델이 나오면 다시 알립니다.
+- 기록해도 리뷰에 쓰는 모델은 바뀌지 않습니다. 알림만 멈춥니다.
+- 다시 알림을 받으려면 그 줄을 지우거나 모델 설정값을 바꿉니다.
+- 기록 명령은 쓰는 동안 `<기록 파일>.lock` 폴더를 만들었다가 지웁니다. 두 기록이 겹쳐도 같은 조합은 한 줄만 남습니다. 강제 종료로 이 폴더가 남으면 다음 기록 명령이 잠금을 30번 다시 시도한 뒤(몇 초) 그 경로를 안내하고 exit 1 로 끝납니다. 그 폴더를 지운 뒤 다시 실행합니다. 기록 파일이 있는 폴더에 쓸 수 없을 때도 같은 안내가 나옵니다. 이때는 남은 잠금 폴더가 없으므로 그 폴더의 쓰기 권한을 확인합니다.
 
 ### 우선순위
 
@@ -109,7 +148,7 @@ Claude 모델  : RD_REVIEW_CLAUDE_MODEL → review.claude.model → 옛 tools.cl
 - `bash rd-workflow/scripts/model_select.sh set <칸> <값|null>` 은 `models.json` 의 그 칸만 바꿉니다. `null` 은 칸 비우기입니다. 파일이 없으면 `{"version":1}` 에서 시작합니다(예시 파일을 복사하지 않음).
 - `bash rd-workflow/scripts/model_select.sh apply <저장 목록 파일>` 은 목록의 줄을 순서대로 저장하고 첫 실패에서 멈춥니다. 한 줄은 `<종류> <경로> <값>` 입니다.
   - `<종류>` 가 `models` 면 `<경로>` 는 `models.json` 칸이고 `<값>` 은 `set` 의 값입니다. 예: `models review.claude.model sonnet`.
-  - `<종류>` 가 `legacy` 면 `<경로>` 는 `review-tools.json` 의 `default_priority`·`tools.{tool}.bin`·`tools.claude.self_review_policy`·`tools.gemini.model`·`overrides.{type}.priority` 중 하나이고 `<값>` 은 JSON 값입니다. 예: `legacy default_priority ["codex","claude"]`.
+  - `<종류>` 가 `legacy` 면 `<경로>` 는 `review-tools.json` 의 `default_priority`·`tools.{tool}.bin`·`tools.claude.self_review_policy`·`overrides.{type}.priority` 중 하나이고 `<값>` 은 JSON 값입니다. 예: `legacy default_priority ["codex","claude"]`.
   - `<값>` 은 둘째 칸 뒤의 나머지 전부입니다. 따옴표를 해석하지 않으므로 JSON 문자열은 `"g"` 처럼 그대로 적습니다.
   - 결과는 `반영됨:`·`실패:`·`미적용:` 줄로 보입니다. 실패하면 마지막 줄 `다시 실행: …` 을 그대로 붙여 넣어 남은 저장을 이어 갑니다.
 - 저장은 `<파일>.lock` 폴더로 잠그고, 임시 파일에 쓴 뒤 한 번에 옮깁니다. 실패하면 원본을 바꾸지 않습니다. 원본 권한은 유지하고, 새 파일은 `0644` 로 만듭니다.
@@ -148,6 +187,58 @@ Claude 모델  : RD_REVIEW_CLAUDE_MODEL → review.claude.model → 옛 tools.cl
 ### 리뷰 종류별 effort 의 근거
 
 spec-plan-review 의 codex effort override(high)는 2026-09-30 실측 재평가 후 원복했습니다. override 이후 spec-plan 의 리뷰어 턴 중앙값이 2→4로 늘어 대조 리뷰 종류(request 2→3)보다 컸고, diff review 이월 결함 비교(2/10 vs 2/10)로는 비열등을 입증하지 못했습니다. 다시 적용하려면 `models.json` 에 `review.codex.review_types.spec-plan-review.effort` 를 추가합니다(전체 해제는 `RD_REVIEW_EFFORT_OVERRIDE=0`). 근거: `rd-workflow-workspace/reports/2026-09-30-review-effort-and-turn-cap-analysis.md`
+
+### 작업 세션 칸 (`session.claude`)
+
+promote 가 작업 탭(herdr·herdr app·Orca)에 띄우는 Claude 작업 세션의 모델과 effort 를 정합니다. 리뷰 턴의 `review` 칸과는 따로 읽습니다.
+
+| 경로 | 의미 | 허용값 | 비어 있을 때 |
+|------|------|--------|-------------|
+| `session.claude.model` | 작업 세션 모델 (`--model`) | 별칭(`opus`·`sonnet`·`haiku`·`fable`), 고정 이름(`claude-…`·`fable-…`), `default` | 옛 키 `model-strategy.json` 의 `session_model`, 그다음 부모 세션(promote 를 부른 세션)의 모델 |
+| `session.claude.effort` | 작업 세션 effort (`--effort`) | effort 값 | 부모 세션의 effort |
+
+칸마다 아래 순서에서 처음 값이 있는 것을 씁니다.
+
+1. 환경 변수 `RD_SESSION_MODEL`·`RD_SESSION_EFFORT`. promote 를 부르는 쪽이 이번 기동에만 줍니다. 대화형 `/fr do` 는 줄기마다 정한 값을 이 변수로 넘깁니다(`claude_skills/fr/do.md` 「1. 고르기와 착수 보고 표」 7단계).
+2. `models.json` 의 `session.claude.<칸>`.
+3. 모델만: 옛 키 `model-strategy.json` 의 `session_model`. 읽을 때마다 `models.json` 으로 옮기라는 안내를 냅니다.
+4. 부모 세션의 값. promote 를 부른 Claude 세션의 transcript 에서 마지막으로 기록된 모델·effort 를 읽습니다.
+5. 아무것도 없으면 넘기지 않습니다(CLI 기본값).
+
+- `default` 는 「CLI 기본값으로 띄움」 입니다. `--model`·`--effort` 를 넘기지 않고, 아래 단계(옛 키·부모 세션)로 내려가지 않습니다.
+- 허용값 밖의 값은 경고하고 그 칸을 CLI 기본값으로 둡니다. 부모 세션으로 내려가지 않습니다.
+- 템플릿은 두 칸을 비워 배포합니다. 비워 두면 작업 세션이 부모 세션을 따라갑니다.
+- `model_select.sh set` 은 이 칸을 바꾸지 않습니다. `models.json` 을 직접 고칩니다.
+- promote 는 기동 전에 `promote: 다음 기동에 사용할 모델 — <값> (출처: <출처>) · effort — <값> (출처: <출처>)` 를 냅니다. 출처는 `RD_SESSION_MODEL`·`RD_SESSION_EFFORT`·`models.json`·`model-strategy.json(옛 키)`·`현재 세션 상속`·`default 지정 — CLI 기본값`·`미지정 — CLI 기본값` 중 하나입니다.
+- Claude CLI 가 `--effort` 를 받지 않으면 effort 를 빼고 띄우며, effort 칸을 `CLI 기본값 (CLI 미지원으로 뺌, <출처>)` 로 보입니다.
+
+### 구현 subagent 칸 (`subagent.claude`)
+
+implement-reviewed-plan·autopilot 이 구현 subagent(구현자·task reviewer)를 띄울 때 Agent 도구에 넘기는 모델과 effort 를 정합니다. 리뷰 턴의 `review` 칸, 작업 세션의 `session` 칸과는 따로 읽습니다.
+
+| 경로 | 의미 | 허용값 | 비어 있을 때 |
+|------|------|--------|-------------|
+| `subagent.claude.model` | Agent 도구 `model` 인자 | 별칭(`opus`·`sonnet`·`haiku`·`fable`), `default` | 옛 키 `model-strategy.json` 의 `subagent`, 그것도 없으면 `sonnet` |
+| `subagent.claude.effort` | Agent 도구 `effort` 인자 | `low`·`medium`·`high`·`xhigh`·`max`, `default` | 넘기지 않음 |
+
+모델 칸은 위에서부터 처음 맞는 것을 씁니다.
+
+1. `models.json` 을 해석할 수 없음(최상위 객체 하나가 아님, `subagent`·`subagent.claude` 가 객체가 아님, jq·python3 모두 없음): 경고하고 `sonnet`. 옛 키로 내려가지 않습니다.
+2. 별칭: 그 값.
+3. `default`: 모델을 넘기지 않습니다(Agent 도구 기본값 — 부모 세션 모델 또는 agent 정의의 모델).
+4. 고정 이름(`claude-…`·`fable-…`): Agent 도구는 별칭만 받으므로 경고하고 `sonnet`.
+5. 그 밖의 값: 허용값을 알리는 경고 뒤 `sonnet`.
+6. 칸이 없거나 `null`: 옛 키 `model-strategy.json` 의 `subagent` 를 읽습니다. 별칭이면 그 값을 쓰고 `models.json` 으로 옮기라고 안내합니다. 별칭이 아니면 경고 뒤 `sonnet`. 옛 키도 없으면 `sonnet` 입니다.
+
+effort 칸은 단계 이름이면 그 값을 넘깁니다(`ultra` 는 경고 뒤 `max`, `lowest`·`highest` 는 `low`·`max`). `default`·칸 없음·`null` 은 넘기지 않습니다. 그 밖의 값이나 파일 해석 실패는 경고하고 넘기지 않습니다.
+
+- 지금 값과 출처는 `bash rd-workflow/scripts/model_select.sh subagent` 로 확인합니다. 출력은 네 줄입니다: `model=<넘길 값>`, `effort=<넘길 값>`, `설정 파일: <models.json 경로>`, `subagent 모델: <값> (<출처>) · effort: <값> (<출처>)`. 넘길 값이 없으면 `=` 뒤가 빕니다. 경고·안내는 stderr 로 나오고 종료 코드는 늘 0 입니다. jq 가 없어도 python3 로 읽습니다.
+- Status 가 `구현 중` 일 때 Agent 호출마다 hook(`subagent_dispatch_display.sh`)이 넘긴 값과 이 설정·출처·경고를 화면에 한 줄로 보입니다. 넘긴 값이 설정과 다르면 「설정과 다름」 을 붙입니다. 호출은 막지 않습니다.
+- 무인 실행(`claude -p`, `/fr do --headless`)에서는 같은 줄이 transcript 에 `hook_system_message` 항목으로 남습니다. 작업 이름과 실행 시각으로 찾는 명령은 `rd-workflow/claude_skills/fr/do.md` 「4. 무인」 7단계에 있습니다.
+- 바꾸려면 `bash rd-workflow/scripts/model_select.sh set subagent.claude.model <값>` 과 `set subagent.claude.effort <값>` 을 쓰거나 `/model-strategy` 를 실행합니다. `null` 은 칸을 비웁니다. `set` 은 고정 모델 이름을 거부하고 jq 가 있어야 쓸 수 있습니다.
+- 이 체크아웃의 `rd-workflow/config/models.json`(`RD_MODELS_CONFIG` 가 있으면 그 파일)만 읽습니다. 같은 체크아웃에서 저장한 값은 커밋하지 않아도 다음 조회부터 적용됩니다. 다른 체크아웃(기본 체크아웃·다른 작업 worktree)에서 커밋하지 않고 바꾼 설정은 이 체크아웃에 닿지 않습니다.
+- 템플릿은 두 칸을 비워 배포합니다. 설정하지 않으면 모델 `sonnet`, effort 미전달로 동작합니다.
+- Agent 도구의 `model`·`effort` 허용값은 2026-11-23, Claude Code 2.1.330 에서 확인했습니다.
 
 ## extensions.json
 
